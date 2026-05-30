@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { AlertTriangle, Clock } from 'lucide-react';
 
 const G = 9.80665; // standard gravity, m/s²
+const AU = 149_597_870_700; // meters per astronomical unit
 
 // ───── helpers ─────────────────────────────────────────────────────────
 
@@ -792,7 +793,7 @@ export default function BurnCalculator() {
 
   // SI conversions
   const NO_WAKE_M = 300_000; // 300 km no-wake zone at destination
-  const distance_m = parseFloat(distance) * (distanceUnit === 'km' ? 1000 : 1);
+  const distance_m = parseFloat(distance) * (distanceUnit === 'au' ? AU : distanceUnit === 'km' ? 1000 : 1);
   const raw_burn_distance_m = distance_m - NO_WAKE_M; // before VCRS correction
   const v0_mps = parseFloat(v0) * (v0Unit === 'km/s' ? 1000 : 1);
   const a_mps2 = parseFloat(accel) * (accelUnit === 'g' ? G : 1);
@@ -911,7 +912,7 @@ export default function BurnCalculator() {
                 value={distance}
                 onChange={setDistance}
                 unit={distanceUnit}
-                units={['km', 'm']}
+                units={['km', 'm', 'au']}
                 onUnitChange={setDistanceUnit}
                 tooltip={{
                   desc: "After selecting your target destination, input the distance to target.",
@@ -1063,7 +1064,7 @@ export default function BurnCalculator() {
                     value={formatTime(Math.floor(plan.t_total) - Math.floor(t_brake_start))}
                     dim flickerKey={flickerKey}
                   />
-                  {vcrs_correction_m >= 10_000 && (
+                  {vcrs_correction_m >= burn_distance_m * 0.001 && (
                     <div className="bc-info" style={{ marginTop: 10 }}>
                       <strong>CROSS-TRACK CORRECTION APPLIED</strong> — burn distance extended by {formatDistance(vcrs_correction_m)} due to VCRS drift over burn duration.
                     </div>

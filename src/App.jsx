@@ -32,34 +32,57 @@ function formatVelocity(mps) {
 
 function parseGameTime(timeStr) {
   if (!timeStr || !timeStr.trim()) return null;
-  const parts = timeStr.trim().split(':').map((p) => p.trim());
+  const str = timeStr.trim();
+  // Try full datetime: YYYY-MM-DD HH:MM:SS
+  const dtMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{1,2}):(\d{2}):(\d{2})$/);
+  if (dtMatch) {
+    const [, y, mo, d, h, mi, s] = dtMatch.map(Number);
+    if (h > 24 || mi > 59 || s > 59) return null;
+    return { date: { y, mo, d }, seconds: h * 3600 + mi * 60 + s };
+  }
+  // Try time-only: HH:MM:SS or HH:MM
+  const parts = str.split(':').map((p) => p.trim());
   if (parts.length < 2 || parts.length > 3) return null;
   const nums = parts.map(Number);
   if (nums.some((n) => !isFinite(n) || n < 0)) return null;
-  const [h, m, s = 0] = nums;
-  if (h > 24 || m > 59 || s > 59) return null;
-  return h * 3600 + m * 60 + s;
+  const [h, mi, s = 0] = nums;
+  if (h > 24 || mi > 59 || s > 59) return null;
+  return { date: null, seconds: h * 3600 + mi * 60 + s };
 }
 
-function addGameTime(baseSeconds, offsetSeconds) {
-  if (baseSeconds == null || !isFinite(offsetSeconds)) return null;
-  const dayLen = 24 * 3600;
-  let total = baseSeconds + offsetSeconds;
-  const days = Math.floor(total / dayLen);
-  total = ((total % dayLen) + dayLen) % dayLen;
+function daysInMonth(mo, y) {
+  return new Date(y, mo, 0).getDate();
+}
+
+function addGameTime(base, offsetSeconds) {
+  if (base == null || !isFinite(offsetSeconds)) return null;
+  const DAY = 25 * 3600; // 25h in-game day including untime
+  let total = base.seconds + Math.floor(offsetSeconds);
+  let datePart = base.date ? { ...base.date } : null;
+  if (datePart) {
+    while (total >= DAY) {
+      total -= DAY;
+      datePart.d += 1;
+      const dim = daysInMonth(datePart.mo, datePart.y);
+      if (datePart.d > dim) { datePart.d = 1; datePart.mo += 1; }
+      if (datePart.mo > 12) { datePart.mo = 1; datePart.y += 1; }
+    }
+  }
   const h = Math.floor(total / 3600);
   const m = Math.floor((total % 3600) / 60);
   const s = Math.floor(total % 60);
-  return {
-    time: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`,
-    days,
-  };
+  const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  const dateStr = datePart
+    ? `${datePart.y}-${String(datePart.mo).padStart(2, '0')}-${String(datePart.d).padStart(2, '0')}`
+    : null;
+  return { dateStr, timeStr, hasDate: !!datePart };
 }
 
 function formatGameTime(parsed) {
   if (!parsed) return null;
-  return parsed.days > 0 ? `${parsed.time} +${parsed.days}d` : parsed.time;
+  return parsed.hasDate ? `${parsed.dateStr} ${parsed.timeStr}` : parsed.timeStr;
 }
+
 
 function computePlan({ distance_m, v0_mps, a_mps2, v_arrival_mps, t_rotate_s }) {
   if (![distance_m, v0_mps, a_mps2, v_arrival_mps, t_rotate_s].every(isFinite)) {
@@ -574,6 +597,15 @@ const stylesheet = `
   text-transform: uppercase;
   margin-bottom: 8px;
 }
+.bc-target-date {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
 .bc-target-time {
   font-family: 'VT323', monospace;
   font-size: 36px;
@@ -835,8 +867,8 @@ export default function BurnCalculator() {
   }, [plan.v_max, plan.t_accel, plan.t_total, plan.error]);
 
   // Game time parsing
-  const gameStartSeconds = parseGameTime(gameStartTime);
-  const gameTimeValid = gameStartSeconds !== null;
+  const parsedGameTime = parseGameTime(gameStartTime);
+  const gameTimeValid = parsedGameTime !== null;
   const gameTimeAttempted = gameStartTime.trim().length > 0;
   const gameTimeError = gameTimeAttempted && !gameTimeValid;
 
@@ -846,11 +878,11 @@ export default function BurnCalculator() {
   const t_brake_start = t_accel + t_rot;
 
   const rotateTarget = gameTimeValid && !plan.error && !plan.overshoot
-    ? addGameTime(gameStartSeconds, t_accel) : null;
+    ? addGameTime(parsedGameTime, t_accel) : null;
   const brakeTarget = gameTimeValid && !plan.error && !plan.overshoot
-    ? addGameTime(gameStartSeconds, t_brake_start) : null;
+    ? addGameTime(parsedGameTime, t_brake_start) : null;
   const arriveTarget = gameTimeValid && !plan.error && !plan.overshoot
-    ? addGameTime(gameStartSeconds, t_total) : null;
+    ? addGameTime(parsedGameTime, t_total) : null;
 
   const accelPct = t_total ? (t_accel / t_total) * 100 : 0;
   const rotPct = t_total ? (t_rot / t_total) * 100 : 0;
@@ -908,7 +940,7 @@ export default function BurnCalculator() {
               <div className="bc-panel-header">◇ Trip Parameters</div>
 
               <InputRow
-                label="Distance"
+                label="Current RNG"
                 value={distance}
                 onChange={setDistance}
                 unit={distanceUnit}
@@ -927,7 +959,7 @@ export default function BurnCalculator() {
                     : 'BURN DISTANCE: —'}
               </div>
               <InputRow
-                label="Current Vel"
+                label="Current VREL"
                 value={v0}
                 onChange={setV0}
                 unit={v0Unit}
@@ -966,7 +998,7 @@ export default function BurnCalculator() {
                 DESIRED SPEED AT TORCH DRIVE CUTOFF
               </div>
               <InputRow
-                label="VCRS"
+                label="Current VCRS"
                 value={vcrs}
                 onChange={setVcrs}
                 unit={vcrsUnit}
@@ -989,18 +1021,18 @@ export default function BurnCalculator() {
                 <input
                   className={`bc-input ${gameTimeError ? 'invalid' : ''}`}
                   type="text"
-                  placeholder="HH:MM:SS (pause game, then type)"
+                  placeholder="YYYY-MM-DD HH:MM:SS or HH:MM:SS"
                   value={gameStartTime}
                   onChange={(e) => setGameStartTime(e.target.value)}
                 />
               </div>
               <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', marginTop: 6, paddingLeft: 118 }}>
                 {gameTimeError ? (
-                  <span style={{ color: 'var(--red)' }}>INVALID FORMAT — USE HH:MM:SS (e.g. 14:32:15)</span>
+                  <span style={{ color: 'var(--red)' }}>INVALID FORMAT — USE YYYY-MM-DD HH:MM:SS OR HH:MM:SS</span>
                 ) : gameTimeValid ? (
                   <span style={{ color: 'var(--green)' }}>● TARGETS COMPUTED FROM GAME CLOCK</span>
                 ) : (
-                  <span>LEAVE BLANK FOR RELATIVE (T+) TIMES</span>
+                  <span>LEAVE BLANK FOR RELATIVE (T+) TIMES — DATE OPTIONAL</span>
                 )}
               </div>
 
@@ -1235,15 +1267,20 @@ function Readout({ label, value, highlight, dim, flickerKey }) {
 function TargetCell({ variant, label, gameTime, relative }) {
   const displayGameTime = formatGameTime(gameTime);
   const hasGameTime = displayGameTime !== null;
-  const isFutureDay = gameTime && gameTime.days > 0;
+  const hasDate = gameTime && gameTime.hasDate;
   return (
     <div className={`bc-target-cell ${variant}`}>
       <div className="bc-target-label">{label}</div>
       {hasGameTime ? (
         <>
-          <div className={`bc-target-time game-time ${isFutureDay ? 'future-day' : ''}`}>
-            {displayGameTime}
-          </div>
+          {hasDate ? (
+            <>
+              <div className="bc-target-date">{gameTime.dateStr}</div>
+              <div className="bc-target-time game-time">{gameTime.timeStr}</div>
+            </>
+          ) : (
+            <div className="bc-target-time game-time">{displayGameTime}</div>
+          )}
           <div className="bc-target-relative">{relative}</div>
         </>
       ) : (

@@ -484,6 +484,17 @@ const stylesheet = `
   letter-spacing: 0.05em;
 }
 
+.bc-advisory {
+  border-left: 3px solid var(--amber);
+  background: rgba(255, 181, 71, 0.06);
+  padding: 12px 16px;
+  margin-bottom: 12px;
+  font-size: 11px;
+  color: var(--amber);
+  letter-spacing: 0.05em;
+  line-height: 1.6;
+}
+
 .bc-timeline-panel { margin-bottom: 16px; }
 
 /* ── per-panel scratch overlays (feature 9) ───────────── */
@@ -840,6 +851,12 @@ export default function BurnCalculator() {
   const v_arrival_mps = parseFloat(vArrival) * (vArrivalUnit === 'km/s' ? 1000 : 1);
   const vcrs_mps = vcrs.trim() !== '' ? parseFloat(vcrs) * (vcrsUnit === 'km/s' ? 1000 : 1) : 0;
 
+  // VCRS advisory threshold
+  const vcrsRatioPct = (isFinite(vcrs_mps) && vcrs_mps > 0 && isFinite(v0_mps) && v0_mps > 0)
+    ? (vcrs_mps / v0_mps) * 100
+    : 0;
+  const highVcrsWarning = vcrsRatioPct > 10;
+
   // Surface a clean error if the destination is within the no-wake zone
   const noWakeError = isFinite(distance_m) && distance_m <= NO_WAKE_M;
 
@@ -1081,6 +1098,12 @@ export default function BurnCalculator() {
               {plan.flip_now && !plan.error && !plan.overshoot && (
                 <div className="bc-info">
                   <strong>ROTATE NOW</strong> — at or past geometric flip point. Begin rotation immediately.
+                </div>
+              )}
+
+              {highVcrsWarning && !plan.error && !plan.overshoot && (
+                <div className="bc-advisory">
+                  <strong>HIGH VCRS DETECTED</strong> — Cross-track velocity is {vcrsRatioPct.toFixed(1)}% of closing velocity. RCS correction will not be sufficient at this magnitude. Recommend nulling VCRS with torch drive before starting burn, then re-enter updated values.
                 </div>
               )}
 

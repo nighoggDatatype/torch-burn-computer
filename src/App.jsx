@@ -1238,9 +1238,10 @@ function InputRow({ label, value, onChange, unit, units, onUnitChange, tooltip }
       </div>
       <input
         className="bc-input"
-        type="number"
-        step="any"
+        type="text"
+        inputMode="decimal"
         value={value}
+        placeholder={placeholder || ''}
         onChange={(e) => onChange(e.target.value)}
       />
       <div className="bc-unit-toggle">

@@ -369,6 +369,13 @@ const stylesheet = `
   text-shadow: 0 0 6px rgba(255, 181, 71, 0.4);
 }
 .bc-input:focus { border-color: var(--amber-dim); box-shadow: inset 0 2px 5px rgba(0,0,0,0.6), inset 0 0 12px rgba(0,0,0,0.3), 0 0 0 1px var(--amber-deep); }
+.bc-input::placeholder {
+  color: var(--text-dim);
+  font-size: 13px;
+  font-family: 'IBM Plex Mono', monospace;
+  letter-spacing: 0.04em;
+  opacity: 1;
+}
 .bc-input.invalid { border-color: var(--red); color: var(--red); text-shadow: 0 0 6px rgba(255, 93, 93, 0.4); }
 
 .bc-unit-toggle {
@@ -805,13 +812,13 @@ export default function BurnCalculator() {
     return () => timers.forEach(clearTimeout);
   }, []);
 
-  const [distance, setDistance] = useState('18899');
+  const [distance, setDistance] = useState('');
   const [distanceUnit, setDistanceUnit] = useState('km');
-  const [v0, setV0] = useState('500');
+  const [v0, setV0] = useState('');
   const [v0Unit, setV0Unit] = useState('m/s');
-  const [accel, setAccel] = useState('1.95');
+  const [accel, setAccel] = useState('');
   const [accelUnit, setAccelUnit] = useState('g');
-  const [flipTime, setFlipTime] = useState('30');
+  const [flipTime, setFlipTime] = useState('');
   const [vArrival, setVArrival] = useState('0');
   const [vArrivalUnit, setVArrivalUnit] = useState('m/s');
   const [vcrs, setVcrs] = useState('');
@@ -946,6 +953,7 @@ export default function BurnCalculator() {
                 unit={distanceUnit}
                 units={['km', 'm', 'au']}
                 onUnitChange={setDistanceUnit}
+                placeholder="Insert current range to destination"
                 tooltip={{
                   desc: "After selecting your target destination, input the distance to target.",
                   img: TOOLTIP_IMG_VCRS,
@@ -965,6 +973,7 @@ export default function BurnCalculator() {
                 unit={v0Unit}
                 units={['m/s', 'km/s']}
                 onUnitChange={setV0Unit}
+                placeholder="Insert current relative velocity to destination"
                 tooltip={{
                   desc: "Input your vessel's current velocity while at a bearing of 0.00 degrees to the destination.",
                   img: TOOLTIP_IMG_CURRENTVEL,
@@ -977,6 +986,7 @@ export default function BurnCalculator() {
                 unit={accelUnit}
                 units={['g', 'm/s²']}
                 onUnitChange={setAccelUnit}
+                placeholder="Insert planned acceleration speed"
               />
               <InputRow
                 label="Flip Time"
@@ -985,6 +995,7 @@ export default function BurnCalculator() {
                 unit="sec"
                 units={['sec']}
                 onUnitChange={() => {}}
+                placeholder="Insert ship flip time"
               />
               <InputRow
                 label="Vel at 300km"
@@ -1004,6 +1015,7 @@ export default function BurnCalculator() {
                 unit={vcrsUnit}
                 units={['m/s', 'km/s']}
                 onUnitChange={setVcrsUnit}
+                placeholder="Insert current cross-track velocity to destination"
                 tooltip={{
                   desc: "Input your VCRS to the target destination. NOTE: During the braking phase, a VCRS correction will likely be required.",
                   img: TOOLTIP_IMG_DISTANCE,

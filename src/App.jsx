@@ -819,7 +819,7 @@ export default function BurnCalculator() {
   const [accel, setAccel] = useState('');
   const [accelUnit, setAccelUnit] = useState('g');
   const [flipTime, setFlipTime] = useState('');
-  const [vArrival, setVArrival] = useState('0');
+  const [vArrival, setVArrival] = useState('');
   const [vArrivalUnit, setVArrivalUnit] = useState('m/s');
   const [vcrs, setVcrs] = useState('');
   const [vcrsUnit, setVcrsUnit] = useState('m/s');
@@ -953,7 +953,7 @@ export default function BurnCalculator() {
                 unit={distanceUnit}
                 units={['km', 'm', 'au']}
                 onUnitChange={setDistanceUnit}
-                placeholder="Insert current range to destination"
+                placeholder="e.g. 18902"
                 tooltip={{
                   desc: "After selecting your target destination, input the distance to target.",
                   img: TOOLTIP_IMG_VCRS,
@@ -973,7 +973,7 @@ export default function BurnCalculator() {
                 unit={v0Unit}
                 units={['m/s', 'km/s']}
                 onUnitChange={setV0Unit}
-                placeholder="Insert current relative velocity to destination"
+                placeholder="e.g. 511.19"
                 tooltip={{
                   desc: "Input your vessel's current velocity while at a bearing of 0.00 degrees to the destination.",
                   img: TOOLTIP_IMG_CURRENTVEL,
@@ -986,7 +986,7 @@ export default function BurnCalculator() {
                 unit={accelUnit}
                 units={['g', 'm/s²']}
                 onUnitChange={setAccelUnit}
-                placeholder="Insert planned acceleration speed"
+                placeholder="e.g. 1.95"
               />
               <InputRow
                 label="Flip Time"
@@ -995,7 +995,7 @@ export default function BurnCalculator() {
                 unit="sec"
                 units={['sec']}
                 onUnitChange={() => {}}
-                placeholder="Insert ship flip time"
+                placeholder="e.g. 30"
               />
               <InputRow
                 label="Vel at 300km"
@@ -1004,6 +1004,7 @@ export default function BurnCalculator() {
                 unit={vArrivalUnit}
                 units={['m/s', 'km/s']}
                 onUnitChange={setVArrivalUnit}
+                placeholder="e.g. 0"
               />
               <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: 4, paddingLeft: 118 }}>
                 DESIRED SPEED AT TORCH DRIVE CUTOFF
@@ -1015,7 +1016,7 @@ export default function BurnCalculator() {
                 unit={vcrsUnit}
                 units={['m/s', 'km/s']}
                 onUnitChange={setVcrsUnit}
-                placeholder="Insert current cross-track velocity to destination"
+                placeholder="e.g. -0.02"
                 tooltip={{
                   desc: "Input your VCRS to the target destination. NOTE: During the braking phase, a VCRS correction will likely be required.",
                   img: TOOLTIP_IMG_DISTANCE,
@@ -1191,7 +1192,7 @@ export default function BurnCalculator() {
 
 // ───── subcomponents ───────────────────────────────────────────────────
 
-function InputRow({ label, value, onChange, unit, units, onUnitChange, tooltip }) {
+function InputRow({ label, value, onChange, unit, units, onUnitChange, tooltip, placeholder }) {
   const [showTip, setShowTip] = React.useState(false);
   const [tipPos, setTipPos] = React.useState({ top: 0, left: 0 });
   const badgeRef = React.useRef(null);

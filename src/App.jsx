@@ -870,8 +870,8 @@ export default function BurnCalculator() {
 
   // Compute cross-track drift over the burn duration, correct the true distance
   const t_total_approx = plan1.t_total || 0;
-  const cross_drift_m = vcrs_mps * t_total_approx;
-  const burn_distance_m = (vcrs_mps > 0 && t_total_approx > 0)
+  const cross_drift_m = Math.abs(vcrs_mps) * t_total_approx;
+  const burn_distance_m = (vcrs_mps !== 0 && t_total_approx > 0)
     ? Math.sqrt(raw_burn_distance_m ** 2 + cross_drift_m ** 2)
     : raw_burn_distance_m;
   const vcrs_correction_m = burn_distance_m - raw_burn_distance_m;
@@ -879,7 +879,7 @@ export default function BurnCalculator() {
   // Pass 2 — recompute with corrected distance
   const plan = noWakeError
     ? { error: 'DISTANCE WITHIN NO-WAKE ZONE' }
-    : (vcrs_mps > 0 && t_total_approx > 0)
+    : (vcrs_mps !== 0 && t_total_approx > 0)
       ? computePlan({ distance_m: burn_distance_m, v0_mps, a_mps2, v_arrival_mps, t_rotate_s })
       : plan1;
 
@@ -930,10 +930,23 @@ export default function BurnCalculator() {
   const isDriftMode = activePlan === driftPlan;
 
   // VCRS advisory threshold
-  const vcrsRatioPct = (isFinite(vcrs_mps) && vcrs_mps > 0 && isFinite(v0_mps) && v0_mps > 0)
-    ? (vcrs_mps / v0_mps) * 100
+  const vcrsRatioPct = (isFinite(vcrs_mps) && vcrs_mps !== 0 && isFinite(v0_mps) && v0_mps > 0)
+    ? (Math.abs(vcrs_mps) / v0_mps) * 100
     : 0;
   const highVcrsWarning = vcrsRatioPct > 10;
+
+  // Manual null heading + null time for high VCRS warning
+  const vcrsNullTime = (highVcrsWarning && isFinite(vcrs_mps) && isFinite(a_mps2) && a_mps2 > 0)
+    ? Math.abs(vcrs_mps) / a_mps2
+    : null;
+
+  const manualNullBearing = (highVcrsWarning && isFinite(vcrs_mps))
+    ? (vcrs_mps >= 0 ? '90.00°' : '270.00°')
+    : null;
+
+  // finalPlan is activePlan (drift mode if budget set, otherwise standard)
+  const finalPlan = activePlan;
+
 
   // Flicker effect: trigger when plan output changes
   useEffect(() => {
@@ -950,14 +963,19 @@ export default function BurnCalculator() {
   const gameTimeAttempted = gameStartTime.trim().length > 0;
   const gameTimeError = gameTimeAttempted && !gameTimeValid;
 
-  const t_accel = activePlan.t_accel || 0;
-  const t_rot = activePlan.t_rotate || 0;
-  const t_drift = activePlan.t_drift || 0;
-  const t_total = activePlan.t_total || 0;
-  const t_flip_end = t_accel + t_rot;           // end of flip = begin drift (drift mode) or begin brake (standard)
+  // Game clock time at end of VCRS null burn (needs gameTimeValid/parsedGameTime)
+  const vcrsNullTarget = (vcrsNullTime !== null && gameTimeValid)
+    ? addGameTime(parsedGameTime, vcrsNullTime)
+    : null;
+
+  const t_accel = finalPlan.t_accel || 0;
+  const t_rot = finalPlan.t_rotate || 0;
+  const t_drift = finalPlan.t_drift || 0;
+  const t_total = finalPlan.t_total || 0;
+  const t_flip_end = t_accel + t_rot;
   const t_brake_start = isDriftMode ? t_flip_end + t_drift : t_flip_end;
 
-  const planOk = !activePlan.error && !activePlan.overshoot && !plan.error && !plan.overshoot;
+  const planOk = !finalPlan.error && !finalPlan.overshoot && !plan.error && !plan.overshoot;
   const rotateTarget   = gameTimeValid && planOk ? addGameTime(parsedGameTime, t_accel) : null;
   const driftEndTarget = gameTimeValid && planOk && isDriftMode ? addGameTime(parsedGameTime, t_brake_start) : null;
   const brakeTarget    = gameTimeValid && planOk ? addGameTime(parsedGameTime, t_brake_start) : null;
@@ -966,7 +984,7 @@ export default function BurnCalculator() {
   const accelPct  = t_total ? (t_accel / t_total) * 100 : 0;
   const rotPct    = t_total ? (t_rot / t_total) * 100 : 0;
   const driftPct  = t_total && isDriftMode ? (t_drift / t_total) * 100 : 0;
-  const brakePct  = t_total ? ((activePlan.t_brake || 0) / t_total) * 100 : 0;
+  const brakePct  = t_total ? ((finalPlan.t_brake || 0) / t_total) * 100 : 0;
 
   const planValid = !plan.error && !plan.overshoot && t_total > 0;
   const statusText = (driftPlan && driftPlan.error) ? 'INVALID'
@@ -1180,14 +1198,42 @@ export default function BurnCalculator() {
               )}
 
               {highVcrsWarning && !plan.error && !plan.overshoot && (
-                <div className="bc-advisory">
-                  <strong>HIGH VCRS DETECTED</strong> — Cross-track velocity is {vcrsRatioPct.toFixed(1)}% of closing velocity. RCS correction will not be sufficient at this magnitude. Recommend nulling VCRS with torch drive before starting burn, then re-enter updated values.
-                </div>
+                <>
+                  <div className="bc-advisory">
+                    <strong>HIGH VCRS DETECTED</strong> — Cross-track velocity is {vcrsRatioPct.toFixed(1)}% of closing velocity. RCS correction will not be sufficient at this magnitude.
+                  </div>
+                  {manualNullBearing && (
+                    <Readout
+                      label="Manual Null Heading"
+                      value={manualNullBearing}
+                      highlight
+                      flickerKey={flickerKey}
+                    />
+                  )}
+                  {vcrsNullTime !== null && (
+                    <>
+                      <Readout
+                        label="VCRS Null Until"
+                        value={vcrsNullTarget ? formatGameTime(vcrsNullTarget) : formatTime(Math.floor(vcrsNullTime))}
+                        highlight
+                        flickerKey={flickerKey}
+                      />
+                      {vcrsNullTarget && (
+                        <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', textAlign: 'right', marginBottom: 4 }}>
+                          DURATION: {formatTime(Math.floor(vcrsNullTime))}
+                        </div>
+                      )}
+                      <div style={{ fontSize: 11, color: 'var(--amber)', letterSpacing: '0.1em', marginBottom: 8, marginTop: 6, textAlign: 'right', lineHeight: 1.6 }}>
+                        BURN AT {manualNullBearing} FOR THIS DURATION — THEN RE-ENTER VALUES FOR A FRESH BURN PLAN
+                      </div>
+                    </>
+                  )}
+                </>
               )}
 
               {!plan.error && !plan.overshoot && (
                 <>
-                  <Readout label="Peak Velocity" value={formatVelocity(activePlan.v_max)} highlight flickerKey={flickerKey} />
+                  <Readout label="Peak Velocity" value={formatVelocity(finalPlan.v_max)} highlight flickerKey={flickerKey} />
                   <Readout
                     label={isDriftMode ? 'End Accel / Begin Flip' : 'Begin Rotate'}
                     value={gameTimeValid ? formatGameTime(rotateTarget) : `T+${formatTime(t_accel)}`}
@@ -1210,10 +1256,10 @@ export default function BurnCalculator() {
                     value={gameTimeValid ? formatGameTime(arriveTarget) : `T+${formatTime(t_total)}`}
                     highlight flickerKey={flickerKey}
                   />
-                  <Readout label="Dist at End Accel" value={formatDistance(activePlan.d_accel)} dim flickerKey={flickerKey} />
+                  <Readout label="Dist at End Accel" value={formatDistance(finalPlan.d_accel)} dim flickerKey={flickerKey} />
                   {isDriftMode
-                    ? <Readout label="Drift Distance" value={formatDistance(activePlan.d_drift)} dim flickerKey={flickerKey} />
-                    : <Readout label="Dist During Rotate" value={formatDistance(plan.d_coast)} dim flickerKey={flickerKey} />
+                    ? <Readout label="Drift Distance" value={formatDistance(finalPlan.d_drift)} dim flickerKey={flickerKey} />
+                    : <Readout label="Dist During Rotate" value={formatDistance(finalPlan.d_coast)} dim flickerKey={flickerKey} />
                   }
                   <Readout
                     label="Brake Duration"
@@ -1221,7 +1267,7 @@ export default function BurnCalculator() {
                     dim flickerKey={flickerKey}
                   />
                   {isDriftMode && (
-                    <Readout label="Drift Duration" value={formatTime(Math.floor(activePlan.t_drift))} dim flickerKey={flickerKey} />
+                    <Readout label="Drift Duration" value={formatTime(Math.floor(finalPlan.t_drift || 0))} dim flickerKey={flickerKey} />
                   )}
                   {vcrs_correction_m >= burn_distance_m * 0.001 && (
                     <div className="bc-info" style={{ marginTop: 10 }}>

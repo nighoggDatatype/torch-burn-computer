@@ -565,6 +565,12 @@ const stylesheet = `
   background: linear-gradient(90deg, rgba(255, 93, 93, 0.25), rgba(255, 93, 93, 0.1));
   color: var(--red);
 }
+.bc-timeline-phase.drift {
+  background: linear-gradient(90deg, rgba(138, 153, 173, 0.12), rgba(138, 153, 173, 0.08));
+  color: var(--text-dim);
+  border-left: 1px dashed var(--text-dim);
+  border-right: 1px dashed var(--text-dim);
+}
 .bc-timeline-tick {
   position: absolute;
   top: 100%;
@@ -830,6 +836,8 @@ export default function BurnCalculator() {
   const [accel, setAccel] = useState('');
   const [accelUnit, setAccelUnit] = useState('g');
   const [flipTime, setFlipTime] = useState('');
+  const [reactantBudget, setReactantBudget] = useState('');
+  const [reactantBudgetUnit, setReactantBudgetUnit] = useState('hr');
   const [vArrival, setVArrival] = useState('');
   const [vArrivalUnit, setVArrivalUnit] = useState('m/s');
   const [vcrs, setVcrs] = useState('');
@@ -850,12 +858,6 @@ export default function BurnCalculator() {
   const t_rotate_s = parseFloat(flipTime);
   const v_arrival_mps = parseFloat(vArrival) * (vArrivalUnit === 'km/s' ? 1000 : 1);
   const vcrs_mps = vcrs.trim() !== '' ? parseFloat(vcrs) * (vcrsUnit === 'km/s' ? 1000 : 1) : 0;
-
-  // VCRS advisory threshold
-  const vcrsRatioPct = (isFinite(vcrs_mps) && vcrs_mps > 0 && isFinite(v0_mps) && v0_mps > 0)
-    ? (vcrs_mps / v0_mps) * 100
-    : 0;
-  const highVcrsWarning = vcrsRatioPct > 10;
 
   // Surface a clean error if the destination is within the no-wake zone
   const noWakeError = isFinite(distance_m) && distance_m <= NO_WAKE_M;
@@ -881,6 +883,58 @@ export default function BurnCalculator() {
       ? computePlan({ distance_m: burn_distance_m, v0_mps, a_mps2, v_arrival_mps, t_rotate_s })
       : plan1;
 
+  // Reactant budget conversion
+  const budget_raw = parseFloat(reactantBudget);
+  const budget_s = isFinite(budget_raw) && budget_raw > 0
+    ? budget_raw * (reactantBudgetUnit === 'hr' ? 3600 : 60)
+    : null;
+
+  // Drift-phase plan (only when budget provided and valid plan exists)
+  let driftPlan = null;
+  if (budget_s !== null && !plan.error && !plan.overshoot && isFinite(a_mps2) && a_mps2 > 0) {
+    const v_max_drift = (a_mps2 * budget_s + v0_mps + v_arrival_mps) / 2;
+    const standard_v_max = plan.v_max || 0;
+    if (v_max_drift >= standard_v_max) {
+      driftPlan = { budgetExceedsRequirement: true };
+    } else if (v_max_drift <= v0_mps || v_max_drift <= v_arrival_mps) {
+      driftPlan = { error: 'BUDGET INSUFFICIENT — CANNOT BRAKE TO TARGET VELOCITY' };
+    } else {
+      const t_accel_d = (v_max_drift - v0_mps) / a_mps2;
+      const t_brake_d = (v_max_drift - v_arrival_mps) / a_mps2;
+      const d_accel_d = (v_max_drift * v_max_drift - v0_mps * v0_mps) / (2 * a_mps2);
+      const d_brake_d = (v_max_drift * v_max_drift - v_arrival_mps * v_arrival_mps) / (2 * a_mps2);
+      const d_drift_d = burn_distance_m - d_accel_d - d_brake_d;
+      if (d_drift_d < 0) {
+        driftPlan = { budgetExceedsRequirement: true };
+      } else {
+        const t_drift_d = d_drift_d / v_max_drift;
+        const t_total_d = t_accel_d + t_rotate_s + t_drift_d + t_brake_d;
+        driftPlan = {
+          v_max: v_max_drift,
+          t_accel: t_accel_d,
+          t_rotate: t_rotate_s,
+          t_drift: t_drift_d,
+          t_brake: t_brake_d,
+          t_total: t_total_d,
+          d_accel: d_accel_d,
+          d_drift: d_drift_d,
+          d_brake: d_brake_d,
+        };
+      }
+    }
+  }
+
+  // Active plan — use driftPlan if valid, otherwise standard plan
+  const activePlan = (driftPlan && !driftPlan.error && !driftPlan.budgetExceedsRequirement)
+    ? driftPlan : plan;
+  const isDriftMode = activePlan === driftPlan;
+
+  // VCRS advisory threshold
+  const vcrsRatioPct = (isFinite(vcrs_mps) && vcrs_mps > 0 && isFinite(v0_mps) && v0_mps > 0)
+    ? (vcrs_mps / v0_mps) * 100
+    : 0;
+  const highVcrsWarning = vcrsRatioPct > 10;
+
   // Flicker effect: trigger when plan output changes
   useEffect(() => {
     const key = JSON.stringify({ v_max: plan.v_max, t_accel: plan.t_accel, t_total: plan.t_total, error: plan.error });
@@ -896,24 +950,29 @@ export default function BurnCalculator() {
   const gameTimeAttempted = gameStartTime.trim().length > 0;
   const gameTimeError = gameTimeAttempted && !gameTimeValid;
 
-  const t_accel = plan.t_accel || 0;
-  const t_rot = plan.t_rotate || 0;
-  const t_total = plan.t_total || 0;
-  const t_brake_start = t_accel + t_rot;
+  const t_accel = activePlan.t_accel || 0;
+  const t_rot = activePlan.t_rotate || 0;
+  const t_drift = activePlan.t_drift || 0;
+  const t_total = activePlan.t_total || 0;
+  const t_flip_end = t_accel + t_rot;           // end of flip = begin drift (drift mode) or begin brake (standard)
+  const t_brake_start = isDriftMode ? t_flip_end + t_drift : t_flip_end;
 
-  const rotateTarget = gameTimeValid && !plan.error && !plan.overshoot
-    ? addGameTime(parsedGameTime, t_accel) : null;
-  const brakeTarget = gameTimeValid && !plan.error && !plan.overshoot
-    ? addGameTime(parsedGameTime, t_brake_start) : null;
-  const arriveTarget = gameTimeValid && !plan.error && !plan.overshoot
-    ? addGameTime(parsedGameTime, t_total) : null;
+  const planOk = !activePlan.error && !activePlan.overshoot && !plan.error && !plan.overshoot;
+  const rotateTarget   = gameTimeValid && planOk ? addGameTime(parsedGameTime, t_accel) : null;
+  const driftEndTarget = gameTimeValid && planOk && isDriftMode ? addGameTime(parsedGameTime, t_brake_start) : null;
+  const brakeTarget    = gameTimeValid && planOk ? addGameTime(parsedGameTime, t_brake_start) : null;
+  const arriveTarget   = gameTimeValid && planOk ? addGameTime(parsedGameTime, t_total) : null;
 
-  const accelPct = t_total ? (t_accel / t_total) * 100 : 0;
-  const rotPct = t_total ? (t_rot / t_total) * 100 : 0;
-  const brakePct = t_total ? (plan.t_brake / t_total) * 100 : 0;
+  const accelPct  = t_total ? (t_accel / t_total) * 100 : 0;
+  const rotPct    = t_total ? (t_rot / t_total) * 100 : 0;
+  const driftPct  = t_total && isDriftMode ? (t_drift / t_total) * 100 : 0;
+  const brakePct  = t_total ? ((activePlan.t_brake || 0) / t_total) * 100 : 0;
 
   const planValid = !plan.error && !plan.overshoot && t_total > 0;
-  const statusText = plan.error ? 'INVALID' : plan.overshoot ? 'OVERSHOOT' : planValid ? 'READY' : 'STANDBY';
+  const statusText = (driftPlan && driftPlan.error) ? 'INVALID'
+    : plan.error ? 'INVALID'
+    : plan.overshoot ? 'OVERSHOOT'
+    : planValid ? 'READY' : 'STANDBY';
 
   return (
     <>
@@ -1014,6 +1073,25 @@ export default function BurnCalculator() {
                 onUnitChange={() => {}}
                 placeholder="e.g. 30"
               />
+              <div className="bc-panel-header" style={{ marginTop: 20 }}>◇ Reactant Budget</div>
+              <InputRow
+                label="Budget"
+                value={reactantBudget}
+                onChange={setReactantBudget}
+                unit={reactantBudgetUnit}
+                units={['hr', 'min']}
+                onUnitChange={setReactantBudgetUnit}
+                placeholder="optional — enables drift mode"
+              />
+              <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: 4, paddingLeft: 118 }}>
+                {isDriftMode
+                  ? <span style={{ color: 'var(--amber)' }}>◈ DRIFT MODE ACTIVE</span>
+                  : driftPlan && driftPlan.budgetExceedsRequirement
+                    ? <span style={{ color: 'var(--green)' }}>● BUDGET EXCEEDS REQUIREMENT — STANDARD BURN USED</span>
+                    : driftPlan && driftPlan.error
+                      ? <span style={{ color: 'var(--red)' }}>{driftPlan.error}</span>
+                      : <span>LEAVE BLANK FOR STANDARD FLIP-AND-BURN</span>}
+              </div>
               <InputRow
                 label="Vel at 300km"
                 value={vArrival}
@@ -1109,29 +1187,42 @@ export default function BurnCalculator() {
 
               {!plan.error && !plan.overshoot && (
                 <>
-                  <Readout label="Peak Velocity" value={formatVelocity(plan.v_max)} highlight flickerKey={flickerKey} />
+                  <Readout label="Peak Velocity" value={formatVelocity(activePlan.v_max)} highlight flickerKey={flickerKey} />
                   <Readout
-                    label="Begin Rotate"
-                    value={gameTimeValid ? formatGameTime(rotateTarget) : `T+${formatTime(plan.t_accel)}`}
+                    label={isDriftMode ? 'End Accel / Begin Flip' : 'Begin Rotate'}
+                    value={gameTimeValid ? formatGameTime(rotateTarget) : `T+${formatTime(t_accel)}`}
                     highlight flickerKey={flickerKey}
                   />
+                  {isDriftMode && (
+                    <Readout
+                      label="End Drift / Begin Brake"
+                      value={gameTimeValid ? formatGameTime(driftEndTarget) : `T+${formatTime(t_brake_start)}`}
+                      highlight flickerKey={flickerKey}
+                    />
+                  )}
                   <Readout
-                    label="Begin Brake"
+                    label={isDriftMode ? 'Begin Brake' : 'Begin Brake'}
                     value={gameTimeValid ? formatGameTime(brakeTarget) : `T+${formatTime(t_brake_start)}`}
                     highlight flickerKey={flickerKey}
                   />
                   <Readout
                     label="Arrival"
-                    value={gameTimeValid ? formatGameTime(arriveTarget) : `T+${formatTime(plan.t_total)}`}
+                    value={gameTimeValid ? formatGameTime(arriveTarget) : `T+${formatTime(t_total)}`}
                     highlight flickerKey={flickerKey}
                   />
-                  <Readout label="Dist at Rotate" value={formatDistance(plan.d_accel)} dim flickerKey={flickerKey} />
-                  <Readout label="Dist During Rotate" value={formatDistance(plan.d_coast)} dim flickerKey={flickerKey} />
+                  <Readout label="Dist at End Accel" value={formatDistance(activePlan.d_accel)} dim flickerKey={flickerKey} />
+                  {isDriftMode
+                    ? <Readout label="Drift Distance" value={formatDistance(activePlan.d_drift)} dim flickerKey={flickerKey} />
+                    : <Readout label="Dist During Rotate" value={formatDistance(plan.d_coast)} dim flickerKey={flickerKey} />
+                  }
                   <Readout
                     label="Brake Duration"
-                    value={formatTime(Math.floor(plan.t_total) - Math.floor(t_brake_start))}
+                    value={formatTime(Math.floor(t_total) - Math.floor(t_brake_start))}
                     dim flickerKey={flickerKey}
                   />
+                  {isDriftMode && (
+                    <Readout label="Drift Duration" value={formatTime(Math.floor(activePlan.t_drift))} dim flickerKey={flickerKey} />
+                  )}
                   {vcrs_correction_m >= burn_distance_m * 0.001 && (
                     <div className="bc-info" style={{ marginTop: 10 }}>
                       <strong>CROSS-TRACK CORRECTION APPLIED</strong> — burn distance extended by {formatDistance(vcrs_correction_m)} due to VCRS drift over burn duration.
@@ -1158,18 +1249,26 @@ export default function BurnCalculator() {
                     {rotPct > 6 ? 'ROT' : ''}
                   </div>
                 )}
-                <div className="bc-timeline-phase brake" style={{ left: `${accelPct + rotPct}%`, width: `${brakePct}%` }}>
+                {isDriftMode && driftPct > 0 && (
+                  <div className="bc-timeline-phase drift" style={{ left: `${accelPct + rotPct}%`, width: `${driftPct}%` }}>
+                    {driftPct > 8 ? 'DRIFT' : ''}
+                  </div>
+                )}
+                <div className="bc-timeline-phase brake" style={{ left: `${accelPct + rotPct + driftPct}%`, width: `${brakePct}%` }}>
                   {brakePct > 8 ? 'BRAKE' : ''}
                 </div>
 
                 <div className="bc-timeline-tick" style={{ left: 0 }}>T+0</div>
                 {t_accel > 0 && rotPct >= 10 && (
-                  <div className="bc-timeline-tick key" style={{ left: `${accelPct}%` }}>↺ ROTATE</div>
+                  <div className="bc-timeline-tick key" style={{ left: `${accelPct}%` }}>↺ FLIP</div>
                 )}
-                {t_accel > 0 && rotPct >= 10 && (
+                {isDriftMode && driftPct >= 5 && (
+                  <div className="bc-timeline-tick key" style={{ left: `${accelPct + rotPct + driftPct}%` }}>⬛ BRAKE</div>
+                )}
+                {!isDriftMode && t_accel > 0 && rotPct >= 10 && (
                   <div className="bc-timeline-tick key" style={{ left: `${accelPct + rotPct}%` }}>⬛ BRAKE</div>
                 )}
-                {t_accel > 0 && rotPct < 10 && (
+                {!isDriftMode && t_accel > 0 && rotPct < 10 && (
                   <div className="bc-timeline-tick key" style={{ left: `${accelPct + rotPct / 2}%` }}>↺→⬛ FLIP</div>
                 )}
                 {t_accel === 0 && (
@@ -1181,21 +1280,21 @@ export default function BurnCalculator() {
               <div className="bc-targets-grid">
                 <TargetCell
                   variant="rotate"
-                  label="↺ Begin Rotate"
+                  label={isDriftMode ? '↺ End Accel / Flip' : '↺ Begin Rotate'}
                   gameTime={rotateTarget}
-                  relative={`T+${formatTime(plan.t_accel)}`}
+                  relative={`T+${formatTime(t_accel)}`}
                 />
                 <TargetCell
                   variant="brake"
-                  label="⬛ Begin Brake"
-                  gameTime={brakeTarget}
+                  label={isDriftMode ? '⬛ End Drift / Brake' : '⬛ Begin Brake'}
+                  gameTime={isDriftMode ? driftEndTarget : brakeTarget}
                   relative={`T+${formatTime(t_brake_start)}`}
                 />
                 <TargetCell
                   variant="arrive"
                   label="◉ Arrival"
                   gameTime={arriveTarget}
-                  relative={`T+${formatTime(plan.t_total)}`}
+                  relative={`T+${formatTime(t_total)}`}
                 />
               </div>
 

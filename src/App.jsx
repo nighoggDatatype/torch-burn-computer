@@ -139,6 +139,50 @@ function computePlan({ distance_m, v0_mps, a_mps2, v_arrival_mps, t_rotate_s }) 
   };
 }
 
+function computeFinalApproach({ distance_m, v0_mps, a_mps2, v_arrival_mps }) {
+  if (![distance_m, v0_mps, a_mps2, v_arrival_mps].every(isFinite)) {
+    return { error: 'MISSING OR INVALID INPUT', detail: 'One or more fields are empty or non-numeric.' };
+  }
+  if (a_mps2 <= 0) return { error: 'ACCELERATION MUST BE POSITIVE', detail: 'Enter a thrust value greater than zero.' };
+  if (v0_mps <= 0) return { error: 'CLOSING VELOCITY MUST BE POSITIVE', detail: 'Enter a positive closing speed.' };
+  if (distance_m <= 0) return { error: 'RANGE IS ZERO OR NEGATIVE', detail: 'Increase the distance to target.' };
+  if (v_arrival_mps < 0) return { error: 'CUTOFF VELOCITY CANNOT BE NEGATIVE', detail: 'Enter the desired speed at torch cutoff.' };
+  if (v_arrival_mps >= v0_mps) return { error: 'CUTOFF VELOCITY MUST BE LESS THAN CURRENT VREL', detail: 'You must be braking toward a lower speed.' };
+
+  // Distance needed to brake from v0 to v_arrival at max G
+  const d_brake_max = (v0_mps * v0_mps - v_arrival_mps * v_arrival_mps) / (2 * a_mps2);
+  const t_brake_max = (v0_mps - v_arrival_mps) / a_mps2;
+
+  // Required deceleration to stop in the available distance
+  const required_a = (v0_mps * v0_mps - v_arrival_mps * v_arrival_mps) / (2 * distance_m);
+
+  if (d_brake_max > distance_m + 1e-6) {
+    // Can't stop in time even at max G
+    return {
+      overshoot: true,
+      d_brake_needed: d_brake_max,
+      shortfall: d_brake_max - distance_m,
+      required_a,
+      t_brake_if_max: t_brake_max,
+    };
+  }
+
+  // Time to brake to arrival speed at max G
+  const t_brake = t_brake_max;
+  // Distance coasting (not yet braking) — player needs to wait this long before lighting torch
+  const d_coast = distance_m - d_brake_max;
+  const t_coast = d_coast / v0_mps; // time drifting at current speed before brake point
+
+  return {
+    t_brake,
+    t_coast,
+    d_brake: d_brake_max,
+    d_coast,
+    required_a,
+    t_total: t_coast + t_brake,
+  };
+}
+
 // ───── styles ──────────────────────────────────────────────────────────
 
 const stylesheet = `
@@ -482,6 +526,69 @@ const stylesheet = `
   font-size: 11px;
   color: var(--cyan);
   letter-spacing: 0.05em;
+}
+
+.bc-mode-toggle {
+  display: flex;
+  gap: 0;
+  margin-bottom: 18px;
+  border: 1px solid var(--border-strong);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.bc-mode-btn {
+  flex: 1;
+  background: #1e262f;
+  border: none;
+  border-right: 1px solid var(--border-strong);
+  color: var(--text-dim);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 8px 12px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  transition: all 0.1s;
+}
+.bc-mode-btn:last-child { border-right: none; }
+.bc-mode-btn:hover { color: var(--text-secondary); background: #252f39; }
+.bc-mode-btn.active {
+  background: rgba(255, 181, 71, 0.12);
+  color: var(--amber);
+  border-bottom: 2px solid var(--amber);
+}
+
+.bc-fa-notice {
+  border-left: 3px solid var(--cyan);
+  background: rgba(77, 208, 255, 0.06);
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  font-size: 10px;
+  color: var(--cyan);
+  letter-spacing: 0.08em;
+  line-height: 1.6;
+}
+
+.bc-fa-ok {
+  border-left: 3px solid var(--green);
+  background: rgba(74, 222, 128, 0.06);
+  padding: 10px 14px;
+  margin-bottom: 8px;
+  font-size: 10px;
+  color: var(--green);
+  letter-spacing: 0.08em;
+}
+
+.bc-fa-warn {
+  border-left: 3px solid var(--red);
+  background: rgba(255, 93, 93, 0.08);
+  padding: 10px 14px;
+  margin-bottom: 8px;
+  font-size: 10px;
+  color: var(--red);
+  letter-spacing: 0.08em;
+  line-height: 1.6;
 }
 
 .bc-advisory {
@@ -829,6 +936,21 @@ export default function BurnCalculator() {
     return () => timers.forEach(clearTimeout);
   }, []);
 
+  const [appMode, setAppMode] = useState('burn'); // 'burn' | 'approach'
+
+  // ── Final Approach state ──
+  const [faDistance, setFaDistance] = useState('');
+  const [faDistanceUnit, setFaDistanceUnit] = useState('km');
+  const [faVrel, setFaVrel] = useState('');
+  const [faVrelUnit, setFaVrelUnit] = useState('m/s');
+  const [faAccel, setFaAccel] = useState('');
+  const [faAccelUnit, setFaAccelUnit] = useState('g');
+  const [faBudget, setFaBudget] = useState('');
+  const [faBudgetUnit, setFaBudgetUnit] = useState('hr');
+  const [faVArrival, setFaVArrival] = useState('');
+  const [faVArrivalUnit, setFaVArrivalUnit] = useState('m/s');
+  const [faGameStart, setFaGameStart] = useState('');
+
   const [distance, setDistance] = useState('');
   const [distanceUnit, setDistanceUnit] = useState('km');
   const [v0, setV0] = useState('');
@@ -852,7 +974,7 @@ export default function BurnCalculator() {
 
   // SI conversions
   const NO_WAKE_M = 300_000; // 300 km no-wake zone at destination
-  const distance_m = parseFloat(distance) * (distanceUnit === 'au' ? AU : distanceUnit === 'km' ? 1000 : 1);
+  const distance_m = parseFloat(distance) * (distanceUnit === 'au' ? AU : distanceUnit === 'gm' ? 1e9 : distanceUnit === 'km' ? 1000 : 1);
   const raw_burn_distance_m = distance_m - NO_WAKE_M; // before VCRS correction
   const v0_mps = parseFloat(v0) * (v0Unit === 'km/s' ? 1000 : 1) * (v0Direction === 'receding' ? -1 : 1);
   const a_mps2 = parseFloat(accel) * (accelUnit === 'g' ? G : 1);
@@ -930,9 +1052,12 @@ export default function BurnCalculator() {
     ? driftPlan : plan;
   const isDriftMode = activePlan === driftPlan;
 
+  // finalPlan is activePlan (drift mode if budget set, otherwise standard)
+  const finalPlan = activePlan;
+
   // VCRS advisory threshold
-  const vcrsRatioPct = (isFinite(vcrs_mps) && vcrs_mps !== 0 && isFinite(v0_mps) && v0_mps > 0)
-    ? (Math.abs(vcrs_mps) / v0_mps) * 100
+  const vcrsRatioPct = (isFinite(vcrs_mps) && vcrs_mps !== 0 && isFinite(v0_mps) && v0_mps !== 0)
+    ? (Math.abs(vcrs_mps) / Math.abs(v0_mps)) * 100
     : 0;
   const highVcrsWarning = vcrsRatioPct > 10;
 
@@ -945,9 +1070,49 @@ export default function BurnCalculator() {
     ? (vcrs_mps >= 0 ? '90.00°' : '270.00°')
     : null;
 
-  // finalPlan is activePlan (drift mode if budget set, otherwise standard)
-  const finalPlan = activePlan;
+  // ── Final Approach calculations ──
+  const NO_WAKE_M_FA = 300_000;
+  const fa_distance_m_raw = parseFloat(faDistance) * (faDistanceUnit === 'au' ? AU : faDistanceUnit === 'gm' ? 1e9 : 1000);
+  const fa_brake_distance_m = isFinite(fa_distance_m_raw) ? fa_distance_m_raw - NO_WAKE_M_FA : NaN;
+  const fa_v0_mps = parseFloat(faVrel) * (faVrelUnit === 'km/s' ? 1000 : 1);
+  const fa_a_mps2 = parseFloat(faAccel) * (faAccelUnit === 'g' ? G : 1);
+  const fa_v_arrival_mps = parseFloat(faVArrival) * (faVArrivalUnit === 'km/s' ? 1000 : 1);
+  const fa_budget_raw = parseFloat(faBudget);
+  const fa_budget_s = isFinite(fa_budget_raw) && fa_budget_raw > 0
+    ? fa_budget_raw * (faBudgetUnit === 'hr' ? 3600 : 60)
+    : null;
+  const fa_noWakeError = isFinite(fa_distance_m_raw) && fa_distance_m_raw <= NO_WAKE_M_FA;
 
+  const faPlan = (appMode === 'approach')
+    ? (fa_noWakeError
+        ? { error: 'DESTINATION IS WITHIN THE 300 KM NO-WAKE ZONE', detail: 'You are already inside the no-wake boundary.' }
+        : computeFinalApproach({ distance_m: fa_brake_distance_m, v0_mps: fa_v0_mps, a_mps2: fa_a_mps2, v_arrival_mps: fa_v_arrival_mps }))
+    : null;
+
+  // Reactant sufficiency for FA: budget_s vs t_brake
+  const fa_reactant_ok = (fa_budget_s !== null && faPlan && !faPlan.error && !faPlan.overshoot)
+    ? fa_budget_s >= faPlan.t_brake
+    : null; // null = no budget entered, don't show
+
+  // FA game clock
+  const faParsedGameTime = parseGameTime(faGameStart);
+  const faGameTimeValid = faParsedGameTime !== null;
+  const faGameTimeAttempted = faGameStart.trim().length > 0;
+  const faGameTimeError = faGameTimeAttempted && !faGameTimeValid;
+
+  const faPlanOk = faPlan && !faPlan.error && !faPlan.overshoot;
+  const faBrakeTarget = (faGameTimeValid && faPlanOk)
+    ? addGameTime(faParsedGameTime, faPlan.t_coast)
+    : null;
+  const faArriveTarget = (faGameTimeValid && faPlanOk)
+    ? addGameTime(faParsedGameTime, faPlan.t_total)
+    : null;
+
+  // Status for FA mode
+  const faStatusText = !faPlan ? 'STANDBY'
+    : faPlan.error ? 'INVALID'
+    : faPlan.overshoot ? 'OVERSHOOT'
+    : 'READY';
 
   // Flicker effect: trigger when plan output changes
   useEffect(() => {
@@ -993,6 +1158,15 @@ export default function BurnCalculator() {
     : plan.overshoot ? 'OVERSHOOT'
     : planValid ? 'READY' : 'STANDBY';
 
+  // Combined status for header light — mode-aware
+  const activeStatusText = appMode === 'approach' ? faStatusText : statusText;
+  const activeHasError = appMode === 'approach'
+    ? (faPlan && (faPlan.error || fa_noWakeError))
+    : (plan.error || noWakeError);
+  const activeIsOvershoot = appMode === 'approach'
+    ? (faPlan && faPlan.overshoot)
+    : plan.overshoot;
+
   return (
     <>
       <style>{stylesheet}</style>
@@ -1029,156 +1203,265 @@ export default function BurnCalculator() {
             </div>
             <div style={{ display: 'flex', alignItems: 'center' }}>
               <span className="bc-status-wrap">
-                <span className={`bc-status-light ${plan.error || noWakeError ? 'invalid' : plan.overshoot ? 'overshoot' : 'ready'}`}></span>
-                {gameTimeValid && planValid && <span className="bc-status-light clock" title="Game clock locked"></span>}
+                <span className={`bc-status-light ${activeHasError ? 'invalid' : activeIsOvershoot ? 'overshoot' : 'ready'}`}></span>
+                {gameTimeValid && planValid && appMode === 'burn' && <span className="bc-status-light clock" title="Game clock locked"></span>}
+                {faGameTimeValid && faPlanOk && appMode === 'approach' && <span className="bc-status-light clock" title="Game clock locked"></span>}
               </span>
-              <span className="bc-status-text">{statusText}</span>
+              <span className="bc-status-text">{activeStatusText}</span>
             </div>
           </div>
 
           <div className="bc-grid">
             {/* INPUTS */}
             <div className="bc-panel scratch-a">
-              <div className="bc-panel-header">◇ Trip Parameters</div>
 
-              <InputRow
-                label="Current RNG"
-                value={distance}
-                onChange={setDistance}
-                unit={distanceUnit}
-                units={['km', 'm', 'au']}
-                onUnitChange={setDistanceUnit}
-                placeholder="e.g. 18902"
-                tooltip={{
-                  desc: "After selecting your target destination, input the distance to target.",
-                  img: TOOLTIP_IMG_VCRS,
-                }}
-              />
-              <div style={{ fontSize: 9, color: noWakeError ? 'var(--red)' : 'var(--text-secondary)', letterSpacing: '0.1em', marginBottom: 10, paddingLeft: 118 }}>
-                {noWakeError
-                  ? '⚠ DESTINATION IS WITHIN THE 300 KM NO-WAKE ZONE'
-                  : isFinite(burn_distance_m)
-                    ? `BURN DISTANCE: ${formatDistance(burn_distance_m)}${vcrs_correction_m > 0 ? ` (VCRS +${formatDistance(vcrs_correction_m)})` : ' (−300 KM NO-WAKE ZONE)'}`
-                    : 'BURN DISTANCE: —'}
-              </div>
-              <InputRow
-                label="Current VREL"
-                value={v0}
-                onChange={setV0}
-                unit={v0Unit}
-                units={['m/s', 'km/s']}
-                onUnitChange={setV0Unit}
-                placeholder="e.g. 511.19"
-                tooltip={{
-                  desc: "Input your vessel's current velocity to the target. If no ETA is present, set mode to RECEDING.",
-                  img: TOOLTIP_IMG_CURRENTVEL,
-                }}
-              />
-              <div style={{ display: 'flex', gap: 4, marginLeft: 118, marginBottom: 8 }}>
+              {/* ── Mode toggle ── */}
+              <div className="bc-mode-toggle">
                 <button
-                  className={`bc-unit-btn${v0Direction === 'closing' ? ' active' : ''}`}
-                  onClick={() => setV0Direction('closing')}
-                >CLOSING</button>
+                  className={`bc-mode-btn${appMode === 'burn' ? ' active' : ''}`}
+                  onClick={() => setAppMode('burn')}
+                >⬛ Burn Plan</button>
                 <button
-                  className={`bc-unit-btn${v0Direction === 'receding' ? ' active' : ''}`}
-                  onClick={() => setV0Direction('receding')}
-                  style={{ color: v0Direction === 'receding' ? 'var(--red)' : undefined,
-                           borderColor: v0Direction === 'receding' ? 'var(--red)' : undefined,
-                           background: v0Direction === 'receding' ? 'rgba(255,93,93,0.15)' : undefined }}
-                >RECEDING</button>
+                  className={`bc-mode-btn${appMode === 'approach' ? ' active' : ''}`}
+                  onClick={() => setAppMode('approach')}
+                >◉ Final Approach</button>
               </div>
-              <InputRow
-                label="Acceleration"
-                value={accel}
-                onChange={setAccel}
-                unit={accelUnit}
-                units={['g', 'm/s²']}
-                onUnitChange={setAccelUnit}
-                placeholder="e.g. 1.95"
-              />
-              <InputRow
-                label="Flip Time"
-                value={flipTime}
-                onChange={setFlipTime}
-                unit="sec"
-                units={['sec']}
-                onUnitChange={() => {}}
-                placeholder="e.g. 30"
-              />
-              <div className="bc-panel-header" style={{ marginTop: 20 }}>◇ Reactant Budget</div>
-              <InputRow
-                label="Budget"
-                value={reactantBudget}
-                onChange={setReactantBudget}
-                unit={reactantBudgetUnit}
-                units={['hr', 'min']}
-                onUnitChange={setReactantBudgetUnit}
-                placeholder="optional — enables drift mode"
-              />
-              <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: 4, paddingLeft: 118 }}>
-                {isDriftMode
-                  ? <span style={{ color: 'var(--amber)' }}>◈ DRIFT MODE ACTIVE</span>
-                  : driftPlan && driftPlan.budgetExceedsRequirement
-                    ? <span style={{ color: 'var(--green)' }}>● BUDGET EXCEEDS REQUIREMENT — STANDARD BURN USED</span>
-                    : driftPlan && driftPlan.error
-                      ? <span style={{ color: 'var(--red)' }}>{driftPlan.error}</span>
-                      : <span>LEAVE BLANK FOR STANDARD FLIP-AND-BURN</span>}
-              </div>
-              <InputRow
-                label="Vel at 300km"
-                value={vArrival}
-                onChange={setVArrival}
-                unit={vArrivalUnit}
-                units={['m/s', 'km/s']}
-                onUnitChange={setVArrivalUnit}
-                placeholder="e.g. 0"
-              />
-              <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: 4, paddingLeft: 118 }}>
-                DESIRED SPEED AT TORCH DRIVE CUTOFF
-              </div>
-              <InputRow
-                label="Current VCRS"
-                value={vcrs}
-                onChange={setVcrs}
-                unit={vcrsUnit}
-                units={['m/s', 'km/s']}
-                onUnitChange={setVcrsUnit}
-                placeholder="e.g. -0.02"
-                tooltip={{
-                  desc: "Input your VCRS to the target destination. NOTE: During the braking phase, a VCRS correction will likely be required.",
-                  img: TOOLTIP_IMG_DISTANCE,
-                }}
-              />
 
-              {/* GAME TIME */}
-              <div className="bc-panel-header" style={{ marginTop: 20 }}>◇ Game Clock</div>
+              {appMode === 'burn' && (
+                <>
+                  <div className="bc-panel-header">◇ Trip Parameters</div>
+                  <InputRow
+                    label="Current RNG"
+                    value={distance}
+                    onChange={setDistance}
+                    unit={distanceUnit}
+                    units={['km', 'gm', 'au']}
+                    onUnitChange={setDistanceUnit}
+                    placeholder="e.g. 18902"
+                    tooltip={{
+                      desc: "After selecting your target destination, input the distance to target.",
+                      img: TOOLTIP_IMG_VCRS,
+                    }}
+                  />
+                  {noWakeError && (
+                    <div style={{ fontSize: 9, color: 'var(--red)', letterSpacing: '0.1em', marginBottom: 10, paddingLeft: 118 }}>
+                      ⚠ DESTINATION IS WITHIN THE 300 KM NO-WAKE ZONE
+                    </div>
+                  )}
+                  <InputRow
+                    label="Current VREL"
+                    value={v0}
+                    onChange={setV0}
+                    unit={v0Unit}
+                    units={['m/s', 'km/s']}
+                    onUnitChange={setV0Unit}
+                    placeholder="e.g. 511.19"
+                    tooltip={{
+                      desc: "Input your vessel's current velocity to the target. If no ETA is present, set mode to RECEDING.",
+                      img: TOOLTIP_IMG_CURRENTVEL,
+                    }}
+                  />
+                  <div style={{ display: 'flex', gap: 4, marginLeft: 118, marginBottom: 8 }}>
+                    <button
+                      className={`bc-unit-btn${v0Direction === 'closing' ? ' active' : ''}`}
+                      onClick={() => setV0Direction('closing')}
+                    >CLOSING</button>
+                    <button
+                      className={`bc-unit-btn${v0Direction === 'receding' ? ' active' : ''}`}
+                      onClick={() => setV0Direction('receding')}
+                      style={{ color: v0Direction === 'receding' ? 'var(--red)' : undefined,
+                               borderColor: v0Direction === 'receding' ? 'var(--red)' : undefined,
+                               background: v0Direction === 'receding' ? 'rgba(255,93,93,0.15)' : undefined }}
+                    >RECEDING</button>
+                  </div>
+                  <InputRow
+                    label="Acceleration"
+                    value={accel}
+                    onChange={setAccel}
+                    unit={accelUnit}
+                    units={['g', 'm/s²']}
+                    onUnitChange={setAccelUnit}
+                    placeholder="e.g. 1.95"
+                  />
+                  <InputRow
+                    label="Flip Time"
+                    value={flipTime}
+                    onChange={setFlipTime}
+                    unit="sec"
+                    units={['sec']}
+                    onUnitChange={() => {}}
+                    placeholder="e.g. 30"
+                  />
+                  <div className="bc-panel-header" style={{ marginTop: 20 }}>◇ Reactant Budget</div>
+                  <InputRow
+                    label="Budget"
+                    value={reactantBudget}
+                    onChange={setReactantBudget}
+                    unit={reactantBudgetUnit}
+                    units={['hr', 'min']}
+                    onUnitChange={setReactantBudgetUnit}
+                    placeholder="optional — enables drift mode"
+                  />
+                  <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: 4, paddingLeft: 118 }}>
+                    {isDriftMode
+                      ? <span style={{ color: 'var(--amber)' }}>◈ DRIFT MODE ACTIVE</span>
+                      : driftPlan && driftPlan.budgetExceedsRequirement
+                        ? <span style={{ color: 'var(--green)' }}>● BUDGET EXCEEDS REQUIREMENT — STANDARD BURN USED</span>
+                        : driftPlan && driftPlan.error
+                          ? <span style={{ color: 'var(--red)' }}>{driftPlan.error}</span>
+                          : <span>LEAVE BLANK FOR STANDARD FLIP-AND-BURN</span>}
+                  </div>
+                  <InputRow
+                    label="Vel at 300km"
+                    value={vArrival}
+                    onChange={setVArrival}
+                    unit={vArrivalUnit}
+                    units={['m/s', 'km/s']}
+                    onUnitChange={setVArrivalUnit}
+                    placeholder="e.g. 0"
+                  />
+                  <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: 4, paddingLeft: 118 }}>
+                    DESIRED SPEED AT TORCH DRIVE CUTOFF
+                  </div>
+                  <InputRow
+                    label="Current VCRS"
+                    value={vcrs}
+                    onChange={setVcrs}
+                    unit={vcrsUnit}
+                    units={['m/s', 'km/s']}
+                    onUnitChange={setVcrsUnit}
+                    placeholder="e.g. -0.02"
+                    tooltip={{
+                      desc: "Input your VCRS to the target destination. NOTE: During the braking phase, a VCRS correction will likely be required.",
+                      img: TOOLTIP_IMG_DISTANCE,
+                    }}
+                  />
 
-              <div className="bc-input-row">
-                <div className="bc-label">
-                  <Clock size={10} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
-                  Burn Start
-                </div>
-                <input
-                  className={`bc-input ${gameTimeError ? 'invalid' : ''}`}
-                  type="text"
-                  placeholder="YYYY-MM-DD HH:MM:SS or HH:MM:SS"
-                  value={gameStartTime}
-                  onChange={(e) => setGameStartTime(e.target.value)}
-                />
-              </div>
-              <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', marginTop: 6, paddingLeft: 118 }}>
-                {gameTimeError ? (
-                  <span style={{ color: 'var(--red)' }}>INVALID FORMAT — USE YYYY-MM-DD HH:MM:SS OR HH:MM:SS</span>
-                ) : gameTimeValid ? (
-                  <span style={{ color: 'var(--green)' }}>● TARGETS COMPUTED FROM GAME CLOCK</span>
-                ) : (
-                  <span>LEAVE BLANK FOR RELATIVE (T+) TIMES — DATE OPTIONAL</span>
-                )}
-              </div>
+                  {/* GAME TIME */}
+                  <div className="bc-panel-header" style={{ marginTop: 20 }}>◇ Game Clock</div>
+                  <div className="bc-input-row">
+                    <div className="bc-label">
+                      <Clock size={10} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
+                      Burn Start
+                    </div>
+                    <input
+                      className={`bc-input ${gameTimeError ? 'invalid' : ''}`}
+                      type="text"
+                      placeholder="YYYY-MM-DD HH:MM:SS or HH:MM:SS"
+                      value={gameStartTime}
+                      onChange={(e) => setGameStartTime(e.target.value)}
+                    />
+                  </div>
+                  <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', marginTop: 6, paddingLeft: 118 }}>
+                    {gameTimeError ? (
+                      <span style={{ color: 'var(--red)' }}>INVALID FORMAT — USE YYYY-MM-DD HH:MM:SS OR HH:MM:SS</span>
+                    ) : gameTimeValid ? (
+                      <span style={{ color: 'var(--green)' }}>● TARGETS COMPUTED FROM GAME CLOCK</span>
+                    ) : (
+                      <span>LEAVE BLANK FOR RELATIVE (T+) TIMES — DATE OPTIONAL</span>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {appMode === 'approach' && (
+                <>
+                  <div className="bc-panel-header">◇ Final Approach Parameters</div>
+                  <div className="bc-fa-notice">
+                    VCRS SHOULD BE 0.00 M/S BEFORE FINAL APPROACH — NULL CROSS-TRACK VELOCITY BEFORE PROCEEDING
+                  </div>
+                  <InputRow
+                    label="Current RNG"
+                    value={faDistance}
+                    onChange={setFaDistance}
+                    unit={faDistanceUnit}
+                    units={['km', 'gm', 'au']}
+                    onUnitChange={setFaDistanceUnit}
+                    placeholder="e.g. 18902"
+                  />
+                  {fa_noWakeError && (
+                    <div style={{ fontSize: 9, color: 'var(--red)', letterSpacing: '0.1em', marginBottom: 10, paddingLeft: 118 }}>
+                      ⚠ DESTINATION IS WITHIN THE 300 KM NO-WAKE ZONE
+                    </div>
+                  )}
+                  <InputRow
+                    label="Current VREL"
+                    value={faVrel}
+                    onChange={setFaVrel}
+                    unit={faVrelUnit}
+                    units={['m/s', 'km/s']}
+                    onUnitChange={setFaVrelUnit}
+                    placeholder="e.g. 511.19"
+                  />
+                  <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: 8, paddingLeft: 118 }}>
+                    CLOSING VELOCITY TO TARGET
+                  </div>
+                  <InputRow
+                    label="Acceleration"
+                    value={faAccel}
+                    onChange={setFaAccel}
+                    unit={faAccelUnit}
+                    units={['g', 'm/s²']}
+                    onUnitChange={setFaAccelUnit}
+                    placeholder="e.g. 1.95"
+                  />
+                  <div className="bc-panel-header" style={{ marginTop: 20 }}>◇ Reactant Budget</div>
+                  <InputRow
+                    label="Budget"
+                    value={faBudget}
+                    onChange={setFaBudget}
+                    unit={faBudgetUnit}
+                    units={['hr', 'min']}
+                    onUnitChange={setFaBudgetUnit}
+                    placeholder="optional"
+                  />
+                  <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: 4, paddingLeft: 118 }}>
+                    LEAVE BLANK TO SKIP SUFFICIENCY CHECK
+                  </div>
+                  <InputRow
+                    label="Vel at 300km"
+                    value={faVArrival}
+                    onChange={setFaVArrival}
+                    unit={faVArrivalUnit}
+                    units={['m/s', 'km/s']}
+                    onUnitChange={setFaVArrivalUnit}
+                    placeholder="e.g. 0"
+                  />
+                  <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: 4, paddingLeft: 118 }}>
+                    DESIRED SPEED AT TORCH DRIVE CUTOFF
+                  </div>
+
+                  {/* FA GAME TIME */}
+                  <div className="bc-panel-header" style={{ marginTop: 20 }}>◇ Game Clock</div>
+                  <div className="bc-input-row">
+                    <div className="bc-label">
+                      <Clock size={10} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
+                      Current Time
+                    </div>
+                    <input
+                      className={`bc-input ${faGameTimeError ? 'invalid' : ''}`}
+                      type="text"
+                      placeholder="YYYY-MM-DD HH:MM:SS or HH:MM:SS"
+                      value={faGameStart}
+                      onChange={(e) => setFaGameStart(e.target.value)}
+                    />
+                  </div>
+                  <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', marginTop: 6, paddingLeft: 118 }}>
+                    {faGameTimeError ? (
+                      <span style={{ color: 'var(--red)' }}>INVALID FORMAT — USE YYYY-MM-DD HH:MM:SS OR HH:MM:SS</span>
+                    ) : faGameTimeValid ? (
+                      <span style={{ color: 'var(--green)' }}>● TARGETS COMPUTED FROM GAME CLOCK</span>
+                    ) : (
+                      <span>LEAVE BLANK FOR RELATIVE (T+) TIMES — DATE OPTIONAL</span>
+                    )}
+                  </div>
+                </>
+              )}
 
             </div>
 
-            {/* RESULTS */}
+            {/* RIGHT COLUMN — mode-conditional */}
+            {appMode === 'burn' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div className="bc-panel scratch-b">
               <div className="bc-panel-header">◇ Burn Solution</div>
@@ -1215,7 +1498,7 @@ export default function BurnCalculator() {
               {highVcrsWarning && !plan.error && !plan.overshoot && (
                 <>
                   <div className="bc-advisory">
-                    <strong>HIGH VCRS DETECTED</strong> — Cross-track velocity is {vcrsRatioPct.toFixed(1)}% of closing velocity. RCS correction will not be sufficient at this magnitude.
+                    <strong>HIGH VCRS DETECTED</strong> — Cross-track velocity is {vcrsRatioPct.toFixed(1)}% of relative velocity. RCS correction will not be sufficient at this magnitude.
                   </div>
                   {manualNullBearing && (
                     <Readout
@@ -1310,11 +1593,125 @@ export default function BurnCalculator() {
                 <Readout label="Peak Velocity" value={formatVelocity(finalPlan.v_max)} highlight flickerKey={flickerKey} />
               </div>
             )}
-            </div>{/* end right-column wrapper */}
+            </div>
+            )}
+
+            {/* FINAL APPROACH results */}
+            {appMode === 'approach' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div className="bc-panel scratch-b">
+                <div className="bc-panel-header">◇ Approach Solution</div>
+
+                {faPlan && faPlan.error && (
+                  <div className="bc-warning">
+                    <AlertTriangle size={14} color="var(--red)" />
+                    <div className="bc-warning-text">
+                      <strong>{faPlan.error}</strong>
+                      {faPlan.detail && <><br />{faPlan.detail}</>}
+                    </div>
+                  </div>
+                )}
+
+                {faPlan && faPlan.overshoot && (
+                  <div className="bc-warning">
+                    <AlertTriangle size={14} color="var(--red)" />
+                    <div className="bc-warning-text">
+                      <strong>CANNOT BRAKE IN TIME — OVERSHOOT IMMINENT</strong><br />
+                      At {formatVelocity(fa_v0_mps)} closing, you cannot stop before the no-wake boundary at {formatDistance(fa_a_mps2 > 0 ? (fa_v0_mps * fa_v0_mps - (isFinite(fa_v_arrival_mps) ? fa_v_arrival_mps * fa_v_arrival_mps : 0)) / (2 * fa_a_mps2) : 0)} brake distance needed.<br />
+                      Shortfall: <strong>{isFinite(faPlan.shortfall) ? formatDistance(faPlan.shortfall) : '—'}</strong><br />
+                      Required deceleration: <strong>{isFinite(faPlan.required_a) ? (faPlan.required_a / G).toFixed(2) + ' G' : '—'}</strong> — exceeds available {isFinite(fa_a_mps2) ? (fa_a_mps2 / G).toFixed(2) + ' G' : '—'}.<br />
+                      The solver cannot recover this approach. Reduce closing velocity immediately if possible.
+                    </div>
+                  </div>
+                )}
+
+                {faPlanOk && (
+                  <>
+                    {/* Required G vs available G */}
+                    {(() => {
+                      const req_g = faPlan.required_a / G;
+                      const avail_g = fa_a_mps2 / G;
+                      const gOk = isFinite(req_g) && isFinite(avail_g) && req_g <= avail_g;
+                      return (
+                        <div className={gOk ? 'bc-fa-ok' : 'bc-fa-warn'}>
+                          {gOk
+                            ? `● DECELERATION OK — REQUIRED: ${req_g.toFixed(2)} G / AVAILABLE: ${avail_g.toFixed(2)} G`
+                            : `⚠ DECELERATION MARGINAL — REQUIRED: ${req_g.toFixed(2)} G / AVAILABLE: ${avail_g.toFixed(2)} G — EXCEEDING RATED THRUST IS RISKY`}
+                        </div>
+                      );
+                    })()}
+
+                    {/* Reactant sufficiency */}
+                    {fa_reactant_ok !== null && (
+                      <div className={fa_reactant_ok ? 'bc-fa-ok' : 'bc-fa-warn'}>
+                        {fa_reactant_ok
+                          ? `● REACTANT SUFFICIENT — BRAKE REQUIRES ${formatTime(Math.floor(faPlan.t_brake))}, BUDGET IS ${formatTime(Math.floor(fa_budget_s))}`
+                          : `⚠ REACTANT DEFICIT — BRAKE REQUIRES ${formatTime(Math.floor(faPlan.t_brake))}, BUDGET IS ONLY ${formatTime(Math.floor(fa_budget_s))}`}
+                      </div>
+                    )}
+
+                    {faPlan.t_coast > 1 ? (
+                      <>
+                        <Readout
+                          label="Begin Brake"
+                          value={faGameTimeValid ? formatGameTime(faBrakeTarget) : `T+${formatTime(Math.floor(faPlan.t_coast))}`}
+                          highlight flickerKey={flickerKey}
+                        />
+                        {faBrakeTarget && (
+                          <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', textAlign: 'right', marginBottom: 4 }}>
+                            COAST {formatTime(Math.floor(faPlan.t_coast))} BEFORE IGNITION
+                          </div>
+                        )}
+                        {!faGameTimeValid && (
+                          <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', textAlign: 'right', marginBottom: 4 }}>
+                            COAST {formatTime(Math.floor(faPlan.t_coast))} BEFORE IGNITION
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="bc-fa-warn" style={{ marginBottom: 8 }}>
+                        ⚠ BRAKE NOW — YOU ARE AT OR PAST THE BRAKE INITIATION POINT
+                      </div>
+                    )}
+
+                    <Readout
+                      label="Arrival"
+                      value={faGameTimeValid ? formatGameTime(faArriveTarget) : `T+${formatTime(Math.floor(faPlan.t_total))}`}
+                      highlight flickerKey={flickerKey}
+                    />
+                    <Readout
+                      label="Brake Duration"
+                      value={formatTime(Math.floor(faPlan.t_brake))}
+                      highlight flickerKey={flickerKey}
+                    />
+                    <Readout
+                      label="Brake Distance"
+                      value={formatDistance(faPlan.d_brake)}
+                      highlight flickerKey={flickerKey}
+                    />
+                    {faPlan.d_coast > 0 && (
+                      <Readout
+                        label="Coast Distance"
+                        value={formatDistance(faPlan.d_coast)}
+                        highlight flickerKey={flickerKey}
+                      />
+                    )}
+                  </>
+                )}
+
+                {!faPlan && (
+                  <div style={{ fontSize: 11, color: 'var(--text-dim)', letterSpacing: '0.08em', padding: '12px 0' }}>
+                    ENTER APPROACH PARAMETERS TO COMPUTE SOLUTION
+                  </div>
+                )}
+              </div>
+            </div>
+            )}
+
           </div>
 
-          {/* TIMELINE + GAME-TIME TARGETS */}
-          {planValid && (
+          {/* TIMELINE + GAME-TIME TARGETS — burn mode only */}
+          {appMode === 'burn' && planValid && (
             <div className="bc-panel bc-timeline-panel scratch-c">
               <div className="bc-panel-header">◇ Burn Timeline</div>
 

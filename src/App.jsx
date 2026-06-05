@@ -961,6 +961,7 @@ export default function BurnCalculator() {
   const [flipTime, setFlipTime] = useState('');
   const [reactantBudget, setReactantBudget] = useState('');
   const [reactantBudgetUnit, setReactantBudgetUnit] = useState('hr');
+  const [burnPreference, setBurnPreference] = useState('speed'); // 'speed' | 'efficiency'
   const [vArrival, setVArrival] = useState('');
   const [vArrivalUnit, setVArrivalUnit] = useState('m/s');
   const [vcrs, setVcrs] = useState('');
@@ -1047,10 +1048,45 @@ export default function BurnCalculator() {
     }
   }
 
-  // Active plan — use driftPlan if valid, otherwise standard plan
-  const activePlan = (driftPlan && !driftPlan.error && !driftPlan.budgetExceedsRequirement)
-    ? driftPlan : plan;
-  const isDriftMode = activePlan === driftPlan;
+  // Active plan selection:
+  // - If drift plan is valid (budget < requirement): always use drift (player committed the budget)
+  // - If budget exceeds requirement: player chooses speed (standard) or efficiency (drift at lower v_max)
+  // - Efficiency with budgetExceedsReq: drift plan has v_max_drift >= standard_v_max, meaning the
+  //   drift framing uses LESS reactant (lower peak v, more coast). That's the efficient choice.
+  const budgetExceedsReq = !!(driftPlan && driftPlan.budgetExceedsRequirement);
+  const hasDriftPlan = !!(driftPlan && !driftPlan.error && !driftPlan.budgetExceedsRequirement);
+
+  // In efficiency mode when budget exceeds req, recompute a drift plan capped to standard v_max
+  // so the player burns less reactant by coasting rather than accelerating to full budget v_max.
+  // We do this by using the standard plan's v_max as the drift target — t_accel and t_brake shrink,
+  // d_drift fills the middle, reactant use equals exactly a standard burn (minimum needed).
+  let efficiencyDriftPlan = null;
+  if (budgetExceedsReq && burnPreference === 'efficiency' && !plan.error && !plan.overshoot) {
+    const v_max_eff = plan.v_max; // standard peak velocity — minimum reactant needed
+    const t_accel_e = (v_max_eff - v0_mps) / a_mps2;
+    const t_brake_e = (v_max_eff - v_arrival_mps) / a_mps2;
+    const d_accel_e = (v_max_eff * v_max_eff - v0_mps * v0_mps) / (2 * a_mps2);
+    const d_brake_e = (v_max_eff * v_max_eff - v_arrival_mps * v_arrival_mps) / (2 * a_mps2);
+    const d_drift_e = burn_distance_m - d_accel_e - d_brake_e;
+    if (d_drift_e >= 0) {
+      const t_drift_e = d_drift_e / v_max_eff;
+      efficiencyDriftPlan = {
+        v_max: v_max_eff,
+        t_accel: t_accel_e,
+        t_rotate: t_rotate_s,
+        t_drift: t_drift_e,
+        t_brake: t_brake_e,
+        t_total: t_accel_e + t_rotate_s + t_drift_e + t_brake_e,
+        d_accel: d_accel_e,
+        d_drift: d_drift_e,
+        d_brake: d_brake_e,
+      };
+    }
+  }
+
+  const activePlan = hasDriftPlan ? driftPlan
+    : (efficiencyDriftPlan ? efficiencyDriftPlan : plan);
+  const isDriftMode = activePlan === driftPlan || activePlan === efficiencyDriftPlan;
 
   // finalPlan is activePlan (drift mode if budget set, otherwise standard)
   const finalPlan = activePlan;
@@ -1303,14 +1339,33 @@ export default function BurnCalculator() {
                     placeholder="optional — enables drift mode"
                   />
                   <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: 4, paddingLeft: 118 }}>
-                    {isDriftMode
+                    {isDriftMode && !budgetExceedsReq
                       ? <span style={{ color: 'var(--amber)' }}>◈ DRIFT MODE ACTIVE</span>
-                      : driftPlan && driftPlan.budgetExceedsRequirement
-                        ? <span style={{ color: 'var(--green)' }}>● BUDGET EXCEEDS REQUIREMENT — STANDARD BURN USED</span>
+                      : budgetExceedsReq
+                        ? <span style={{ color: 'var(--green)' }}>● BUDGET EXCEEDS REQUIREMENT — SELECT PREFERENCE</span>
                         : driftPlan && driftPlan.error
                           ? <span style={{ color: 'var(--red)' }}>{driftPlan.error}</span>
                           : <span>LEAVE BLANK FOR STANDARD FLIP-AND-BURN</span>}
                   </div>
+                  {budgetExceedsReq && (
+                    <>
+                      <div style={{ display: 'flex', gap: 4, marginLeft: 118, marginBottom: 4 }}>
+                        <button
+                          className={`bc-unit-btn${burnPreference === 'speed' ? ' active' : ''}`}
+                          onClick={() => setBurnPreference('speed')}
+                        >SPEED</button>
+                        <button
+                          className={`bc-unit-btn${burnPreference === 'efficiency' ? ' active' : ''}`}
+                          onClick={() => setBurnPreference('efficiency')}
+                        >EFFICIENCY</button>
+                      </div>
+                      <div style={{ fontSize: 9, letterSpacing: '0.1em', marginBottom: 8, paddingLeft: 118 }}>
+                        {burnPreference === 'efficiency'
+                          ? <span style={{ color: 'var(--cyan)' }}>◈ DRIFT MODE ACTIVE — BURNING MINIMUM REACTANT</span>
+                          : <span style={{ color: 'var(--text-dim)' }}>STANDARD FLIP-AND-BURN — FULL SPEED</span>}
+                      </div>
+                    </>
+                  )}
                   <InputRow
                     label="Vel at 300km"
                     value={vArrival}

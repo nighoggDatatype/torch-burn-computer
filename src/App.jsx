@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { AlertTriangle, Clock } from 'lucide-react';
 
+const APP_VERSION = 'v0.1.0';
+
 const G = 9.80665; // standard gravity, m/s²
 const AU = 149_597_870_700; // meters per astronomical unit
 
@@ -947,7 +949,7 @@ export default function BurnCalculator() {
   const [faAccelUnit, setFaAccelUnit] = useState('g');
   const [faBudget, setFaBudget] = useState('');
   const [faBudgetUnit, setFaBudgetUnit] = useState('hr');
-  const [faVArrival, setFaVArrival] = useState('');
+  const [faVArrival, setFaVArrival] = useState('0');
   const [faVArrivalUnit, setFaVArrivalUnit] = useState('m/s');
   const [faGameStart, setFaGameStart] = useState('');
 
@@ -962,10 +964,11 @@ export default function BurnCalculator() {
   const [reactantBudget, setReactantBudget] = useState('');
   const [reactantBudgetUnit, setReactantBudgetUnit] = useState('hr');
   const [burnPreference, setBurnPreference] = useState('speed'); // 'speed' | 'efficiency'
-  const [vArrival, setVArrival] = useState('');
+  const [vArrival, setVArrival] = useState('0');
   const [vArrivalUnit, setVArrivalUnit] = useState('m/s');
   const [vcrs, setVcrs] = useState('');
   const [vcrsUnit, setVcrsUnit] = useState('m/s');
+  const [noWakeEnabled, setNoWakeEnabled] = useState(true); // toggle for 300 km no-wake zone
 
   const [gameStartTime, setGameStartTime] = useState('');
 
@@ -976,15 +979,15 @@ export default function BurnCalculator() {
   // SI conversions
   const NO_WAKE_M = 300_000; // 300 km no-wake zone at destination
   const distance_m = parseFloat(distance) * (distanceUnit === 'au' ? AU : distanceUnit === 'gm' ? 1e9 : distanceUnit === 'km' ? 1000 : 1);
-  const raw_burn_distance_m = distance_m - NO_WAKE_M; // before VCRS correction
+  const raw_burn_distance_m = noWakeEnabled ? distance_m - NO_WAKE_M : distance_m; // before VCRS correction
   const v0_mps = parseFloat(v0) * (v0Unit === 'km/s' ? 1000 : 1) * (v0Direction === 'receding' ? -1 : 1);
   const a_mps2 = parseFloat(accel) * (accelUnit === 'g' ? G : 1);
   const t_rotate_s = parseFloat(flipTime);
   const v_arrival_mps = parseFloat(vArrival) * (vArrivalUnit === 'km/s' ? 1000 : 1);
   const vcrs_mps = vcrs.trim() !== '' ? parseFloat(vcrs) * (vcrsUnit === 'km/s' ? 1000 : 1) : 0;
 
-  // Surface a clean error if the destination is within the no-wake zone
-  const noWakeError = isFinite(distance_m) && distance_m <= NO_WAKE_M;
+  // Surface a clean error if the destination is within the no-wake zone (only when enabled)
+  const noWakeError = noWakeEnabled && isFinite(distance_m) && distance_m <= NO_WAKE_M;
 
   // VCRS geometry correction (one-iteration approach):
   // Pass 1 — solve with straight-line burn distance to get approximate t_total
@@ -1131,7 +1134,7 @@ export default function BurnCalculator() {
   // ── Final Approach calculations ──
   const NO_WAKE_M_FA = 300_000;
   const fa_distance_m_raw = parseFloat(faDistance) * (faDistanceUnit === 'au' ? AU : faDistanceUnit === 'gm' ? 1e9 : 1000);
-  const fa_brake_distance_m = isFinite(fa_distance_m_raw) ? fa_distance_m_raw - NO_WAKE_M_FA : NaN;
+  const fa_brake_distance_m = isFinite(fa_distance_m_raw) ? (noWakeEnabled ? fa_distance_m_raw - NO_WAKE_M_FA : fa_distance_m_raw) : NaN;
   const fa_v0_mps = parseFloat(faVrel) * (faVrelUnit === 'km/s' ? 1000 : 1);
   const fa_a_mps2 = parseFloat(faAccel) * (faAccelUnit === 'g' ? G : 1);
   const fa_v_arrival_mps = parseFloat(faVArrival) * (faVArrivalUnit === 'km/s' ? 1000 : 1);
@@ -1139,7 +1142,7 @@ export default function BurnCalculator() {
   const fa_budget_s = isFinite(fa_budget_raw) && fa_budget_raw > 0
     ? fa_budget_raw * (faBudgetUnit === 'hr' ? 3600 : 60)
     : null;
-  const fa_noWakeError = isFinite(fa_distance_m_raw) && fa_distance_m_raw <= NO_WAKE_M_FA;
+  const fa_noWakeError = noWakeEnabled && isFinite(fa_distance_m_raw) && fa_distance_m_raw <= NO_WAKE_M_FA;
 
   const faPlan = (appMode === 'approach')
     ? (fa_noWakeError
@@ -1259,7 +1262,8 @@ export default function BurnCalculator() {
               <div className="bc-brand">◈ Polaris Astronautics</div>
               <div className="bc-title">Manual Torch Burn Guidance Computer</div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+              <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.12em' }}>{APP_VERSION}</span>
               <span className="bc-status-wrap">
                 <span className={`bc-status-light ${activeHasError ? 'invalid' : activeIsOvershoot ? 'overshoot' : 'ready'}`}></span>
                 {gameTimeValid && planValid && appMode === 'burn' && <span className="bc-status-light clock" title="Game clock locked"></span>}
@@ -1399,8 +1403,25 @@ export default function BurnCalculator() {
                     onUnitChange={setVArrivalUnit}
                     placeholder="e.g. 0"
                   />
-                  <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: 4, paddingLeft: 118 }}>
+                  <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: 8, paddingLeft: 118 }}>
                     DESIRED SPEED AT TORCH DRIVE CUTOFF
+                  </div>
+                  {/* NO-WAKE ZONE TOGGLE */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 118, marginBottom: 8 }}>
+                    <button
+                      className={`bc-unit-btn${noWakeEnabled ? ' active' : ''}`}
+                      onClick={() => setNoWakeEnabled(true)}
+                    >300KM ZONE ON</button>
+                    <button
+                      className={`bc-unit-btn${!noWakeEnabled ? ' active' : ''}`}
+                      onClick={() => setNoWakeEnabled(false)}
+                      style={!noWakeEnabled ? { color: 'var(--cyan)', borderColor: 'var(--cyan)', background: 'rgba(77,208,255,0.12)' } : {}}
+                    >300KM ZONE OFF</button>
+                  </div>
+                  <div style={{ fontSize: 9, letterSpacing: '0.1em', marginBottom: 4, paddingLeft: 118 }}>
+                    {noWakeEnabled
+                      ? <span style={{ color: 'var(--text-dim)' }}>300 KM NO-WAKE ZONE SUBTRACTED FROM RANGE</span>
+                      : <span style={{ color: 'var(--cyan)' }}>◈ NO-WAKE ZONE DISABLED — FULL RANGE USED</span>}
                   </div>
                   <InputRow
                     label="Current VCRS"
@@ -1506,8 +1527,25 @@ export default function BurnCalculator() {
                     onUnitChange={setFaVArrivalUnit}
                     placeholder="e.g. 0"
                   />
-                  <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: 4, paddingLeft: 118 }}>
+                  <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: 8, paddingLeft: 118 }}>
                     DESIRED SPEED AT TORCH DRIVE CUTOFF
+                  </div>
+                  {/* NO-WAKE ZONE TOGGLE */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 118, marginBottom: 8 }}>
+                    <button
+                      className={`bc-unit-btn${noWakeEnabled ? ' active' : ''}`}
+                      onClick={() => setNoWakeEnabled(true)}
+                    >300KM ZONE ON</button>
+                    <button
+                      className={`bc-unit-btn${!noWakeEnabled ? ' active' : ''}`}
+                      onClick={() => setNoWakeEnabled(false)}
+                      style={!noWakeEnabled ? { color: 'var(--cyan)', borderColor: 'var(--cyan)', background: 'rgba(77,208,255,0.12)' } : {}}
+                    >300KM ZONE OFF</button>
+                  </div>
+                  <div style={{ fontSize: 9, letterSpacing: '0.1em', marginBottom: 4, paddingLeft: 118 }}>
+                    {noWakeEnabled
+                      ? <span style={{ color: 'var(--text-dim)' }}>300 KM NO-WAKE ZONE SUBTRACTED FROM RANGE</span>
+                      : <span style={{ color: 'var(--cyan)' }}>◈ NO-WAKE ZONE DISABLED — FULL RANGE USED</span>}
                   </div>
 
                   {/* FA GAME TIME */}
@@ -1560,7 +1598,9 @@ export default function BurnCalculator() {
                   <AlertTriangle size={14} color="var(--red)" />
                   <div className="bc-warning-text">
                     <strong>CANNOT BRAKE IN TIME</strong><br />
-                    Ship is moving too fast to stop before the no-wake boundary.<br />
+                    {noWakeEnabled
+                      ? 'Ship is moving too fast to stop before the no-wake boundary.'
+                      : 'Ship is moving too fast to stop before the destination.'}<br />
                     Minimum brake distance needed: <strong>{formatDistance(plan.brake_only_dist)}</strong><br />
                     Shortfall: <strong>{formatDistance(plan.shortfall)}</strong><br />
                     Reduce current velocity, lower cutoff speed, or increase distance.
@@ -1696,7 +1736,7 @@ export default function BurnCalculator() {
                     <AlertTriangle size={14} color="var(--red)" />
                     <div className="bc-warning-text">
                       <strong>CANNOT BRAKE IN TIME — OVERSHOOT IMMINENT</strong><br />
-                      At {formatVelocity(fa_v0_mps)} closing, you cannot stop before the no-wake boundary at {formatDistance(fa_a_mps2 > 0 ? (fa_v0_mps * fa_v0_mps - (isFinite(fa_v_arrival_mps) ? fa_v_arrival_mps * fa_v_arrival_mps : 0)) / (2 * fa_a_mps2) : 0)} brake distance needed.<br />
+                      At {formatVelocity(fa_v0_mps)} closing, you cannot stop before the {noWakeEnabled ? 'no-wake boundary' : 'destination'} at {formatDistance(fa_a_mps2 > 0 ? (fa_v0_mps * fa_v0_mps - (isFinite(fa_v_arrival_mps) ? fa_v_arrival_mps * fa_v_arrival_mps : 0)) / (2 * fa_a_mps2) : 0)} brake distance needed.<br />
                       Shortfall: <strong>{isFinite(faPlan.shortfall) ? formatDistance(faPlan.shortfall) : '—'}</strong><br />
                       Required deceleration: <strong>{isFinite(faPlan.required_a) ? (faPlan.required_a / G).toFixed(2) + ' G' : '—'}</strong> — exceeds available {isFinite(fa_a_mps2) ? (fa_a_mps2 / G).toFixed(2) + ' G' : '—'}.<br />
                       The solver cannot recover this approach. Reduce closing velocity immediately if possible.

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { AlertTriangle, Clock } from 'lucide-react';
 
-const APP_VERSION = 'v0.2.0';
+const APP_VERSION = 'v0.2.1';
 
 const G = 9.80665; // standard gravity, m/s²
 const AU = 149_597_870_700; // meters per astronomical unit
@@ -1478,7 +1478,7 @@ export default function BurnCalculator() {
                   </div>
                   <div className="bc-field-note" style={{ marginBottom: 4, paddingLeft: 118 }}>
                     {noWakeEnabled
-                      ? <span style={{ color: 'var(--text-dim)' }}>300 KM NO-WAKE ZONE SUBTRACTED FROM RANGE</span>
+                      ? <span>300 KM NO-WAKE ZONE SUBTRACTED FROM RANGE</span>
                       : <span style={{ color: 'var(--cyan)' }}>{`◈ STAND-OFF: ${standoffKm || '?'} KM SUBTRACTED FROM RANGE`}</span>}
                   </div>
                   <InputRow
@@ -1619,7 +1619,7 @@ export default function BurnCalculator() {
                   </div>
                   <div className="bc-field-note" style={{ marginBottom: 4, paddingLeft: 118 }}>
                     {noWakeEnabled
-                      ? <span style={{ color: 'var(--text-dim)' }}>300 KM NO-WAKE ZONE SUBTRACTED FROM RANGE</span>
+                      ? <span>300 KM NO-WAKE ZONE SUBTRACTED FROM RANGE</span>
                       : <span style={{ color: 'var(--cyan)' }}>{`◈ STAND-OFF: ${standoffKm || '?'} KM SUBTRACTED FROM RANGE`}</span>}
                   </div>
 

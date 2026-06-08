@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { AlertTriangle, Clock } from 'lucide-react';
 
-const APP_VERSION = 'v0.1.0';
+const APP_VERSION = 'v0.2.0';
 
 const G = 9.80665; // standard gravity, m/s²
 const AU = 149_597_870_700; // meters per astronomical unit
@@ -423,6 +423,20 @@ const stylesheet = `
   opacity: 1;
 }
 .bc-input.invalid { border-color: var(--red); color: var(--red); text-shadow: 0 0 6px rgba(255, 93, 93, 0.4); }
+.bc-input:disabled {
+  color: var(--text-dim);
+  opacity: 0.55;
+  cursor: not-allowed;
+  text-shadow: none;
+}
+
+/* Field-level caption notes below inputs */
+.bc-field-note {
+  font-size: 10px;
+  color: var(--text-secondary);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
 
 .bc-unit-toggle {
   display: flex;
@@ -969,6 +983,7 @@ export default function BurnCalculator() {
   const [vcrs, setVcrs] = useState('');
   const [vcrsUnit, setVcrsUnit] = useState('m/s');
   const [noWakeEnabled, setNoWakeEnabled] = useState(true); // toggle for 300 km no-wake zone
+  const [standoffKm, setStandoffKm] = useState('2.5');     // adjustable stand-off when zone OFF
 
   const [gameStartTime, setGameStartTime] = useState('');
 
@@ -978,21 +993,34 @@ export default function BurnCalculator() {
 
   // SI conversions
   const NO_WAKE_M = 300_000; // 300 km no-wake zone at destination
+  const standoff_m = noWakeEnabled ? NO_WAKE_M : (parseFloat(standoffKm) * 1000 || 0);
+  const standoffValid = noWakeEnabled || (isFinite(parseFloat(standoffKm)) && parseFloat(standoffKm) > 0);
   const distance_m = parseFloat(distance) * (distanceUnit === 'au' ? AU : distanceUnit === 'gm' ? 1e9 : distanceUnit === 'km' ? 1000 : 1);
-  const raw_burn_distance_m = noWakeEnabled ? distance_m - NO_WAKE_M : distance_m; // before VCRS correction
+  const raw_burn_distance_m = distance_m - standoff_m; // before VCRS correction
   const v0_mps = parseFloat(v0) * (v0Unit === 'km/s' ? 1000 : 1) * (v0Direction === 'receding' ? -1 : 1);
   const a_mps2 = parseFloat(accel) * (accelUnit === 'g' ? G : 1);
   const t_rotate_s = parseFloat(flipTime);
   const v_arrival_mps = parseFloat(vArrival) * (vArrivalUnit === 'km/s' ? 1000 : 1);
   const vcrs_mps = vcrs.trim() !== '' ? parseFloat(vcrs) * (vcrsUnit === 'km/s' ? 1000 : 1) : 0;
 
-  // Surface a clean error if the destination is within the no-wake zone (only when enabled)
-  const noWakeError = noWakeEnabled && isFinite(distance_m) && distance_m <= NO_WAKE_M;
+  // Surface a clean error if the destination is within the stand-off zone
+  const standoffError = !standoffValid
+    ? 'invalid-standoff'
+    : (isFinite(distance_m) && distance_m <= standoff_m)
+      ? 'within-standoff'
+      : null;
+  const noWakeError = standoffError !== null; // keeps downstream compat
 
   // VCRS geometry correction (one-iteration approach):
   // Pass 1 — solve with straight-line burn distance to get approximate t_total
+  const standoffBlockMsg = standoffError === 'invalid-standoff'
+    ? 'INVALID STAND-OFF DISTANCE'
+    : noWakeEnabled
+      ? 'DISTANCE WITHIN NO-WAKE ZONE'
+      : `DISTANCE WITHIN STAND-OFF ZONE (${standoffKm} KM)`;
+
   const plan1 = noWakeError
-    ? { error: 'DISTANCE WITHIN NO-WAKE ZONE' }
+    ? { error: standoffBlockMsg }
     : computePlan({ distance_m: raw_burn_distance_m, v0_mps, a_mps2, v_arrival_mps, t_rotate_s });
 
   // Compute cross-track drift over the burn duration, correct the true distance
@@ -1005,7 +1033,7 @@ export default function BurnCalculator() {
 
   // Pass 2 — recompute with corrected distance
   const plan = noWakeError
-    ? { error: 'DISTANCE WITHIN NO-WAKE ZONE' }
+    ? { error: standoffBlockMsg }
     : (vcrs_mps !== 0 && t_total_approx > 0)
       ? computePlan({ distance_m: burn_distance_m, v0_mps, a_mps2, v_arrival_mps, t_rotate_s })
       : plan1;
@@ -1132,9 +1160,8 @@ export default function BurnCalculator() {
     : null;
 
   // ── Final Approach calculations ──
-  const NO_WAKE_M_FA = 300_000;
   const fa_distance_m_raw = parseFloat(faDistance) * (faDistanceUnit === 'au' ? AU : faDistanceUnit === 'gm' ? 1e9 : 1000);
-  const fa_brake_distance_m = isFinite(fa_distance_m_raw) ? (noWakeEnabled ? fa_distance_m_raw - NO_WAKE_M_FA : fa_distance_m_raw) : NaN;
+  const fa_brake_distance_m = isFinite(fa_distance_m_raw) ? fa_distance_m_raw - standoff_m : NaN;
   const fa_v0_mps = parseFloat(faVrel) * (faVrelUnit === 'km/s' ? 1000 : 1);
   const fa_a_mps2 = parseFloat(faAccel) * (faAccelUnit === 'g' ? G : 1);
   const fa_v_arrival_mps = parseFloat(faVArrival) * (faVArrivalUnit === 'km/s' ? 1000 : 1);
@@ -1142,12 +1169,23 @@ export default function BurnCalculator() {
   const fa_budget_s = isFinite(fa_budget_raw) && fa_budget_raw > 0
     ? fa_budget_raw * (faBudgetUnit === 'hr' ? 3600 : 60)
     : null;
-  const fa_noWakeError = noWakeEnabled && isFinite(fa_distance_m_raw) && fa_distance_m_raw <= NO_WAKE_M_FA;
+
+  // Stand-off error for FA (mirrors burn-mode logic)
+  const fa_standoffError = !standoffValid
+    ? 'invalid-standoff'
+    : (isFinite(fa_distance_m_raw) && fa_distance_m_raw <= standoff_m)
+      ? 'within-standoff'
+      : null;
+  const fa_noWakeError = fa_standoffError !== null;
 
   const faPlan = (appMode === 'approach')
-    ? (fa_noWakeError
-        ? { error: 'DESTINATION IS WITHIN THE 300 KM NO-WAKE ZONE', detail: 'You are already inside the no-wake boundary.' }
-        : computeFinalApproach({ distance_m: fa_brake_distance_m, v0_mps: fa_v0_mps, a_mps2: fa_a_mps2, v_arrival_mps: fa_v_arrival_mps }))
+    ? (fa_standoffError === 'invalid-standoff'
+        ? { error: 'INVALID STAND-OFF DISTANCE', detail: 'Enter a positive distance in km.' }
+        : fa_standoffError === 'within-standoff'
+          ? (noWakeEnabled
+              ? { error: 'DESTINATION IS WITHIN THE 300 KM NO-WAKE ZONE', detail: 'You are already inside the no-wake boundary.' }
+              : { error: `DESTINATION IS WITHIN THE STAND-OFF ZONE (${standoffKm} KM)`, detail: 'Increase total range or reduce the stand-off distance.' })
+          : computeFinalApproach({ distance_m: fa_brake_distance_m, v0_mps: fa_v0_mps, a_mps2: fa_a_mps2, v_arrival_mps: fa_v_arrival_mps }))
     : null;
 
   // Reactant sufficiency for FA: budget_s vs t_brake
@@ -1306,8 +1344,12 @@ export default function BurnCalculator() {
                     }}
                   />
                   {noWakeError && (
-                    <div style={{ fontSize: 9, color: 'var(--red)', letterSpacing: '0.1em', marginBottom: 10, paddingLeft: 118 }}>
-                      ⚠ DESTINATION IS WITHIN THE 300 KM NO-WAKE ZONE
+                    <div className="bc-field-note" style={{ color: 'var(--red)', marginBottom: 10, paddingLeft: 118 }}>
+                      {standoffError === 'invalid-standoff'
+                        ? '⚠ INVALID STAND-OFF DISTANCE'
+                        : noWakeEnabled
+                          ? '⚠ DESTINATION IS WITHIN THE 300 KM NO-WAKE ZONE'
+                          : `⚠ DESTINATION IS WITHIN THE STAND-OFF ZONE (${standoffKm} KM)`}
                     </div>
                   )}
                   <InputRow
@@ -1362,19 +1404,19 @@ export default function BurnCalculator() {
                     unit={reactantBudgetUnit}
                     units={['hr', 'min']}
                     onUnitChange={setReactantBudgetUnit}
-                    placeholder="optional — enables drift mode"
+                    placeholder="Optional."
                   />
-                  <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: 4, paddingLeft: 118 }}>
-                    {isDriftMode && !budgetExceedsReqWithPlan
-                      ? <span style={{ color: 'var(--amber)' }}>◈ DRIFT MODE ACTIVE</span>
-                      : budgetExceedsReqWithPlan
-                        ? <span style={{ color: 'var(--green)' }}>● BUDGET EXCEEDS REQUIREMENT — SELECT PREFERENCE</span>
-                        : budgetExceedsReq
-                          ? <span style={{ color: 'var(--green)' }}>● BUDGET EXCEEDS REQUIREMENT — STANDARD BURN USED</span>
-                          : driftPlan && driftPlan.error
-                            ? <span style={{ color: 'var(--red)' }}>{driftPlan.error}</span>
-                            : <span>LEAVE BLANK FOR STANDARD FLIP-AND-BURN</span>}
-                  </div>
+                  {(isDriftMode && !budgetExceedsReqWithPlan) || budgetExceedsReqWithPlan || budgetExceedsReq || (driftPlan && driftPlan.error) ? (
+                    <div className="bc-field-note" style={{ marginBottom: 4, paddingLeft: 118 }}>
+                      {isDriftMode && !budgetExceedsReqWithPlan
+                        ? <span style={{ color: 'var(--amber)' }}>◈ DRIFT MODE ACTIVE</span>
+                        : budgetExceedsReqWithPlan
+                          ? <span style={{ color: 'var(--green)' }}>● BUDGET EXCEEDS REQUIREMENT — SELECT PREFERENCE</span>
+                          : budgetExceedsReq
+                            ? <span style={{ color: 'var(--green)' }}>● BUDGET EXCEEDS REQUIREMENT — STANDARD BURN USED</span>
+                            : <span style={{ color: 'var(--red)' }}>{driftPlan.error}</span>}
+                    </div>
+                  ) : null}
                   {budgetExceedsReqWithPlan && (
                     <>
                       <div style={{ display: 'flex', gap: 4, marginLeft: 118, marginBottom: 4 }}>
@@ -1387,7 +1429,7 @@ export default function BurnCalculator() {
                           onClick={() => setBurnPreference('efficiency')}
                         >EFFICIENCY</button>
                       </div>
-                      <div style={{ fontSize: 9, letterSpacing: '0.1em', marginBottom: 8, paddingLeft: 118 }}>
+                      <div className="bc-field-note" style={{ marginBottom: 8, paddingLeft: 118 }}>
                         {burnPreference === 'speed'
                           ? <span style={{ color: 'var(--amber)' }}>◈ STANDARD BURN — FASTEST ARRIVAL, NO DRIFT</span>
                           : <span style={{ color: 'var(--cyan)' }}>◈ DRIFT MODE — 2× TIME, MINIMUM REACTANT</span>}
@@ -1395,7 +1437,7 @@ export default function BurnCalculator() {
                     </>
                   )}
                   <InputRow
-                    label="Vel at 300km"
+                    label={noWakeEnabled ? 'Vel at 300km' : `Vel at ${standoffKm || '?'}km`}
                     value={vArrival}
                     onChange={setVArrival}
                     unit={vArrivalUnit}
@@ -1403,7 +1445,7 @@ export default function BurnCalculator() {
                     onUnitChange={setVArrivalUnit}
                     placeholder="e.g. 0"
                   />
-                  <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: 8, paddingLeft: 118 }}>
+                  <div className="bc-field-note" style={{ marginBottom: 8, paddingLeft: 118 }}>
                     DESIRED SPEED AT TORCH DRIVE CUTOFF
                   </div>
                   {/* NO-WAKE ZONE TOGGLE */}
@@ -1418,10 +1460,26 @@ export default function BurnCalculator() {
                       style={!noWakeEnabled ? { color: 'var(--cyan)', borderColor: 'var(--cyan)', background: 'rgba(77,208,255,0.12)' } : {}}
                     >300KM ZONE OFF</button>
                   </div>
-                  <div style={{ fontSize: 9, letterSpacing: '0.1em', marginBottom: 4, paddingLeft: 118 }}>
+                  {/* STAND-OFF DISTANCE — always visible; locked at 300 when zone ON */}
+                  <div className="bc-input-row">
+                    <div className="bc-label">Stand-off</div>
+                    <input
+                      className="bc-input"
+                      type="text"
+                      inputMode="decimal"
+                      value={noWakeEnabled ? '300' : standoffKm}
+                      placeholder="e.g. 2.5"
+                      disabled={noWakeEnabled}
+                      onChange={(e) => !noWakeEnabled && setStandoffKm(e.target.value)}
+                    />
+                    <div className="bc-unit-toggle">
+                      <button className="bc-unit-btn active">km</button>
+                    </div>
+                  </div>
+                  <div className="bc-field-note" style={{ marginBottom: 4, paddingLeft: 118 }}>
                     {noWakeEnabled
                       ? <span style={{ color: 'var(--text-dim)' }}>300 KM NO-WAKE ZONE SUBTRACTED FROM RANGE</span>
-                      : <span style={{ color: 'var(--cyan)' }}>◈ NO-WAKE ZONE DISABLED — FULL RANGE USED</span>}
+                      : <span style={{ color: 'var(--cyan)' }}>{`◈ STAND-OFF: ${standoffKm || '?'} KM SUBTRACTED FROM RANGE`}</span>}
                   </div>
                   <InputRow
                     label="Current VCRS"
@@ -1452,7 +1510,7 @@ export default function BurnCalculator() {
                       onChange={(e) => setGameStartTime(e.target.value)}
                     />
                   </div>
-                  <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', marginTop: 6, paddingLeft: 118 }}>
+                  <div className="bc-field-note" style={{ marginTop: 6, paddingLeft: 118 }}>
                     {gameTimeError ? (
                       <span style={{ color: 'var(--red)' }}>INVALID FORMAT — USE YYYY-MM-DD HH:MM:SS OR HH:MM:SS</span>
                     ) : gameTimeValid ? (
@@ -1480,8 +1538,12 @@ export default function BurnCalculator() {
                     placeholder="e.g. 18902"
                   />
                   {fa_noWakeError && (
-                    <div style={{ fontSize: 9, color: 'var(--red)', letterSpacing: '0.1em', marginBottom: 10, paddingLeft: 118 }}>
-                      ⚠ DESTINATION IS WITHIN THE 300 KM NO-WAKE ZONE
+                    <div className="bc-field-note" style={{ color: 'var(--red)', marginBottom: 10, paddingLeft: 118 }}>
+                      {fa_standoffError === 'invalid-standoff'
+                        ? '⚠ INVALID STAND-OFF DISTANCE'
+                        : noWakeEnabled
+                          ? '⚠ DESTINATION IS WITHIN THE 300 KM NO-WAKE ZONE'
+                          : `⚠ DESTINATION IS WITHIN THE STAND-OFF ZONE (${standoffKm} KM)`}
                     </div>
                   )}
                   <InputRow
@@ -1493,7 +1555,7 @@ export default function BurnCalculator() {
                     onUnitChange={setFaVrelUnit}
                     placeholder="e.g. 511.19"
                   />
-                  <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: 8, paddingLeft: 118 }}>
+                  <div className="bc-field-note" style={{ marginBottom: 8, paddingLeft: 118 }}>
                     CLOSING VELOCITY TO TARGET
                   </div>
                   <InputRow
@@ -1513,13 +1575,10 @@ export default function BurnCalculator() {
                     unit={faBudgetUnit}
                     units={['hr', 'min']}
                     onUnitChange={setFaBudgetUnit}
-                    placeholder="optional"
+                    placeholder="Optional."
                   />
-                  <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: 4, paddingLeft: 118 }}>
-                    LEAVE BLANK TO SKIP SUFFICIENCY CHECK
-                  </div>
                   <InputRow
-                    label="Vel at 300km"
+                    label={noWakeEnabled ? 'Vel at 300km' : `Vel at ${standoffKm || '?'}km`}
                     value={faVArrival}
                     onChange={setFaVArrival}
                     unit={faVArrivalUnit}
@@ -1527,7 +1586,7 @@ export default function BurnCalculator() {
                     onUnitChange={setFaVArrivalUnit}
                     placeholder="e.g. 0"
                   />
-                  <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: 8, paddingLeft: 118 }}>
+                  <div className="bc-field-note" style={{ marginBottom: 8, paddingLeft: 118 }}>
                     DESIRED SPEED AT TORCH DRIVE CUTOFF
                   </div>
                   {/* NO-WAKE ZONE TOGGLE */}
@@ -1542,10 +1601,26 @@ export default function BurnCalculator() {
                       style={!noWakeEnabled ? { color: 'var(--cyan)', borderColor: 'var(--cyan)', background: 'rgba(77,208,255,0.12)' } : {}}
                     >300KM ZONE OFF</button>
                   </div>
-                  <div style={{ fontSize: 9, letterSpacing: '0.1em', marginBottom: 4, paddingLeft: 118 }}>
+                  {/* STAND-OFF DISTANCE — always visible; locked at 300 when zone ON */}
+                  <div className="bc-input-row">
+                    <div className="bc-label">Stand-off</div>
+                    <input
+                      className="bc-input"
+                      type="text"
+                      inputMode="decimal"
+                      value={noWakeEnabled ? '300' : standoffKm}
+                      placeholder="e.g. 2.5"
+                      disabled={noWakeEnabled}
+                      onChange={(e) => !noWakeEnabled && setStandoffKm(e.target.value)}
+                    />
+                    <div className="bc-unit-toggle">
+                      <button className="bc-unit-btn active">km</button>
+                    </div>
+                  </div>
+                  <div className="bc-field-note" style={{ marginBottom: 4, paddingLeft: 118 }}>
                     {noWakeEnabled
                       ? <span style={{ color: 'var(--text-dim)' }}>300 KM NO-WAKE ZONE SUBTRACTED FROM RANGE</span>
-                      : <span style={{ color: 'var(--cyan)' }}>◈ NO-WAKE ZONE DISABLED — FULL RANGE USED</span>}
+                      : <span style={{ color: 'var(--cyan)' }}>{`◈ STAND-OFF: ${standoffKm || '?'} KM SUBTRACTED FROM RANGE`}</span>}
                   </div>
 
                   {/* FA GAME TIME */}
@@ -1563,7 +1638,7 @@ export default function BurnCalculator() {
                       onChange={(e) => setFaGameStart(e.target.value)}
                     />
                   </div>
-                  <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', marginTop: 6, paddingLeft: 118 }}>
+                  <div className="bc-field-note" style={{ marginTop: 6, paddingLeft: 118 }}>
                     {faGameTimeError ? (
                       <span style={{ color: 'var(--red)' }}>INVALID FORMAT — USE YYYY-MM-DD HH:MM:SS OR HH:MM:SS</span>
                     ) : faGameTimeValid ? (
@@ -1600,7 +1675,7 @@ export default function BurnCalculator() {
                     <strong>CANNOT BRAKE IN TIME</strong><br />
                     {noWakeEnabled
                       ? 'Ship is moving too fast to stop before the no-wake boundary.'
-                      : 'Ship is moving too fast to stop before the destination.'}<br />
+                      : `Ship is moving too fast to stop before the stand-off boundary (${standoffKm} km).`}<br />
                     Minimum brake distance needed: <strong>{formatDistance(plan.brake_only_dist)}</strong><br />
                     Shortfall: <strong>{formatDistance(plan.shortfall)}</strong><br />
                     Reduce current velocity, lower cutoff speed, or increase distance.
@@ -1636,7 +1711,7 @@ export default function BurnCalculator() {
                         flickerKey={flickerKey}
                       />
                       {vcrsNullTarget && (
-                        <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', textAlign: 'right', marginBottom: 4 }}>
+                        <div className="bc-field-note" style={{ textAlign: 'right', marginBottom: 4 }}>
                           DURATION: {formatTime(Math.floor(vcrsNullTime))}
                         </div>
                       )}
@@ -1736,7 +1811,7 @@ export default function BurnCalculator() {
                     <AlertTriangle size={14} color="var(--red)" />
                     <div className="bc-warning-text">
                       <strong>CANNOT BRAKE IN TIME — OVERSHOOT IMMINENT</strong><br />
-                      At {formatVelocity(fa_v0_mps)} closing, you cannot stop before the {noWakeEnabled ? 'no-wake boundary' : 'destination'} at {formatDistance(fa_a_mps2 > 0 ? (fa_v0_mps * fa_v0_mps - (isFinite(fa_v_arrival_mps) ? fa_v_arrival_mps * fa_v_arrival_mps : 0)) / (2 * fa_a_mps2) : 0)} brake distance needed.<br />
+                      At {formatVelocity(fa_v0_mps)} closing, you cannot stop before the {noWakeEnabled ? 'no-wake boundary' : `stand-off boundary (${standoffKm} km)`} at {formatDistance(fa_a_mps2 > 0 ? (fa_v0_mps * fa_v0_mps - (isFinite(fa_v_arrival_mps) ? fa_v_arrival_mps * fa_v_arrival_mps : 0)) / (2 * fa_a_mps2) : 0)} brake distance needed.<br />
                       Shortfall: <strong>{isFinite(faPlan.shortfall) ? formatDistance(faPlan.shortfall) : '—'}</strong><br />
                       Required deceleration: <strong>{isFinite(faPlan.required_a) ? (faPlan.required_a / G).toFixed(2) + ' G' : '—'}</strong> — exceeds available {isFinite(fa_a_mps2) ? (fa_a_mps2 / G).toFixed(2) + ' G' : '—'}.<br />
                       The solver cannot recover this approach. Reduce closing velocity immediately if possible.
@@ -1777,12 +1852,12 @@ export default function BurnCalculator() {
                           highlight flickerKey={flickerKey}
                         />
                         {faBrakeTarget && (
-                          <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', textAlign: 'right', marginBottom: 4 }}>
+                          <div className="bc-field-note" style={{ textAlign: 'right', marginBottom: 4 }}>
                             COAST {formatTime(Math.floor(faPlan.t_coast))} BEFORE IGNITION
                           </div>
                         )}
                         {!faGameTimeValid && (
-                          <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', textAlign: 'right', marginBottom: 4 }}>
+                          <div className="bc-field-note" style={{ textAlign: 'right', marginBottom: 4 }}>
                             COAST {formatTime(Math.floor(faPlan.t_coast))} BEFORE IGNITION
                           </div>
                         )}

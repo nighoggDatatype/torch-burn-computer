@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { AlertTriangle, Clock } from 'lucide-react';
 
-const APP_VERSION = 'v0.2.1';
+const APP_VERSION = 'v0.3.0';
 
 const G = 9.80665; // standard gravity, m/s²
 const AU = 149_597_870_700; // meters per astronomical unit
@@ -301,7 +301,7 @@ const stylesheet = `
 .bc-status-light.ready {
   background: #4ade80;
   box-shadow: 0 0 8px #4ade80;
-  animation: bc-pulse-slow 2s ease-in-out infinite;
+  animation: bc-blink-hard 1s steps(1, end) infinite;
 }
 .bc-status-light.invalid {
   background: #ff5d5d;
@@ -327,6 +327,10 @@ const stylesheet = `
 @keyframes bc-pulse-fast {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.15; }
+}
+@keyframes bc-blink-hard {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0.2; }
 }
 
 .bc-status-text {
@@ -1379,6 +1383,19 @@ export default function BurnCalculator() {
                     >RECEDING</button>
                   </div>
                   <InputRow
+                    label="Current VCRS"
+                    value={vcrs}
+                    onChange={setVcrs}
+                    unit={vcrsUnit}
+                    units={['m/s', 'km/s']}
+                    onUnitChange={setVcrsUnit}
+                    placeholder="e.g. -0.02"
+                    tooltip={{
+                      desc: "Input your VCRS to the target destination. NOTE: During the braking phase, a VCRS correction will likely be required.",
+                      img: TOOLTIP_IMG_DISTANCE,
+                    }}
+                  />
+                  <InputRow
                     label="Acceleration"
                     value={accel}
                     onChange={setAccel}
@@ -1404,7 +1421,7 @@ export default function BurnCalculator() {
                     unit={reactantBudgetUnit}
                     units={['hr', 'min']}
                     onUnitChange={setReactantBudgetUnit}
-                    placeholder="Optional."
+                    placeholder="Optional"
                   />
                   {(isDriftMode && !budgetExceedsReqWithPlan) || budgetExceedsReqWithPlan || budgetExceedsReq || (driftPlan && driftPlan.error) ? (
                     <div className="bc-field-note" style={{ marginBottom: 4, paddingLeft: 118 }}>
@@ -1437,7 +1454,7 @@ export default function BurnCalculator() {
                     </>
                   )}
                   <InputRow
-                    label={noWakeEnabled ? 'Vel at 300km' : `Vel at ${standoffKm || '?'}km`}
+                    label={noWakeEnabled ? 'Tgt Vel at 300km' : `Tgt Vel at ${standoffKm || '?'}km`}
                     value={vArrival}
                     onChange={setVArrival}
                     unit={vArrivalUnit}
@@ -1445,9 +1462,6 @@ export default function BurnCalculator() {
                     onUnitChange={setVArrivalUnit}
                     placeholder="e.g. 0"
                   />
-                  <div className="bc-field-note" style={{ marginBottom: 8, paddingLeft: 118 }}>
-                    DESIRED SPEED AT TORCH DRIVE CUTOFF
-                  </div>
                   {/* NO-WAKE ZONE TOGGLE */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 118, marginBottom: 8 }}>
                     <button
@@ -1481,19 +1495,6 @@ export default function BurnCalculator() {
                       ? <span>300 KM NO-WAKE ZONE SUBTRACTED FROM RANGE</span>
                       : <span style={{ color: 'var(--cyan)' }}>{`◈ STAND-OFF: ${standoffKm || '?'} KM SUBTRACTED FROM RANGE`}</span>}
                   </div>
-                  <InputRow
-                    label="Current VCRS"
-                    value={vcrs}
-                    onChange={setVcrs}
-                    unit={vcrsUnit}
-                    units={['m/s', 'km/s']}
-                    onUnitChange={setVcrsUnit}
-                    placeholder="e.g. -0.02"
-                    tooltip={{
-                      desc: "Input your VCRS to the target destination. NOTE: During the braking phase, a VCRS correction will likely be required.",
-                      img: TOOLTIP_IMG_DISTANCE,
-                    }}
-                  />
 
                   {/* GAME TIME */}
                   <div className="bc-panel-header" style={{ marginTop: 20 }}>◇ Game Clock</div>
@@ -1547,7 +1548,7 @@ export default function BurnCalculator() {
                     </div>
                   )}
                   <InputRow
-                    label="Current VREL"
+                    label="Current VREL (Closing)"
                     value={faVrel}
                     onChange={setFaVrel}
                     unit={faVrelUnit}
@@ -1555,9 +1556,6 @@ export default function BurnCalculator() {
                     onUnitChange={setFaVrelUnit}
                     placeholder="e.g. 511.19"
                   />
-                  <div className="bc-field-note" style={{ marginBottom: 8, paddingLeft: 118 }}>
-                    CLOSING VELOCITY TO TARGET
-                  </div>
                   <InputRow
                     label="Acceleration"
                     value={faAccel}
@@ -1575,10 +1573,10 @@ export default function BurnCalculator() {
                     unit={faBudgetUnit}
                     units={['hr', 'min']}
                     onUnitChange={setFaBudgetUnit}
-                    placeholder="Optional."
+                    placeholder="Optional"
                   />
                   <InputRow
-                    label={noWakeEnabled ? 'Vel at 300km' : `Vel at ${standoffKm || '?'}km`}
+                    label={noWakeEnabled ? 'Tgt Vel at 300km' : `Tgt Vel at ${standoffKm || '?'}km`}
                     value={faVArrival}
                     onChange={setFaVArrival}
                     unit={faVArrivalUnit}
@@ -1586,9 +1584,6 @@ export default function BurnCalculator() {
                     onUnitChange={setFaVArrivalUnit}
                     placeholder="e.g. 0"
                   />
-                  <div className="bc-field-note" style={{ marginBottom: 8, paddingLeft: 118 }}>
-                    DESIRED SPEED AT TORCH DRIVE CUTOFF
-                  </div>
                   {/* NO-WAKE ZONE TOGGLE */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 118, marginBottom: 8 }}>
                     <button
@@ -1905,71 +1900,82 @@ export default function BurnCalculator() {
           </div>
 
           {/* TIMELINE + GAME-TIME TARGETS — burn mode only */}
-          {appMode === 'burn' && planValid && (
+          {appMode === 'burn' && (
             <div className="bc-panel bc-timeline-panel scratch-c">
               <div className="bc-panel-header">◇ Burn Timeline</div>
 
               <div className="bc-timeline">
-                {t_accel > 0 && (
-                  <div className="bc-timeline-phase accel" style={{ left: 0, width: `${accelPct}%` }}>
-                    {accelPct > 8 ? 'ACCEL' : ''}
-                  </div>
+                {planValid ? (
+                  <>
+                    {t_accel > 0 && (
+                      <div className="bc-timeline-phase accel" style={{ left: 0, width: `${accelPct}%` }}>
+                        {accelPct > 8 ? 'ACCEL' : ''}
+                      </div>
+                    )}
+                    {t_rot > 0 && (
+                      <div className="bc-timeline-phase rotate" style={{ left: `${accelPct}%`, width: `${rotPct}%` }}>
+                        {rotPct > 6 ? 'ROT' : ''}
+                      </div>
+                    )}
+                    {isDriftMode && driftPct > 0 && (
+                      <div className="bc-timeline-phase drift" style={{ left: `${accelPct + rotPct}%`, width: `${driftPct}%` }}>
+                        {driftPct > 8 ? 'DRIFT' : ''}
+                      </div>
+                    )}
+                    <div className="bc-timeline-phase brake" style={{ left: `${accelPct + rotPct + driftPct}%`, width: `${brakePct}%` }}>
+                      {brakePct > 8 ? 'BRAKE' : ''}
+                    </div>
+                    <div className="bc-timeline-tick" style={{ left: 0 }}>T+0</div>
+                    {t_accel > 0 && rotPct >= 10 && (
+                      <div className="bc-timeline-tick key" style={{ left: `${accelPct}%` }}>↺ FLIP</div>
+                    )}
+                    {isDriftMode && driftPct >= 5 && (
+                      <div className="bc-timeline-tick key" style={{ left: `${accelPct + rotPct + driftPct}%` }}>⬛ BRAKE</div>
+                    )}
+                    {!isDriftMode && t_accel > 0 && rotPct >= 10 && (
+                      <div className="bc-timeline-tick key" style={{ left: `${accelPct + rotPct}%` }}>⬛ BRAKE</div>
+                    )}
+                    {!isDriftMode && t_accel > 0 && rotPct < 10 && (
+                      <div className="bc-timeline-tick key" style={{ left: `${accelPct + rotPct / 2}%` }}>↺→⬛ FLIP</div>
+                    )}
+                    {t_accel === 0 && (
+                      <div className="bc-timeline-tick key" style={{ left: `${rotPct}%` }}>⬛ BRAKE</div>
+                    )}
+                    <div className="bc-timeline-tick" style={{ left: '100%', transform: 'translateX(-100%)' }}>◉ ARRIVE</div>
+                  </>
+                ) : (
+                  <>
+                    <div className="bc-timeline-phase accel" style={{ left: 0, width: '33.33%' }}>?</div>
+                    <div className="bc-timeline-phase rotate" style={{ left: '33.33%', width: '33.34%' }}>?</div>
+                    <div className="bc-timeline-phase brake" style={{ left: '66.67%', width: '33.33%' }}>?</div>
+                    <div className="bc-timeline-tick" style={{ left: 0 }}>T+0</div>
+                    <div className="bc-timeline-tick" style={{ left: '100%', transform: 'translateX(-100%)' }}>◉ ARRIVE</div>
+                  </>
                 )}
-                {t_rot > 0 && (
-                  <div className="bc-timeline-phase rotate" style={{ left: `${accelPct}%`, width: `${rotPct}%` }}>
-                    {rotPct > 6 ? 'ROT' : ''}
-                  </div>
-                )}
-                {isDriftMode && driftPct > 0 && (
-                  <div className="bc-timeline-phase drift" style={{ left: `${accelPct + rotPct}%`, width: `${driftPct}%` }}>
-                    {driftPct > 8 ? 'DRIFT' : ''}
-                  </div>
-                )}
-                <div className="bc-timeline-phase brake" style={{ left: `${accelPct + rotPct + driftPct}%`, width: `${brakePct}%` }}>
-                  {brakePct > 8 ? 'BRAKE' : ''}
-                </div>
-
-                <div className="bc-timeline-tick" style={{ left: 0 }}>T+0</div>
-                {t_accel > 0 && rotPct >= 10 && (
-                  <div className="bc-timeline-tick key" style={{ left: `${accelPct}%` }}>↺ FLIP</div>
-                )}
-                {isDriftMode && driftPct >= 5 && (
-                  <div className="bc-timeline-tick key" style={{ left: `${accelPct + rotPct + driftPct}%` }}>⬛ BRAKE</div>
-                )}
-                {!isDriftMode && t_accel > 0 && rotPct >= 10 && (
-                  <div className="bc-timeline-tick key" style={{ left: `${accelPct + rotPct}%` }}>⬛ BRAKE</div>
-                )}
-                {!isDriftMode && t_accel > 0 && rotPct < 10 && (
-                  <div className="bc-timeline-tick key" style={{ left: `${accelPct + rotPct / 2}%` }}>↺→⬛ FLIP</div>
-                )}
-                {t_accel === 0 && (
-                  <div className="bc-timeline-tick key" style={{ left: `${rotPct}%` }}>⬛ BRAKE</div>
-                )}
-                <div className="bc-timeline-tick" style={{ left: '100%' }}>◉ ARRIVE</div>
               </div>
 
               <div className="bc-targets-grid">
                 <TargetCell
                   variant="rotate"
-                  label={isDriftMode ? '↺ End Accel / Flip' : '↺ Begin Rotate'}
-                  gameTime={rotateTarget}
-                  relative={`T+${formatTime(t_accel)}`}
+                  label={planValid ? (isDriftMode ? '↺ End Accel / Flip' : '↺ Begin Rotate') : '↺ Begin Rotate'}
+                  gameTime={planValid ? rotateTarget : null}
+                  relative={planValid ? `T+${formatTime(t_accel)}` : '--:--:--'}
                 />
                 <TargetCell
                   variant="brake"
-                  label={isDriftMode ? '⬛ End Drift / Brake' : '⬛ Begin Brake'}
-                  gameTime={isDriftMode ? driftEndTarget : brakeTarget}
-                  relative={`T+${formatTime(t_brake_start)}`}
+                  label={planValid ? (isDriftMode ? '⬛ End Drift / Brake' : '⬛ Begin Brake') : '⬛ Begin Brake'}
+                  gameTime={planValid ? (isDriftMode ? driftEndTarget : brakeTarget) : null}
+                  relative={planValid ? `T+${formatTime(t_brake_start)}` : '--:--:--'}
                 />
                 <TargetCell
                   variant="arrive"
                   label="◉ Arrival"
-                  gameTime={arriveTarget}
-                  relative={`T+${formatTime(t_total)}`}
+                  gameTime={planValid ? arriveTarget : null}
+                  relative={planValid ? `T+${formatTime(t_total)}` : '--:--:--'}
                 />
               </div>
 
-              {!gameTimeValid && (
+              {planValid && !gameTimeValid && (
                 <div style={{ marginTop: 12, fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.1em', textAlign: 'center' }}>
                   ▲ ENTER GAME CLOCK TIME ABOVE FOR ABSOLUTE TARGET TIMES ▲
                 </div>

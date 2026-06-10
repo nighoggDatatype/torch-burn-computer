@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { AlertTriangle, Clock } from 'lucide-react';
 
-const APP_VERSION = 'v0.3.0';
+const APP_VERSION = 'v0.3.1';
 
 const G = 9.80665; // standard gravity, m/s²
 const AU = 149_597_870_700; // meters per astronomical unit
@@ -301,7 +301,7 @@ const stylesheet = `
 .bc-status-light.ready {
   background: #4ade80;
   box-shadow: 0 0 8px #4ade80;
-  animation: bc-blink-hard 1s steps(1, end) infinite;
+  animation: none;
 }
 .bc-status-light.invalid {
   background: #ff5d5d;
@@ -311,7 +311,7 @@ const stylesheet = `
 .bc-status-light.overshoot {
   background: #ff5d5d;
   box-shadow: 0 0 8px #ff5d5d;
-  animation: bc-pulse-fast 0.5s ease-in-out infinite;
+  animation: none;
 }
 .bc-status-light.clock {
   background: #4dd0ff;
@@ -978,7 +978,7 @@ export default function BurnCalculator() {
   const [v0Direction, setV0Direction] = useState('closing');
   const [accel, setAccel] = useState('');
   const [accelUnit, setAccelUnit] = useState('g');
-  const [flipTime, setFlipTime] = useState('');
+  const [flipTime, setFlipTime] = useState('60');
   const [reactantBudget, setReactantBudget] = useState('');
   const [reactantBudgetUnit, setReactantBudgetUnit] = useState('hr');
   const [burnPreference, setBurnPreference] = useState('speed'); // 'speed' | 'efficiency'
@@ -1265,7 +1265,7 @@ export default function BurnCalculator() {
   const activeStatusText = appMode === 'approach' ? faStatusText : statusText;
   const activeHasError = appMode === 'approach'
     ? (faPlan && (faPlan.error || fa_noWakeError))
-    : (plan.error || noWakeError);
+    : (plan.error || noWakeError || !!(driftPlan && driftPlan.error));
   const activeIsOvershoot = appMode === 'approach'
     ? (faPlan && faPlan.overshoot)
     : plan.overshoot;
@@ -1391,68 +1391,10 @@ export default function BurnCalculator() {
                     onUnitChange={setVcrsUnit}
                     placeholder="e.g. -0.02"
                     tooltip={{
-                      desc: "Input your VCRS to the target destination. NOTE: During the braking phase, a VCRS correction will likely be required.",
+                      desc: "Input your VCRS to the target destination.",
                       img: TOOLTIP_IMG_DISTANCE,
                     }}
                   />
-                  <InputRow
-                    label="Acceleration"
-                    value={accel}
-                    onChange={setAccel}
-                    unit={accelUnit}
-                    units={['g', 'm/s²']}
-                    onUnitChange={setAccelUnit}
-                    placeholder="e.g. 1.95"
-                  />
-                  <InputRow
-                    label="Flip Time"
-                    value={flipTime}
-                    onChange={setFlipTime}
-                    unit="sec"
-                    units={['sec']}
-                    onUnitChange={() => {}}
-                    placeholder="e.g. 30"
-                  />
-                  <div className="bc-panel-header" style={{ marginTop: 20 }}>◇ Reactant Budget</div>
-                  <InputRow
-                    label="Budget"
-                    value={reactantBudget}
-                    onChange={setReactantBudget}
-                    unit={reactantBudgetUnit}
-                    units={['hr', 'min']}
-                    onUnitChange={setReactantBudgetUnit}
-                    placeholder="Optional"
-                  />
-                  {(isDriftMode && !budgetExceedsReqWithPlan) || budgetExceedsReqWithPlan || budgetExceedsReq || (driftPlan && driftPlan.error) ? (
-                    <div className="bc-field-note" style={{ marginBottom: 4, paddingLeft: 118 }}>
-                      {isDriftMode && !budgetExceedsReqWithPlan
-                        ? <span style={{ color: 'var(--amber)' }}>◈ DRIFT MODE ACTIVE</span>
-                        : budgetExceedsReqWithPlan
-                          ? <span style={{ color: 'var(--green)' }}>● BUDGET EXCEEDS REQUIREMENT — SELECT PREFERENCE</span>
-                          : budgetExceedsReq
-                            ? <span style={{ color: 'var(--green)' }}>● BUDGET EXCEEDS REQUIREMENT — STANDARD BURN USED</span>
-                            : <span style={{ color: 'var(--red)' }}>{driftPlan.error}</span>}
-                    </div>
-                  ) : null}
-                  {budgetExceedsReqWithPlan && (
-                    <>
-                      <div style={{ display: 'flex', gap: 4, marginLeft: 118, marginBottom: 4 }}>
-                        <button
-                          className={`bc-unit-btn${burnPreference === 'speed' ? ' active' : ''}`}
-                          onClick={() => setBurnPreference('speed')}
-                        >SPEED</button>
-                        <button
-                          className={`bc-unit-btn${burnPreference === 'efficiency' ? ' active' : ''}`}
-                          onClick={() => setBurnPreference('efficiency')}
-                        >EFFICIENCY</button>
-                      </div>
-                      <div className="bc-field-note" style={{ marginBottom: 8, paddingLeft: 118 }}>
-                        {burnPreference === 'speed'
-                          ? <span style={{ color: 'var(--amber)' }}>◈ STANDARD BURN — FASTEST ARRIVAL, NO DRIFT</span>
-                          : <span style={{ color: 'var(--cyan)' }}>◈ DRIFT MODE — 2× TIME, MINIMUM REACTANT</span>}
-                      </div>
-                    </>
-                  )}
                   <InputRow
                     label={noWakeEnabled ? 'Tgt Vel at 300km' : `Tgt Vel at ${standoffKm || '?'}km`}
                     value={vArrival}
@@ -1495,6 +1437,63 @@ export default function BurnCalculator() {
                       ? <span>300 KM NO-WAKE ZONE SUBTRACTED FROM RANGE</span>
                       : <span style={{ color: 'var(--cyan)' }}>{`◈ STAND-OFF: ${standoffKm || '?'} KM SUBTRACTED FROM RANGE`}</span>}
                   </div>
+                  <InputRow
+                    label="Acceleration"
+                    value={accel}
+                    onChange={setAccel}
+                    unit={accelUnit}
+                    units={['g', 'm/s²']}
+                    onUnitChange={setAccelUnit}
+                    placeholder="e.g. 1.95"
+                  />
+                  <InputRow
+                    label="Flip Time"
+                    value={flipTime}
+                    onChange={setFlipTime}
+                    unit="sec"
+                    units={['sec']}
+                    onUnitChange={() => {}}
+                    placeholder="e.g. 30"
+                  />
+                  <InputRow
+                    label="Reactant Budget"
+                    value={reactantBudget}
+                    onChange={setReactantBudget}
+                    unit={reactantBudgetUnit}
+                    units={['hr', 'min']}
+                    onUnitChange={setReactantBudgetUnit}
+                    placeholder="Optional"
+                  />
+                  {(isDriftMode && !budgetExceedsReqWithPlan) || budgetExceedsReqWithPlan || budgetExceedsReq || (driftPlan && driftPlan.error) ? (
+                    <div className="bc-field-note" style={{ marginBottom: 4, paddingLeft: 118 }}>
+                      {isDriftMode && !budgetExceedsReqWithPlan
+                        ? <span style={{ color: 'var(--amber)' }}>◈ DRIFT MODE ACTIVE</span>
+                        : budgetExceedsReqWithPlan
+                          ? <span style={{ color: 'var(--green)' }}>● BUDGET EXCEEDS REQUIREMENT — SELECT PREFERENCE</span>
+                          : budgetExceedsReq
+                            ? <span style={{ color: 'var(--green)' }}>● BUDGET EXCEEDS REQUIREMENT — STANDARD BURN USED</span>
+                            : <span style={{ color: 'var(--red)' }}>{driftPlan.error}</span>}
+                    </div>
+                  ) : null}
+                  {budgetExceedsReqWithPlan && (
+                    <>
+                      <div style={{ display: 'flex', gap: 4, marginLeft: 118, marginBottom: 4 }}>
+                        <button
+                          className={`bc-unit-btn${burnPreference === 'speed' ? ' active' : ''}`}
+                          onClick={() => setBurnPreference('speed')}
+                        >SPEED</button>
+                        <button
+                          className={`bc-unit-btn${burnPreference === 'efficiency' ? ' active' : ''}`}
+                          onClick={() => setBurnPreference('efficiency')}
+                        >EFFICIENCY</button>
+                      </div>
+                      <div className="bc-field-note" style={{ marginBottom: 8, paddingLeft: 118 }}>
+                        {burnPreference === 'speed'
+                          ? <span style={{ color: 'var(--amber)' }}>◈ STANDARD BURN — FASTEST ARRIVAL, NO DRIFT</span>
+                          : <span style={{ color: 'var(--cyan)' }}>◈ DRIFT MODE — 2× TIME, MINIMUM REACTANT</span>}
+                      </div>
+                    </>
+                  )}
 
                   {/* GAME TIME */}
                   <div className="bc-panel-header" style={{ marginTop: 20 }}>◇ Game Clock</div>
@@ -1930,16 +1929,16 @@ export default function BurnCalculator() {
                       <div className="bc-timeline-tick key" style={{ left: `${accelPct}%` }}>↺ FLIP</div>
                     )}
                     {isDriftMode && driftPct >= 5 && (
-                      <div className="bc-timeline-tick key" style={{ left: `${accelPct + rotPct + driftPct}%` }}>⬛ BRAKE</div>
+                      <div className="bc-timeline-tick key" style={{ left: `${accelPct + rotPct + driftPct}%` }}>⊖ BRAKE</div>
                     )}
                     {!isDriftMode && t_accel > 0 && rotPct >= 10 && (
-                      <div className="bc-timeline-tick key" style={{ left: `${accelPct + rotPct}%` }}>⬛ BRAKE</div>
+                      <div className="bc-timeline-tick key" style={{ left: `${accelPct + rotPct}%` }}>⊖ BRAKE</div>
                     )}
                     {!isDriftMode && t_accel > 0 && rotPct < 10 && (
-                      <div className="bc-timeline-tick key" style={{ left: `${accelPct + rotPct / 2}%` }}>↺→⬛ FLIP</div>
+                      <div className="bc-timeline-tick key" style={{ left: `${accelPct + rotPct / 2}%` }}>↺→⊖ FLIP</div>
                     )}
                     {t_accel === 0 && (
-                      <div className="bc-timeline-tick key" style={{ left: `${rotPct}%` }}>⬛ BRAKE</div>
+                      <div className="bc-timeline-tick key" style={{ left: `${rotPct}%` }}>⊖ BRAKE</div>
                     )}
                     <div className="bc-timeline-tick" style={{ left: '100%', transform: 'translateX(-100%)' }}>◉ ARRIVE</div>
                   </>
@@ -1963,7 +1962,7 @@ export default function BurnCalculator() {
                 />
                 <TargetCell
                   variant="brake"
-                  label={planValid ? (isDriftMode ? '⬛ End Drift / Brake' : '⬛ Begin Brake') : '⬛ Begin Brake'}
+                  label={planValid ? (isDriftMode ? '⊖ End Drift / Brake' : '⊖ Begin Brake') : '⊖ Begin Brake'}
                   gameTime={planValid ? (isDriftMode ? driftEndTarget : brakeTarget) : null}
                   relative={planValid ? `T+${formatTime(t_brake_start)}` : '--:--:--'}
                 />

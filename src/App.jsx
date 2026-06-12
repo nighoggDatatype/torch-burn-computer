@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { AlertTriangle, Clock } from 'lucide-react';
 
-const APP_VERSION = 'v0.4.0';
+const APP_VERSION = 'v0.4.1';
 
 const G = 9.80665; // standard gravity, m/s²
 const AU = 149_597_870_700; // meters per astronomical unit
@@ -201,6 +201,8 @@ function computeFinalApproach({ distance_m, v0_mps, a_mps2, v_arrival_mps }) {
 // ───── styles ──────────────────────────────────────────────────────────
 
 const stylesheet = `
+html, body { margin: 0; padding: 0; background: #1a1d20; }
+
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&family=VT323&display=swap');
 
 .bc-root {

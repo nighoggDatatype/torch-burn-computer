@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { AlertTriangle, Clock } from 'lucide-react';
 
-const APP_VERSION = 'v0.4.2';
+const APP_VERSION = 'v0.4.4';
 
 const G = 9.80665; // standard gravity, m/s²
 const AU = 149_597_870_700; // meters per astronomical unit
@@ -965,13 +965,13 @@ function NoWakeToggle({ noWakeEnabled, setNoWakeEnabled }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 118, marginBottom: 8 }}>
       <button
-        className={`bc-unit-btn${noWakeEnabled ? ' active' : ''}`}
-        onClick={() => setNoWakeEnabled(true)}
-      >OPEN SPACE</button>
-      <button
         className={`bc-unit-btn${!noWakeEnabled ? ' active' : ''}`}
         onClick={() => setNoWakeEnabled(false)}
-        style={!noWakeEnabled ? { color: 'var(--cyan)', borderColor: 'var(--cyan)', background: 'rgba(77,208,255,0.12)' } : {}}
+      >OPEN SPACE</button>
+      <button
+        className={`bc-unit-btn${noWakeEnabled ? ' active' : ''}`}
+        onClick={() => setNoWakeEnabled(true)}
+        style={noWakeEnabled ? { color: 'var(--cyan)', borderColor: 'var(--cyan)', background: 'rgba(77,208,255,0.12)' } : {}}
       >NO-WAKE ZONE</button>
     </div>
   );
@@ -980,8 +980,7 @@ function NoWakeToggle({ noWakeEnabled, setNoWakeEnabled }) {
 function StandoffControl({ noWakeEnabled, setNoWakeEnabled, standoffKm, setStandoffKm }) {
   return (
     <>
-      <NoWakeToggle noWakeEnabled={noWakeEnabled} setNoWakeEnabled={setNoWakeEnabled} />
-      {/* STAND-OFF DISTANCE — always visible; locked at 300 when zone ON */}
+      {/* STAND-OFF DISTANCE — locked at 300 when NO-WAKE ZONE, editable in OPEN SPACE */}
       <div className="bc-input-row">
         <div className="bc-label">Stand-off</div>
         <input
@@ -997,11 +996,7 @@ function StandoffControl({ noWakeEnabled, setNoWakeEnabled, standoffKm, setStand
           <button className="bc-unit-btn active">km</button>
         </div>
       </div>
-      <div className="bc-field-note bc-field-note--indent" style={{ marginBottom: 4 }}>
-        {noWakeEnabled
-          ? <span>300 KM NO-WAKE ZONE SUBTRACTED FROM RANGE</span>
-          : <span style={{ color: 'var(--cyan)' }}>{`◈ STAND-OFF: ${standoffKm || '?'} KM SUBTRACTED FROM RANGE`}</span>}
-      </div>
+      <NoWakeToggle noWakeEnabled={noWakeEnabled} setNoWakeEnabled={setNoWakeEnabled} />
     </>
   );
 }

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { AlertTriangle, Clock } from 'lucide-react';
 
-const APP_VERSION = 'v0.4.4';
+const APP_VERSION = 'v0.4.5';
 
 const G = 9.80665; // standard gravity, m/s²
 const AU = 149_597_870_700; // meters per astronomical unit
@@ -196,6 +196,96 @@ function computeFinalApproach({ distance_m, v0_mps, a_mps2, v_arrival_mps }) {
     required_a,
     t_total: t_coast + t_brake,
   };
+}
+
+// Parses a mission duration string into seconds.
+// Accepts: "4d 3h 2m 37s", "4d 6:30:00", "HH:MM:SS", "H:MM:SS", "4d", "3h 30m", etc.
+// 1 day = DAY seconds (87,659 s — Ostranauts game day).
+function parseTargetDuration(str) {
+  if (!str || !str.trim()) return null;
+  const s = str.trim().toLowerCase();
+
+  let total = 0;
+  let matched = false;
+
+  // Extract day component if present: e.g. "4d"
+  const dayMatch = s.match(/(\d+)\s*d/);
+  if (dayMatch) {
+    total += parseInt(dayMatch[1], 10) * DAY;
+    matched = true;
+  }
+
+  // Extract h/m/s components if present: "3h", "2m", "37s"
+  const hourMatch = s.match(/(\d+)\s*h/);
+  const minMatch  = s.match(/(\d+)\s*m(?!s)/); // 'm' not followed by 's' (avoid 'ms')
+  const secMatch  = s.match(/(\d+)\s*s/);
+  if (hourMatch) { total += parseInt(hourMatch[1], 10) * 3600; matched = true; }
+  if (minMatch)  { total += parseInt(minMatch[1],  10) * 60;   matched = true; }
+  if (secMatch)  { total += parseInt(secMatch[1],  10);        matched = true; }
+
+  // If no d/h/m/s tokens found, try plain HH:MM:SS or HH:MM
+  if (!matched) {
+    const parts = s.split(':').map(p => p.trim());
+    if (parts.length >= 2 && parts.length <= 3) {
+      const nums = parts.map(Number);
+      if (nums.every(n => isFinite(n) && n >= 0) && nums[1] <= 59 && (nums[2] === undefined || nums[2] <= 59)) {
+        total = nums[0] * 3600 + nums[1] * 60 + (nums[2] || 0);
+        matched = true;
+      }
+    }
+  }
+
+  if (!matched || total <= 0) return null;
+  return total;
+}
+
+// Formats a duration in seconds as "Xd HH:MM:SS" for display confirmation.
+function formatTargetDuration(seconds) {
+  if (!isFinite(seconds) || seconds <= 0) return null;
+  const total = Math.floor(seconds);
+  const days  = Math.floor(total / DAY);
+  const rem   = total % DAY;
+  const h = Math.floor(rem / 3600);
+  const m = Math.floor((rem % 3600) / 60);
+  const sc = rem % 60;
+  const timeStr = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sc).padStart(2,'0')}`;
+  return days > 0 ? `${days}D ${timeStr}` : timeStr;
+}
+
+// Solves for the acceleration required to complete a burn in exactly t_total_target seconds.
+// Returns { a_mps2 } on success or { error, detail } on failure.
+// Derivation: substituting v_max = (a·T + S)/2 into the distance constraint yields
+// a quadratic in a: A·a² + B·a + C = 0
+// where T = t_total_target − t_rotate_s, S = v0_mps + v_arrival_mps.
+function solveAcceleration({ distance_m, v0_mps, v_arrival_mps, t_rotate_s, t_total_s }) {
+  if (![distance_m, v0_mps, v_arrival_mps, t_rotate_s, t_total_s].every(isFinite)) {
+    return { error: 'MISSING OR INVALID INPUT', detail: 'One or more fields are empty or non-numeric.' };
+  }
+  if (distance_m <= 0) return { error: 'BURN DISTANCE IS ZERO OR NEGATIVE', detail: 'Increase the total distance.' };
+  if (v_arrival_mps < 0) return { error: 'CUTOFF VELOCITY CANNOT BE NEGATIVE', detail: 'Enter the desired speed at torch cutoff.' };
+  if (t_total_s <= 0) return { error: 'TARGET DURATION MUST BE POSITIVE', detail: 'Enter a duration greater than zero.' };
+
+  const T = t_total_s - t_rotate_s;
+  if (T <= 0) return { error: 'DURATION TOO SHORT', detail: 'Target duration must exceed the flip time.' };
+
+  const S = v0_mps + v_arrival_mps;
+  const D = distance_m;
+
+  const A_coeff = T * (T + 2 * t_rotate_s);
+  const B_coeff = 2 * (S * (T + t_rotate_s) - 2 * D);
+  const C_coeff = S * S - 2 * v0_mps * v0_mps - 2 * v_arrival_mps * v_arrival_mps;
+
+  const disc = B_coeff * B_coeff - 4 * A_coeff * C_coeff;
+  if (disc < 0) return { error: 'NO SOLUTION EXISTS', detail: 'The target duration is physically impossible for this distance and velocity.' };
+
+  const r1 = (-B_coeff + Math.sqrt(disc)) / (2 * A_coeff);
+  const r2 = (-B_coeff - Math.sqrt(disc)) / (2 * A_coeff);
+
+  const candidates = [r1, r2].filter(r => r > 1e-6); // must be meaningfully positive
+  if (candidates.length === 0) return { error: 'NO POSITIVE SOLUTION', detail: 'The target duration is too long — no valid acceleration found.' };
+
+  const a = Math.min(...candidates); // smallest positive root = minimum required acceleration
+  return { a_mps2: a };
 }
 
 // ───── styles ──────────────────────────────────────────────────────────
@@ -1019,7 +1109,7 @@ class ErrorBoundary extends React.Component {
         }}>
           ⚠ GUIDANCE COMPUTER FAULT<br /><br />
           {String(this.state.err?.message || this.state.err)}<br /><br />
-          Reload to restart the nav subsystem.
+          Please report this error to Polaris Astronautics immediately. Reload to restart the nav subsystem.
         </div>
       );
     }
@@ -1085,6 +1175,9 @@ function BurnCalculatorInner() {
   const [noWakeEnabled, setNoWakeEnabled] = useState(true); // toggle for 300 km no-wake zone
   const [standoffKm, setStandoffKm] = useState('2.5');     // adjustable stand-off when zone OFF
 
+  const [solveMode, setSolveMode] = useState('time');       // 'time' | 'accel'
+  const [targetDuration, setTargetDuration] = useState(''); // free-text duration input for accel-solve mode
+
   const [gameStartTime, setGameStartTime] = useState('');
 
   // ── flicker state (feature 11) ──
@@ -1098,10 +1191,15 @@ function BurnCalculatorInner() {
   const distance_m = parseNum(distance) * (distanceUnit === 'au' ? AU : distanceUnit === 'gm' ? 1e9 : distanceUnit === 'km' ? 1000 : 1);
   const raw_burn_distance_m = distance_m - standoff_m; // before VCRS correction
   const v0_mps = parseNum(v0) * (v0Unit === 'km/s' ? 1000 : 1) * (v0Direction === 'receding' ? -1 : 1);
-  const a_mps2 = parseNum(accel) * (accelUnit === 'g' ? G : 1);
   const t_rotate_s = parseNum(flipTime);
   const v_arrival_mps = parseNum(vArrival) * (vArrivalUnit === 'km/s' ? 1000 : 1);
   const vcrs_mps = vcrs.trim() !== '' ? parseNum(vcrs) * (vcrsUnit === 'km/s' ? 1000 : 1) : 0;
+
+  // ── Accel-solve mode: parse target duration ──
+  const targetDurationAttempted = targetDuration.trim().length > 0;
+  const targetDuration_s = parseTargetDuration(targetDuration);
+  const targetDurationValid = targetDuration_s !== null;
+  const targetDurationError = targetDurationAttempted && !targetDurationValid;
 
   // Surface a clean error if the destination is within the stand-off zone
   const standoffError = !standoffValid
@@ -1110,6 +1208,15 @@ function BurnCalculatorInner() {
       ? 'within-standoff'
       : null;
   const noWakeError = standoffError !== null; // keeps downstream compat
+
+  // In accel-solve mode, derive a_mps2 from the solver; otherwise read from input.
+  // Must be after noWakeError since the solver is gated on it.
+  const accelSolveResult = (solveMode === 'accel' && targetDurationValid && !noWakeError)
+    ? solveAcceleration({ distance_m: raw_burn_distance_m, v0_mps, v_arrival_mps, t_rotate_s, t_total_s: targetDuration_s })
+    : null;
+  const a_mps2 = solveMode === 'accel'
+    ? (accelSolveResult && !accelSolveResult.error ? accelSolveResult.a_mps2 : NaN)
+    : parseNum(accel) * (accelUnit === 'g' ? G : 1);
 
   // VCRS geometry correction (one-iteration approach):
   // Pass 1 — solve with straight-line burn distance to get approximate t_total
@@ -1140,7 +1247,7 @@ function BurnCalculatorInner() {
 
   // Reactant budget conversion
   const budget_raw = parseNum(reactantBudget);
-  const budget_s = isFinite(budget_raw) && budget_raw > 0
+  const budget_s = (solveMode === 'time') && isFinite(budget_raw) && budget_raw > 0
     ? budget_raw * (reactantBudgetUnit === 'hr' ? 3600 : 60)
     : null;
 
@@ -1511,65 +1618,106 @@ function BurnCalculatorInner() {
                     standoffKm={standoffKm}
                     setStandoffKm={setStandoffKm}
                   />
-                  <InputRow
-                    label="Reactant Budget"
-                    value={reactantBudget}
-                    onChange={setReactantBudget}
-                    unit={reactantBudgetUnit}
-                    units={['hr', 'min']}
-                    onUnitChange={setReactantBudgetUnit}
-                    placeholder="Optional"
-                    tooltip={{
-                      desc: "Enter the amount of reactant you plan to allocate to this burn. It is not recommended to commit all your available reactant.",
-                      img: TOOLTIP_IMG_REACTANTBUDGET,
-                    }}
-                  />
-                  {(isDriftMode && !budgetExceedsReqWithPlan) || budgetExceedsReqWithPlan || budgetExceedsReq || (driftPlan && driftPlan.error) ? (
-                    <div className="bc-field-note" style={{ marginBottom: 4, paddingLeft: 118 }}>
-                      {isDriftMode && !budgetExceedsReqWithPlan
-                        ? <span style={{ color: 'var(--amber)' }}>◈ DRIFT MODE ACTIVE</span>
-                        : budgetExceedsReqWithPlan
-                          ? <span style={{ color: 'var(--green)' }}>● BUDGET EXCEEDS REQUIREMENT — SELECT PREFERENCE</span>
-                          : budgetExceedsReq
-                            ? <span style={{ color: 'var(--green)' }}>● BUDGET EXCEEDS REQUIREMENT — STANDARD BURN USED</span>
-                            : <span style={{ color: 'var(--red)' }}>{driftPlan.error}</span>}
-                    </div>
-                  ) : null}
-                  {budgetExceedsReqWithPlan && (
+                  {solveMode === 'time' && (
                     <>
-                      <div style={{ display: 'flex', gap: 4, marginLeft: 118, marginBottom: 4 }}>
-                        <button
-                          className={`bc-unit-btn${burnPreference === 'speed' ? ' active' : ''}`}
-                          onClick={() => setBurnPreference('speed')}
-                        >SPEED</button>
-                        <button
-                          className={`bc-unit-btn${burnPreference === 'efficiency' ? ' active' : ''}`}
-                          onClick={() => setBurnPreference('efficiency')}
-                        >EFFICIENCY</button>
-                      </div>
-                      <div className="bc-field-note" style={{ marginBottom: 8, paddingLeft: 118 }}>
-                        {burnPreference === 'speed'
-                          ? <span style={{ color: 'var(--amber)' }}>◈ STANDARD BURN — FASTEST ARRIVAL, NO DRIFT</span>
-                          : <span style={{ color: 'var(--cyan)' }}>◈ DRIFT MODE — 2× TIME, MINIMUM REACTANT</span>}
-                      </div>
+                      <InputRow
+                        label="Reactant Budget"
+                        value={reactantBudget}
+                        onChange={setReactantBudget}
+                        unit={reactantBudgetUnit}
+                        units={['hr', 'min']}
+                        onUnitChange={setReactantBudgetUnit}
+                        placeholder="Optional"
+                        tooltip={{
+                          desc: "Enter the amount of reactant you plan to allocate to this burn. It is not recommended to commit all your available reactant.",
+                          img: TOOLTIP_IMG_REACTANTBUDGET,
+                        }}
+                      />
+                      {(isDriftMode && !budgetExceedsReqWithPlan) || budgetExceedsReqWithPlan || budgetExceedsReq || (driftPlan && driftPlan.error) ? (
+                        <div className="bc-field-note" style={{ marginBottom: 4, paddingLeft: 118 }}>
+                          {isDriftMode && !budgetExceedsReqWithPlan
+                            ? <span style={{ color: 'var(--amber)' }}>◈ DRIFT MODE ACTIVE</span>
+                            : budgetExceedsReqWithPlan
+                              ? <span style={{ color: 'var(--green)' }}>● BUDGET EXCEEDS REQUIREMENT — SELECT PREFERENCE</span>
+                              : budgetExceedsReq
+                                ? <span style={{ color: 'var(--green)' }}>● BUDGET EXCEEDS REQUIREMENT — STANDARD BURN USED</span>
+                                : <span style={{ color: 'var(--red)' }}>{driftPlan.error}</span>}
+                        </div>
+                      ) : null}
+                      {budgetExceedsReqWithPlan && (
+                        <>
+                          <div style={{ display: 'flex', gap: 4, marginLeft: 118, marginBottom: 4 }}>
+                            <button
+                              className={`bc-unit-btn${burnPreference === 'speed' ? ' active' : ''}`}
+                              onClick={() => setBurnPreference('speed')}
+                            >SPEED</button>
+                            <button
+                              className={`bc-unit-btn${burnPreference === 'efficiency' ? ' active' : ''}`}
+                              onClick={() => setBurnPreference('efficiency')}
+                            >EFFICIENCY</button>
+                          </div>
+                          <div className="bc-field-note" style={{ marginBottom: 8, paddingLeft: 118 }}>
+                            {burnPreference === 'speed'
+                              ? <span style={{ color: 'var(--amber)' }}>◈ STANDARD BURN — FASTEST ARRIVAL, NO DRIFT</span>
+                              : <span style={{ color: 'var(--cyan)' }}>◈ DRIFT MODE — 2× TIME, MINIMUM REACTANT</span>}
+                          </div>
+                        </>
+                      )}
                     </>
                   )}
 
                   {/* ── Vessel Parameters ── */}
                   <div className="bc-panel-header" style={{ marginTop: 20 }}>◇ Vessel Parameters</div>
-                  <InputRow
-                    label="Acceleration"
-                    value={accel}
-                    onChange={setAccel}
-                    unit={accelUnit}
-                    units={['g', 'm/s²']}
-                    onUnitChange={setAccelUnit}
-                    placeholder="e.g. 1.95"
-                    tooltip={{
-                      desc: "Enter your desired sustained acceleration for this burn.",
-                      img: TOOLTIP_IMG_ACCELERATION,
-                    }}
-                  />
+                  {solveMode === 'time' && (
+                    <InputRow
+                      label="Acceleration"
+                      value={accel}
+                      onChange={setAccel}
+                      unit={accelUnit}
+                      units={['g', 'm/s²']}
+                      onUnitChange={setAccelUnit}
+                      placeholder="e.g. 1.95"
+                      tooltip={{
+                        desc: "Enter your desired sustained acceleration for this burn.",
+                        img: TOOLTIP_IMG_ACCELERATION,
+                      }}
+                    />
+                  )}
+                  {solveMode === 'accel' && (
+                    <>
+                      <div className="bc-input-row">
+                        <div className="bc-label">Desired Travel Time</div>
+                        <input
+                          className={`bc-input${targetDurationError ? ' invalid' : ''}`}
+                          type="text"
+                          placeholder="e.g. 4d 3h 2m 37s or HH:MM:SS"
+                          value={targetDuration}
+                          onChange={(e) => setTargetDuration(e.target.value)}
+                        />
+                      </div>
+                      <div className="bc-field-note" style={{ marginTop: 2, marginBottom: 6, paddingLeft: 118 }}>
+                        {targetDurationError ? (
+                          <span style={{ color: 'var(--red)' }}>INVALID FORMAT — USE 4D 3H 2M 37S OR HH:MM:SS</span>
+                        ) : targetDurationValid ? (
+                          <span style={{ color: 'var(--green)' }}>● {formatTargetDuration(targetDuration_s)}</span>
+                        ) : (
+                          <span>DAYS = GAME DAYS (87,659 S)</span>
+                        )}
+                      </div>
+                    </>
+                  )}
+                  {/* Solve mode toggle — below acceleration/duration field */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 118, marginBottom: 8 }}>
+                    <button
+                      className={`bc-unit-btn${solveMode === 'time' ? ' active' : ''}`}
+                      onClick={() => setSolveMode('time')}
+                    >TIME</button>
+                    <button
+                      className={`bc-unit-btn${solveMode === 'accel' ? ' active' : ''}`}
+                      onClick={() => setSolveMode('accel')}
+                      style={solveMode === 'accel' ? { color: 'var(--cyan)', borderColor: 'var(--cyan)', background: 'rgba(77,208,255,0.12)' } : {}}
+                    >ACCEL</button>
+                  </div>
                   <InputRow
                     label="Flip Time"
                     value={flipTime}
@@ -1734,6 +1882,27 @@ function BurnCalculatorInner() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div className="bc-panel scratch-b">
               <div className="bc-panel-header">◇ Burn Solution</div>
+
+              {/* Accel-solve mode error */}
+              {solveMode === 'accel' && accelSolveResult && accelSolveResult.error && (
+                <div className="bc-warning">
+                  <AlertTriangle size={14} color="var(--red)" />
+                  <div className="bc-warning-text">
+                    <strong>{accelSolveResult.error}</strong>
+                    {accelSolveResult.detail && <><br />{accelSolveResult.detail}</>}
+                  </div>
+                </div>
+              )}
+
+              {/* Accel-solve mode: required acceleration readout */}
+              {solveMode === 'accel' && accelSolveResult && !accelSolveResult.error && (
+                <Readout
+                  label="Required Accel"
+                  value={`${(accelSolveResult.a_mps2 / G).toFixed(2)} G`}
+                  highlight
+                  flickerKey={flickerKey}
+                />
+              )}
 
               {plan.error && (
                 <div className="bc-warning">

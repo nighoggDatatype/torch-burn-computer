@@ -20,6 +20,15 @@ function parseNum(str) {
   if (!/^[+-]?(\d+\.?\d*|\.\d+)$/.test(s)) return NaN;
   return parseFloat(s);
 }
+
+// Acceleration parser: accepts bare numbers ("1.95") or g-suffixed ("1.95g" / "1.95G").
+// Always returns a value in m/s² (multiplied by G), or NaN on bad input.
+function parseGValue(str) {
+  if (!str || typeof str !== 'string') return NaN;
+  const s = str.trim().replace(/,/g, '').replace(/g$/i, '');
+  if (!/^[+-]?(\d+\.?\d*|\.\d+)$/.test(s)) return NaN;
+  return parseFloat(s) * G;
+}
 function formatTime(seconds) {
   if (!isFinite(seconds) || seconds < 0) return '—';
   const total = Math.floor(seconds);
@@ -209,8 +218,10 @@ function parseTargetDuration(str) {
   let matched = false;
 
   // Extract day component if present: e.g. "4d"
-  const dayMatch = s.match(/(\d+)\s*d/);
+  // Decimal days (e.g. "4.5d") are rejected — return null so user sees invalid format error.
+  const dayMatch = s.match(/([\d.]+)\s*d/);
   if (dayMatch) {
+    if (dayMatch[1].includes('.')) return null; // fractional days not supported
     total += parseInt(dayMatch[1], 10) * DAY;
     matched = true;
   }
@@ -1238,12 +1249,7 @@ function BurnCalculatorInner() {
     : null;
   const a_mps2 = solveForAccel
     ? (accelSolveResult && !accelSolveResult.error ? accelSolveResult.a_mps2 : NaN)
-    : parseNum(accel) * G;
-
-  // Computed display values for dimmed input fields (not written to state)
-  const computedAccelDisplay = (solveForAccel && accelSolveResult && !accelSolveResult.error)
-    ? `${(accelSolveResult.a_mps2 / G).toFixed(2)}`
-    : null;
+    : parseGValue(accel);
 
   // VCRS geometry correction (one-iteration approach):
   // Pass 1 — solve with straight-line burn distance to get approximate t_total
@@ -1271,11 +1277,6 @@ function BurnCalculatorInner() {
     : (vcrs_mps !== 0 && t_total_approx > 0)
       ? computePlan({ distance_m: burn_distance_m, v0_mps, a_mps2, v_arrival_mps, t_rotate_s })
       : plan1;
-
-  // Computed display for Desired Travel Time field when solving for time (not written to state)
-  const computedTimeDisplay = (solveForTime && plan && !plan.error && !plan.overshoot && plan.t_total)
-    ? formatTargetDuration(Math.floor(plan.t_total))
-    : null;
 
   // Reactant budget conversion — parsed same as Desired Travel Time (bare number = seconds)
   const budget_s = (() => {
@@ -1413,13 +1414,9 @@ function BurnCalculatorInner() {
   // Operating acceleration: computed required_a when blank, otherwise player input
   const fa_a_mps2 = faAccelBlank
     ? (fa_required_a_computed !== null ? fa_required_a_computed : NaN)
-    : parseNum(faAccel) * G;
-  // Display value for dimmed input when solving
-  const faComputedAccelDisplay = (faAccelBlank && fa_required_a_computed !== null)
-    ? `${(fa_required_a_computed / G).toFixed(2)}`
-    : null;
+    : parseGValue(faAccel);
 
-  // FA budget conversion — same parser as Desired Travel Time (bare number = seconds)
+  // FA budget conversion — parsed same as Desired Travel Time (bare number = seconds)
   const fa_budget_s = (() => {
     const parsed = parseTargetDuration(faBudget);
     return parsed !== null && parsed > 0 ? parsed : null;
@@ -1729,11 +1726,10 @@ function BurnCalculatorInner() {
                   <div className="bc-panel-header" style={{ marginTop: 20 }}>◇ Vessel Parameters</div>
                   <InputRow
                     label="Acceleration"
-                    value={solveForAccel ? (computedAccelDisplay || '') : accel}
-                    onChange={solveForAccel ? () => {} : setAccel}
+                    value={accel}
+                    onChange={setAccel}
                     units={[]}
-                    placeholder={solveForAccel ? '— COMPUTED —' : 'e.g. 1.95g'}
-                    disabled={solveForAccel}
+                    placeholder="e.g. 1.95g"
                     tooltip={{
                       desc: "Enter your desired sustained acceleration for this burn. Leave blank to solve for required acceleration from Desired Travel Time.",
                       img: TOOLTIP_IMG_ACCELERATION,
@@ -1744,10 +1740,9 @@ function BurnCalculatorInner() {
                     <input
                       className={`bc-input${targetDurationError ? ' invalid' : ''}`}
                       type="text"
-                      placeholder={solveForTime ? '— COMPUTED —' : 'e.g. 4d 3h 2m 37s or HH:MM:SS'}
-                      value={solveForTime ? (computedTimeDisplay || '') : targetDuration}
-                      disabled={solveForTime}
-                      onChange={(e) => !solveForTime && setTargetDuration(e.target.value)}
+                      placeholder="e.g. 4d 3h 2m 37s or HH:MM:SS"
+                      value={targetDuration}
+                      onChange={(e) => setTargetDuration(e.target.value)}
                     />
                   </div>
                   <div className="bc-field-note" style={{ marginTop: 2, marginBottom: 6, paddingLeft: 118 }}>
@@ -1882,11 +1877,10 @@ function BurnCalculatorInner() {
                   <div className="bc-panel-header" style={{ marginTop: 20 }}>◇ Vessel Parameters</div>
                   <InputRow
                     label="Acceleration"
-                    value={faAccelBlank ? (faComputedAccelDisplay || '') : faAccel}
-                    onChange={faAccelBlank ? () => {} : setFaAccel}
+                    value={faAccel}
+                    onChange={setFaAccel}
                     units={[]}
-                    placeholder={faAccelBlank && faComputedAccelDisplay ? '— COMPUTED —' : 'e.g. 1.95g'}
-                    disabled={faAccelBlank && faComputedAccelDisplay !== null}
+                    placeholder="e.g. 1.95g"
                     tooltip={{
                       desc: "Enter your desired sustained acceleration for this burn. Leave blank for constant-burn mode — required G computed automatically.",
                       img: TOOLTIP_IMG_ACCELERATION,
@@ -2049,6 +2043,14 @@ function BurnCalculatorInner() {
 
               {!plan.error && !plan.overshoot && !budgetInsufficient && (
                 <>
+                  {/* ── Computed Accel — shown when solving for acceleration ── */}
+                  {solveForAccel && accelSolveResult && !accelSolveResult.error && (
+                    <Readout
+                      label="Computed Accel"
+                      value={`${(accelSolveResult.a_mps2 / G).toFixed(2)} G`}
+                      highlight flickerKey={flickerKey}
+                    />
+                  )}
                   {/* ── Section 1: Key targets ── */}
                   <Readout
                     label={isDriftMode ? 'End Accel / Begin Flip' : 'Begin Rotate'}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { AlertTriangle, Clock } from 'lucide-react';
 
-const APP_VERSION = 'v0.4.1';
+const APP_VERSION = 'v0.4.2';
 
 const G = 9.80665; // standard gravity, m/s²
 const AU = 149_597_870_700; // meters per astronomical unit
@@ -201,8 +201,6 @@ function computeFinalApproach({ distance_m, v0_mps, a_mps2, v_arrival_mps }) {
 // ───── styles ──────────────────────────────────────────────────────────
 
 const stylesheet = `
-html, body { margin: 0; padding: 0; background: #1a1d20; }
-
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&family=VT323&display=swap');
 
 .bc-root {
@@ -906,7 +904,7 @@ html, body { margin: 0; padding: 0; background: #1a1d20; }
 }
 .bc-tooltip-card {
   position: fixed;
-  width: 280px;
+  width: 340px;
   background: #0d1015;
   border: 1px solid var(--border-strong);
   box-shadow:
@@ -915,8 +913,7 @@ html, body { margin: 0; padding: 0; background: #1a1d20; }
   z-index: 10000;
   animation: bc-tooltip-in 0.12s ease-out;
   pointer-events: none;
-  max-height: 80vh;
-  overflow-y: auto;
+  overflow: hidden;
 }
 @keyframes bc-tooltip-in {
   from { opacity: 0; transform: translateY(4px); }
@@ -939,6 +936,8 @@ html, body { margin: 0; padding: 0; background: #1a1d20; }
   line-height: 1.6;
   letter-spacing: 0.03em;
   border-bottom: 1px solid var(--border);
+  white-space: normal;
+  word-break: break-word;
 }
 .bc-tooltip-img {
   display: block;
@@ -951,9 +950,11 @@ html, body { margin: 0; padding: 0; background: #1a1d20; }
 // ───── component ───────────────────────────────────────────────────────
 
 // Embedded screenshot data for tooltips
-const TOOLTIP_IMG_DISTANCE   = `${import.meta.env.BASE_URL}tooltips/distance.jpg`;
-const TOOLTIP_IMG_CURRENTVEL = `${import.meta.env.BASE_URL}tooltips/current-vel.jpg`;
-const TOOLTIP_IMG_VCRS       = `${import.meta.env.BASE_URL}tooltips/vcrs.jpg`;
+const TOOLTIP_IMG_DISTANCE       = `${import.meta.env.BASE_URL}tooltips/distance.jpg`;
+const TOOLTIP_IMG_CURRENTVEL     = `${import.meta.env.BASE_URL}tooltips/current-vel.jpg`;
+const TOOLTIP_IMG_VCRS           = `${import.meta.env.BASE_URL}tooltips/vcrs.jpg`;
+const TOOLTIP_IMG_REACTANTBUDGET = `${import.meta.env.BASE_URL}tooltips/reactantbudget.jpg`;
+const TOOLTIP_IMG_ACCELERATION   = `${import.meta.env.BASE_URL}tooltips/acceleration.jpg`;
 
 
 // ───── StandoffControl subcomponent ────────────────────────────────────────
@@ -966,12 +967,12 @@ function NoWakeToggle({ noWakeEnabled, setNoWakeEnabled }) {
       <button
         className={`bc-unit-btn${noWakeEnabled ? ' active' : ''}`}
         onClick={() => setNoWakeEnabled(true)}
-      >WAKE ZONE</button>
+      >OPEN SPACE</button>
       <button
         className={`bc-unit-btn${!noWakeEnabled ? ' active' : ''}`}
         onClick={() => setNoWakeEnabled(false)}
         style={!noWakeEnabled ? { color: 'var(--cyan)', borderColor: 'var(--cyan)', background: 'rgba(77,208,255,0.12)' } : {}}
-      >NO WAKE ZONE</button>
+      >NO-WAKE ZONE</button>
     </div>
   );
 }
@@ -1446,7 +1447,7 @@ function BurnCalculatorInner() {
                     placeholder="e.g. 18902"
                     tooltip={{
                       desc: "After selecting your target destination, input the distance to target.",
-                      img: TOOLTIP_IMG_VCRS,
+                      img: TOOLTIP_IMG_DISTANCE,
                     }}
                   />
                   {noWakeError && (
@@ -1494,7 +1495,7 @@ function BurnCalculatorInner() {
                     placeholder="e.g. -0.02"
                     tooltip={{
                       desc: "Input your VCRS to the target destination.",
-                      img: TOOLTIP_IMG_DISTANCE,
+                      img: TOOLTIP_IMG_VCRS,
                     }}
                   />
 
@@ -1523,6 +1524,10 @@ function BurnCalculatorInner() {
                     units={['hr', 'min']}
                     onUnitChange={setReactantBudgetUnit}
                     placeholder="Optional"
+                    tooltip={{
+                      desc: "Enter the amount of reactant you plan to allocate to this burn. It is not recommended to commit all your available reactant.",
+                      img: TOOLTIP_IMG_REACTANTBUDGET,
+                    }}
                   />
                   {(isDriftMode && !budgetExceedsReqWithPlan) || budgetExceedsReqWithPlan || budgetExceedsReq || (driftPlan && driftPlan.error) ? (
                     <div className="bc-field-note" style={{ marginBottom: 4, paddingLeft: 118 }}>
@@ -1565,6 +1570,10 @@ function BurnCalculatorInner() {
                     units={['g', 'm/s²']}
                     onUnitChange={setAccelUnit}
                     placeholder="e.g. 1.95"
+                    tooltip={{
+                      desc: "Enter your desired sustained acceleration for this burn.",
+                      img: TOOLTIP_IMG_ACCELERATION,
+                    }}
                   />
                   <InputRow
                     label="Flip Time"
@@ -1574,6 +1583,9 @@ function BurnCalculatorInner() {
                     units={['sec']}
                     onUnitChange={() => {}}
                     placeholder="e.g. 30"
+                    tooltip={{
+                      desc: "Time in seconds to rotate your vessel 180 degrees. This occurs just after the acceleration phase ends but before the braking phase begins.",
+                    }}
                   />
 
                   {/* ── Game Clock ── */}
@@ -1618,6 +1630,10 @@ function BurnCalculatorInner() {
                     units={['km', 'gm', 'au']}
                     onUnitChange={setFaDistanceUnit}
                     placeholder="e.g. 18902"
+                    tooltip={{
+                      desc: "After selecting your target destination, input the distance to target.",
+                      img: TOOLTIP_IMG_DISTANCE,
+                    }}
                   />
                   {fa_noWakeError && (
                     <div className="bc-field-note" style={{ color: 'var(--red)', marginBottom: 10, paddingLeft: 118 }}>
@@ -1636,6 +1652,10 @@ function BurnCalculatorInner() {
                     units={['m/s', 'km/s']}
                     onUnitChange={setFaVrelUnit}
                     placeholder="e.g. 511.19"
+                    tooltip={{
+                      desc: "Input your vessel's current velocity to the target.",
+                      img: TOOLTIP_IMG_CURRENTVEL,
+                    }}
                   />
 
                   {/* ── Arrival Parameters ── */}
@@ -1656,13 +1676,17 @@ function BurnCalculatorInner() {
                     setStandoffKm={setStandoffKm}
                   />
                   <InputRow
-                    label="Budget"
+                    label="Reactant Budget"
                     value={faBudget}
                     onChange={setFaBudget}
                     unit={faBudgetUnit}
                     units={['hr', 'min']}
                     onUnitChange={setFaBudgetUnit}
                     placeholder="Optional"
+                    tooltip={{
+                      desc: "Enter the amount of reactant you plan to allocate to this burn. It is not recommended to commit all your available reactant.",
+                      img: TOOLTIP_IMG_REACTANTBUDGET,
+                    }}
                   />
 
                   {/* ── Vessel Parameters ── */}
@@ -1675,6 +1699,10 @@ function BurnCalculatorInner() {
                     units={['g', 'm/s²']}
                     onUnitChange={setFaAccelUnit}
                     placeholder="e.g. 1.95"
+                    tooltip={{
+                      desc: "Enter your desired sustained acceleration for this burn.",
+                      img: TOOLTIP_IMG_ACCELERATION,
+                    }}
                   />
 
                   {/* ── Game Clock ── */}
@@ -2050,32 +2078,42 @@ function BurnCalculatorInner() {
 
 // ───── subcomponents ───────────────────────────────────────────────────
 
-function InputRow({ label, value, onChange, unit, units, onUnitChange, tooltip, placeholder }) {
+function InputRow({ label, value, onChange, unit, units, onUnitChange, tooltip, placeholder, labelStyle }) {
   const [showTip, setShowTip] = React.useState(false);
   const [tipPos, setTipPos] = React.useState({ top: 0, left: 0 });
   const badgeRef = React.useRef(null);
+  const cardRef = React.useRef(null);
 
   const handleMouseEnter = () => {
     if (badgeRef.current) {
       const rect = badgeRef.current.getBoundingClientRect();
-      const tipHeight = Math.min(window.innerHeight * 0.8, 600);
-      const spaceBelow = window.innerHeight - rect.bottom;
-      const spaceAbove = rect.top;
-      let top;
-      if (spaceBelow >= tipHeight || spaceBelow >= spaceAbove) {
-        top = rect.bottom + 6;
-      } else {
-        top = Math.max(8, rect.top - tipHeight - 6);
-      }
-      setTipPos({ top, left: rect.left });
+      // Initially place below; useEffect will correct if it overflows
+      setTipPos({ top: rect.bottom + 6, left: rect.left });
     }
     setShowTip(true);
   };
 
+  // After the card renders, measure its real height and reposition if needed
+  React.useEffect(() => {
+    if (!showTip || !cardRef.current || !badgeRef.current) return;
+    const card = cardRef.current;
+    const rect = badgeRef.current.getBoundingClientRect();
+    const cardHeight = card.offsetHeight;
+    const spaceBelow = window.innerHeight - rect.bottom - 6;
+    const spaceAbove = rect.top - 6;
+    let top;
+    if (spaceBelow >= cardHeight || spaceBelow >= spaceAbove) {
+      top = rect.bottom + 6;
+    } else {
+      top = Math.max(8, rect.top - cardHeight - 6);
+    }
+    setTipPos({ top, left: rect.left });
+  }, [showTip]);
+
   return (
     <div className="bc-input-row">
-      <div className="bc-label">
-        {label}
+      <div className="bc-label" style={{ display: 'flex', alignItems: 'center', ...labelStyle }}>
+        <span style={{ flex: 1 }}>{label}</span>
         {tooltip && (
           <span
             className="bc-tooltip-wrap"
@@ -2084,7 +2122,7 @@ function InputRow({ label, value, onChange, unit, units, onUnitChange, tooltip, 
           >
             <span className="bc-tooltip-badge" ref={badgeRef}>?</span>
             {showTip && (
-              <div className="bc-tooltip-card" style={{ top: tipPos.top, left: tipPos.left }}>
+              <div className="bc-tooltip-card" ref={cardRef} style={{ top: tipPos.top, left: tipPos.left }}>
                 <div className="bc-tooltip-header">{label}</div>
                 <div className="bc-tooltip-desc">{tooltip.desc}</div>
                 {tooltip.img && (

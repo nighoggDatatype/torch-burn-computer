@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { AlertTriangle, Clock } from 'lucide-react';
 
-const APP_VERSION = 'v0.5.0';
+const APP_VERSION = 'v0.5.2';
 
 const G = 9.80665; // standard gravity, m/s²
 const AU = 149_597_870_700; // meters per astronomical unit
@@ -22,10 +22,11 @@ function parseNum(str) {
 }
 
 // Acceleration parser: accepts bare numbers ("1.95") or g-suffixed ("1.95g" / "1.95G").
+// Strips all trailing g/G characters before parsing so "1.95ggg" is handled gracefully.
 // Always returns a value in m/s² (multiplied by G), or NaN on bad input.
 function parseGValue(str) {
   if (!str || typeof str !== 'string') return NaN;
-  const s = str.trim().replace(/,/g, '').replace(/g$/i, '');
+  const s = str.trim().replace(/,/g, '').replace(/g+$/i, '');
   if (!/^[+-]?(\d+\.?\d*|\.\d+)$/.test(s)) return NaN;
   return parseFloat(s) * G;
 }
@@ -66,7 +67,7 @@ function parseGameTime(timeStr) {
   }
   // Try time-only: HH:MM:SS or HH:MM
   const parts = str.split(':').map((p) => p.trim());
-  if (parts.length < 2 || parts.length > 3) return null;
+  if (parts.length !== 3) return null;
   const nums = parts.map(Number);
   if (nums.some((n) => !isFinite(n) || n < 0)) return null;
   const [h, mi, s = 0] = nums;
@@ -1388,7 +1389,7 @@ function BurnCalculatorInner() {
   const vcrsRatioPct = (isFinite(vcrs_mps) && vcrs_mps !== 0 && isFinite(v0_mps) && v0_mps !== 0)
     ? (Math.abs(vcrs_mps) / Math.abs(v0_mps)) * 100
     : 0;
-  const highVcrsWarning = vcrsRatioPct > 10;
+  const highVcrsWarning = Math.abs(vcrs_mps) > 500;
 
   // Manual null heading + null time for high VCRS warning
   const vcrsNullTime = (highVcrsWarning && isFinite(vcrs_mps) && isFinite(a_mps2) && a_mps2 > 0)
@@ -1568,8 +1569,6 @@ function BurnCalculatorInner() {
               <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.12em' }}>{APP_VERSION}</span>
               <span className="bc-status-wrap">
                 <span className={`bc-status-light ${activeHasError ? 'invalid' : activeIsOvershoot ? 'overshoot' : 'ready'}`}></span>
-                {gameTimeValid && planValid && appMode === 'burn' && <span className="bc-status-light clock" title="Game clock locked"></span>}
-                {faGameTimeValid && faPlanOk && appMode === 'approach' && <span className="bc-status-light clock" title="Game clock locked"></span>}
               </span>
               <span className="bc-status-text">{activeStatusText}</span>
             </div>
@@ -1730,6 +1729,7 @@ function BurnCalculatorInner() {
                     onChange={setAccel}
                     units={[]}
                     placeholder="e.g. 1.95g"
+                    invalid={!solveForAccel && accel.trim() !== '' && !isFinite(a_mps2)}
                     tooltip={{
                       desc: "Enter your desired sustained acceleration for this burn. Leave blank to solve for required acceleration from Desired Travel Time.",
                       img: TOOLTIP_IMG_ACCELERATION,
@@ -1881,6 +1881,7 @@ function BurnCalculatorInner() {
                     onChange={setFaAccel}
                     units={[]}
                     placeholder="e.g. 1.95g"
+                    invalid={!faAccelBlank && !isFinite(fa_a_mps2)}
                     tooltip={{
                       desc: "Enter your desired sustained acceleration for this burn. Leave blank for constant-burn mode — required G computed automatically.",
                       img: TOOLTIP_IMG_ACCELERATION,
@@ -1927,7 +1928,7 @@ function BurnCalculatorInner() {
                 const missing = [];
                 if (!isFinite(distance_m) || distance_m <= 0) missing.push('CURRENT RNG');
                 if (!isFinite(v0_mps)) missing.push('CURRENT VREL');
-                if (!solveForAccel && !isFinite(a_mps2)) missing.push('ACCELERATION');
+                if (!solveForAccel && !isFinite(a_mps2) && accel.trim() === '') missing.push('ACCELERATION');
                 if (!isFinite(t_rotate_s)) missing.push('FLIP TIME');
                 if (missing.length === 0) return null;
                 return (
@@ -2338,7 +2339,7 @@ function BurnCalculatorInner() {
 
 // ───── subcomponents ───────────────────────────────────────────────────
 
-function InputRow({ label, value, onChange, unit, units, onUnitChange, tooltip, placeholder, labelStyle, disabled }) {
+function InputRow({ label, value, onChange, unit, units, onUnitChange, tooltip, placeholder, labelStyle, disabled, invalid }) {
   const [showTip, setShowTip] = React.useState(false);
   const [tipPos, setTipPos] = React.useState({ top: 0, left: 0 });
   const badgeRef = React.useRef(null);
@@ -2399,7 +2400,7 @@ function InputRow({ label, value, onChange, unit, units, onUnitChange, tooltip, 
         )}
       </div>
       <input
-        className={`bc-input${disabled ? '' : ''}`}
+        className={`bc-input${invalid ? ' invalid' : ''}`}
         type="text"
         inputMode="decimal"
         value={value}

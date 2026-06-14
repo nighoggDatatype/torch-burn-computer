@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { AlertTriangle, Clock } from 'lucide-react';
 
-const APP_VERSION = 'v0.5.3';
+const APP_VERSION = 'v0.5.4';
 
 const G = 9.80665; // standard gravity, m/s²
 const AU = 149_597_870_700; // meters per astronomical unit
 // Game day: standard 24h clock + "untime" (24:00:00 → 24:20:58),
 // then rolls to 00:00:00. Last displayed second 24:20:58 = 87,658 s.
-const DAY = 24 * 3600 + 20 * 60 + 59; // 87,659 s — rollover point
+// DAY = 87,659 is the exclusive rollover point; the last *valid* second is 87,658.
+const DAY = 24 * 3600 + 20 * 60 + 59; // 87,659 s
+const NO_WAKE_M = 300_000; // 300 km no-wake zone at destination
+const EFFICIENCY_TIME_MULTIPLIER = 2; // efficiency trip ≤ N× the standard-burn time
 
 // ───── helpers ─────────────────────────────────────────────────────────
 
@@ -62,6 +65,7 @@ function parseGameTime(timeStr) {
   if (dtMatch) {
     const [, y, mo, d, h, mi, s] = dtMatch.map(Number);
     const secs = h * 3600 + mi * 60 + s;
+    if (mo < 1 || mo > 12 || d < 1 || d > daysInMonth(mo, y)) return null;
     if (mi > 59 || s > 59 || secs >= DAY) return null;
     return { date: { y, mo, d }, seconds: secs };
   }
@@ -314,8 +318,6 @@ function solveAcceleration({ distance_m, v0_mps, v_arrival_mps, t_rotate_s, t_to
 // ───── styles ──────────────────────────────────────────────────────────
 
 const stylesheet = `
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&family=VT323&display=swap');
-
 html, body { margin: 0; padding: 0; background: #1a1d20; }
 
 .bc-root {
@@ -366,12 +368,8 @@ html, body { margin: 0; padding: 0; background: #1a1d20; }
 
 .bc-container { max-width: 1100px; margin: 0 auto; }
 
-.bc-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--amber);
+.bc-header,
+.bc-panel {
   background:
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.07'/%3E%3C/svg%3E"),
     radial-gradient(circle at 12px 12px, rgba(200,215,225,0.25) 2px, transparent 3px),
@@ -390,6 +388,14 @@ html, body { margin: 0; padding: 0; background: #1a1d20; }
     inset -3px 0 10px rgba(0, 0, 0, 0.15),
     inset 0 4px 16px rgba(0, 0, 0, 0.12),
     0 3px 8px rgba(0, 0, 0, 0.6);
+}
+
+.bc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--amber);
   padding: 14px 20px;
   margin-bottom: 16px;
 }
@@ -441,25 +447,6 @@ html, body { margin: 0; padding: 0; background: #1a1d20; }
   box-shadow: 0 0 8px #ff5d5d;
   animation: none;
 }
-.bc-status-light.clock {
-  background: #4dd0ff;
-  box-shadow: 0 0 6px #4dd0ff;
-  animation: none;
-  width: 7px;
-  height: 7px;
-}
-@keyframes bc-pulse-slow {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.35; }
-}
-@keyframes bc-pulse-fast {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.15; }
-}
-@keyframes bc-blink-hard {
-  0%, 49% { opacity: 1; }
-  50%, 100% { opacity: 0.2; }
-}
 
 .bc-status-text {
   font-size: 11px;
@@ -479,24 +466,6 @@ html, body { margin: 0; padding: 0; background: #1a1d20; }
 }
 
 .bc-panel {
-  background:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.07'/%3E%3C/svg%3E"),
-    radial-gradient(circle at 12px 12px, rgba(200,215,225,0.25) 2px, transparent 3px),
-    radial-gradient(circle at calc(100% - 12px) 12px, rgba(200,215,225,0.25) 2px, transparent 3px),
-    radial-gradient(circle at 12px calc(100% - 12px), rgba(200,215,225,0.25) 2px, transparent 3px),
-    radial-gradient(circle at calc(100% - 12px) calc(100% - 12px), rgba(200,215,225,0.25) 2px, transparent 3px),
-    radial-gradient(circle at 14px 14px, #4a5460 5px, #111518 6px, transparent 7px),
-    radial-gradient(circle at calc(100% - 14px) 14px, #4a5460 5px, #111518 6px, transparent 7px),
-    radial-gradient(circle at 14px calc(100% - 14px), #4a5460 5px, #111518 6px, transparent 7px),
-    radial-gradient(circle at calc(100% - 14px) calc(100% - 14px), #4a5460 5px, #111518 6px, transparent 7px),
-    linear-gradient(165deg, var(--bg-panel-top) 0%, var(--bg-panel-bottom) 60%, #2e3840 100%);
-  box-shadow:
-    inset 0 1px 0 var(--border-highlight),
-    inset 0 -2px 0 rgba(0, 0, 0, 0.35),
-    inset 3px 0 10px rgba(0, 0, 0, 0.2),
-    inset -3px 0 10px rgba(0, 0, 0, 0.15),
-    inset 0 4px 16px rgba(0, 0, 0, 0.12),
-    0 3px 8px rgba(0, 0, 0, 0.6);
   padding: 16px 20px;
 }
 
@@ -646,11 +615,6 @@ html, body { margin: 0; padding: 0; background: #1a1d20; }
   font-size: 26px;
   text-shadow: 0 0 10px rgba(77, 208, 255, 0.4);
 }
-.bc-readout-value.dim {
-  color: var(--text-dim);
-  font-size: 18px;
-  text-shadow: none;
-}
 
 .bc-warning {
   border-left: 3px solid var(--red);
@@ -759,7 +723,6 @@ html, body { margin: 0; padding: 0; background: #1a1d20; }
 .bc-panel.scratch-a { --scratch: url("data:image/svg+xml,%3Csvg%20xmlns=%27http://www.w3.org/2000/svg%27%20width=%27300%27%20height=%27300%27%3E%3Cfilter%20id=%27s7%27%3E%3CfeTurbulence%20type=%27turbulence%27%20baseFrequency=%270.7%200.015%27%20numOctaves=%273%27%20seed=%277%27%20stitchTiles=%27stitch%27/%3E%3CfeColorMatrix%20type=%27saturate%27%20values=%270%27/%3E%3CfeComponentTransfer%3E%3CfeFuncA%20type=%27linear%27%20slope=%270.2%27/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect%20width=%27300%27%20height=%27300%27%20filter=%27url(%23s7)%27/%3E%3C/svg%3E"); }
 .bc-panel.scratch-b { --scratch: url("data:image/svg+xml,%3Csvg%20xmlns=%27http://www.w3.org/2000/svg%27%20width=%27300%27%20height=%27300%27%3E%3Cfilter%20id=%27s23%27%3E%3CfeTurbulence%20type=%27turbulence%27%20baseFrequency=%270.6%200.012%27%20numOctaves=%273%27%20seed=%2723%27%20stitchTiles=%27stitch%27/%3E%3CfeColorMatrix%20type=%27saturate%27%20values=%270%27/%3E%3CfeComponentTransfer%3E%3CfeFuncA%20type=%27linear%27%20slope=%270.22%27/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect%20width=%27300%27%20height=%27300%27%20filter=%27url(%23s23)%27/%3E%3C/svg%3E"); }
 .bc-panel.scratch-c { --scratch: url("data:image/svg+xml,%3Csvg%20xmlns=%27http://www.w3.org/2000/svg%27%20width=%27300%27%20height=%27300%27%3E%3Cfilter%20id=%27s41%27%3E%3CfeTurbulence%20type=%27turbulence%27%20baseFrequency=%270.75%200.018%27%20numOctaves=%273%27%20seed=%2741%27%20stitchTiles=%27stitch%27/%3E%3CfeColorMatrix%20type=%27saturate%27%20values=%270%27/%3E%3CfeComponentTransfer%3E%3CfeFuncA%20type=%27linear%27%20slope=%270.18%27/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect%20width=%27300%27%20height=%27300%27%20filter=%27url(%23s41)%27/%3E%3C/svg%3E"); }
-.bc-header.scratch-d { --scratch: url("data:image/svg+xml,%3Csvg%20xmlns=%27http://www.w3.org/2000/svg%27%20width=%27300%27%20height=%27300%27%3E%3Cfilter%20id=%27s13%27%3E%3CfeTurbulence%20type=%27turbulence%27%20baseFrequency=%270.65%200.014%27%20numOctaves=%273%27%20seed=%2713%27%20stitchTiles=%27stitch%27/%3E%3CfeColorMatrix%20type=%27saturate%27%20values=%270%27/%3E%3CfeComponentTransfer%3E%3CfeFuncA%20type=%27linear%27%20slope=%270.19%27/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect%20width=%27300%27%20height=%27300%27%20filter=%27url(%23s13)%27/%3E%3C/svg%3E"); }
 
 .bc-panel.scratch-a,
 .bc-panel.scratch-b,
@@ -1012,6 +975,13 @@ html, body { margin: 0; padding: 0; background: #1a1d20; }
   transition: border-color 0.15s, color 0.15s;
   line-height: 1;
   user-select: none;
+  padding: 0;
+  box-shadow: none;
+  outline: none;
+}
+.bc-tooltip-badge:focus-visible {
+  outline: 1px solid var(--amber-dim);
+  outline-offset: 2px;
 }
 .bc-tooltip-badge:hover {
   border-color: var(--amber-dim);
@@ -1058,6 +1028,13 @@ html, body { margin: 0; padding: 0; background: #1a1d20; }
   display: block;
   width: 100%;
   height: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bc-readout-value.flicker { animation: none; }
+  .bc-boot-cursor { animation: none; opacity: 1; }
+  .bc-tooltip-card { animation: none; }
+  .bc-root::after { display: none; }
 }
 
 `;
@@ -1162,7 +1139,7 @@ function BurnCalculatorInner() {
     timers.push(setTimeout(() => setBootFade(true), 7000));
     timers.push(setTimeout(() => setBooting(false), 8000));
     return () => timers.forEach(clearTimeout);
-  }, []);
+  }, [booting]); // booting only true on first mount; guard above makes subsequent runs no-ops
 
   const [appMode, setAppMode] = useState('burn'); // 'burn' | 'approach'
 
@@ -1202,7 +1179,6 @@ function BurnCalculatorInner() {
   const prevPlanRef = useRef(null);
 
   // SI conversions
-  const NO_WAKE_M = 300_000; // 300 km no-wake zone at destination
   const standoff_m = noWakeEnabled ? NO_WAKE_M : (parseNum(standoffKm) * 1000 || 0);
   const standoffValid = noWakeEnabled || (isFinite(parseNum(standoffKm)) && parseNum(standoffKm) > 0);
   const distance_m = parseNum(distance) * (distanceUnit === 'au' ? AU : distanceUnit === 'gm' ? 1e9 : distanceUnit === 'km' ? 1000 : 1);
@@ -1295,8 +1271,6 @@ function BurnCalculatorInner() {
   // (the correct NET displacement); the receding penalty appears as extra
   // accel time, which is physically correct.
   // ════════════════════════════════════════════════════════════════════
-
-  const EFFICIENCY_TIME_MULTIPLIER = 2; // efficiency trip ≤ N× the standard-burn time
 
   // Build a complete drift-burn plan at a given v_max. Flip distance is
   // subtracted explicitly so the drift phase is the PURE coast and the
@@ -1603,6 +1577,7 @@ function BurnCalculatorInner() {
                     onUnitChange={setDistanceUnit}
                     placeholder="e.g. 18902"
                     invalid={distance.trim() === ''}
+                    inputMode="decimal"
                     tooltip={{
                       desc: "After selecting your target destination, input the distance to target.",
                       img: TOOLTIP_IMG_DISTANCE,
@@ -1626,6 +1601,7 @@ function BurnCalculatorInner() {
                     onUnitChange={setV0Unit}
                     placeholder="e.g. 511.19"
                     invalid={v0.trim() === ''}
+                    inputMode="decimal"
                     tooltip={{
                       desc: "Input your vessel's current velocity to the target. If no ETA is present, set mode to RECEDING.",
                       img: TOOLTIP_IMG_CURRENTVEL,
@@ -1668,6 +1644,7 @@ function BurnCalculatorInner() {
                     units={['m/s', 'km/s']}
                     onUnitChange={setVArrivalUnit}
                     placeholder="e.g. 0"
+                    inputMode="decimal"
                   />
                   <StandoffControl
                     noWakeEnabled={noWakeEnabled}
@@ -1739,12 +1716,14 @@ function BurnCalculatorInner() {
                     }}
                   />
                   <div className="bc-input-row">
-                    <div className="bc-label">Desired Travel Time</div>
+                    <label className="bc-label" htmlFor="desired-travel-time">Desired Travel Time</label>
                     <input
+                      id="desired-travel-time"
                       className={`bc-input${targetDurationError || (accel.trim() === '' && !timeFilled) ? ' invalid' : ''}`}
                       type="text"
                       placeholder="e.g. 4d 3h 2m 37s or HH:MM:SS"
                       value={targetDuration}
+                      aria-invalid={targetDurationError || (accel.trim() === '' && !timeFilled) ? 'true' : undefined}
                       onChange={(e) => setTargetDuration(e.target.value)}
                     />
                   </div>
@@ -1756,12 +1735,14 @@ function BurnCalculatorInner() {
                     ) : null}
                   </div>
                   <div className="bc-input-row">
-                    <div className="bc-label">Flip Time</div>
+                    <label className="bc-label" htmlFor="flip-time">Flip Time</label>
                     <input
+                      id="flip-time"
                       className={`bc-input${(flipTimeError || flipTime.trim() === '') ? ' invalid' : ''}`}
                       type="text"
                       value={flipTime}
                       placeholder="e.g. 60 or 1m 30s"
+                      aria-invalid={flipTimeError || flipTime.trim() === '' ? 'true' : undefined}
                       onChange={(e) => setFlipTime(e.target.value)}
                     />
                   </div>
@@ -1779,10 +1760,12 @@ function BurnCalculatorInner() {
                       Burn Start
                     </div>
                     <input
-                      className={`bc-input ${gameTimeError ? 'invalid' : ''}`}
+                      className={`bc-input${gameTimeError ? ' invalid' : ''}`}
                       type="text"
+                      aria-label="Burn Start time"
                       placeholder="YYYY-MM-DD HH:MM:SS or HH:MM:SS"
                       value={gameStartTime}
+                      aria-invalid={gameTimeError ? 'true' : undefined}
                       onChange={(e) => setGameStartTime(e.target.value)}
                     />
                   </div>
@@ -1814,6 +1797,7 @@ function BurnCalculatorInner() {
                     onUnitChange={setFaDistanceUnit}
                     placeholder="e.g. 18902"
                     invalid={faDistance.trim() === ''}
+                    inputMode="decimal"
                     tooltip={{
                       desc: "After selecting your target destination, input the distance to target.",
                       img: TOOLTIP_IMG_DISTANCE,
@@ -1837,6 +1821,7 @@ function BurnCalculatorInner() {
                     onUnitChange={setFaVrelUnit}
                     placeholder="e.g. 511.19"
                     invalid={faVrel.trim() === ''}
+                    inputMode="decimal"
                     tooltip={{
                       desc: "Input your vessel's current velocity to the target.",
                       img: TOOLTIP_IMG_CURRENTVEL,
@@ -1853,6 +1838,7 @@ function BurnCalculatorInner() {
                     units={['m/s', 'km/s']}
                     onUnitChange={setFaVArrivalUnit}
                     placeholder="e.g. 0"
+                    inputMode="decimal"
                   />
                   <StandoffControl
                     noWakeEnabled={noWakeEnabled}
@@ -1902,10 +1888,12 @@ function BurnCalculatorInner() {
                       Current Time
                     </div>
                     <input
-                      className={`bc-input ${faGameTimeError ? 'invalid' : ''}`}
+                      className={`bc-input${faGameTimeError ? ' invalid' : ''}`}
                       type="text"
+                      aria-label="Current Time"
                       placeholder="YYYY-MM-DD HH:MM:SS or HH:MM:SS"
                       value={faGameStart}
+                      aria-invalid={faGameTimeError ? 'true' : undefined}
                       onChange={(e) => setFaGameStart(e.target.value)}
                     />
                   </div>
@@ -2028,7 +2016,7 @@ function BurnCalculatorInner() {
               {highVcrsWarning && !plan.error && !plan.overshoot && (
                 <>
                   <div className="bc-advisory">
-                    <strong>HIGH VCRS DETECTED</strong> — Cross-track velocity is {vcrsRatioPct.toFixed(1)}% of relative velocity. RCS correction will not be sufficient at this magnitude.
+                    <strong>HIGH VCRS DETECTED</strong> — Cross-track velocity is {formatVelocity(Math.abs(vcrs_mps))}. RCS correction will not be sufficient at this magnitude.
                   </div>
                   {manualNullBearing && (
                     <Readout
@@ -2388,16 +2376,16 @@ function BurnCalculatorInner() {
 
 // ───── subcomponents ───────────────────────────────────────────────────
 
-function InputRow({ label, value, onChange, unit, units, onUnitChange, tooltip, placeholder, labelStyle, disabled, invalid }) {
+function InputRow({ label, value, onChange, unit, units, onUnitChange, tooltip, placeholder, invalid, inputMode = 'text' }) {
+  const id = React.useId();
   const [showTip, setShowTip] = React.useState(false);
   const [tipPos, setTipPos] = React.useState({ top: 0, left: 0 });
   const badgeRef = React.useRef(null);
   const cardRef = React.useRef(null);
 
-  const handleMouseEnter = () => {
+  const openTip = () => {
     if (badgeRef.current) {
       const rect = badgeRef.current.getBoundingClientRect();
-      // Initially place below; useEffect will correct if it overflows
       setTipPos({ top: rect.bottom + 6, left: rect.left });
     }
     setShowTip(true);
@@ -2411,26 +2399,28 @@ function InputRow({ label, value, onChange, unit, units, onUnitChange, tooltip, 
     const cardHeight = card.offsetHeight;
     const spaceBelow = window.innerHeight - rect.bottom - 6;
     const spaceAbove = rect.top - 6;
-    let top;
-    if (spaceBelow >= cardHeight || spaceBelow >= spaceAbove) {
-      top = rect.bottom + 6;
-    } else {
-      top = Math.max(8, rect.top - cardHeight - 6);
-    }
+    const top = (spaceBelow >= cardHeight || spaceBelow >= spaceAbove)
+      ? rect.bottom + 6
+      : Math.max(8, rect.top - cardHeight - 6);
     setTipPos({ top, left: rect.left });
   }, [showTip]);
 
   return (
     <div className="bc-input-row">
-      <div className="bc-label" style={{ display: 'flex', alignItems: 'center', ...labelStyle }}>
+      <label className="bc-label" htmlFor={id} style={{ display: 'flex', alignItems: 'center' }}>
         <span style={{ flex: 1 }}>{label}</span>
         {tooltip && (
-          <span
-            className="bc-tooltip-wrap"
-            onMouseEnter={handleMouseEnter}
-            onMouseLeave={() => setShowTip(false)}
-          >
-            <span className="bc-tooltip-badge" ref={badgeRef}>?</span>
+          <span className="bc-tooltip-wrap">
+            <button
+              type="button"
+              className="bc-tooltip-badge"
+              ref={badgeRef}
+              aria-label={`Help for ${label}`}
+              onMouseEnter={openTip}
+              onMouseLeave={() => setShowTip(false)}
+              onFocus={openTip}
+              onBlur={() => setShowTip(false)}
+            >?</button>
             {showTip && (
               <div className="bc-tooltip-card" ref={cardRef} style={{ top: tipPos.top, left: tipPos.left }}>
                 <div className="bc-tooltip-header">{label}</div>
@@ -2447,15 +2437,16 @@ function InputRow({ label, value, onChange, unit, units, onUnitChange, tooltip, 
             )}
           </span>
         )}
-      </div>
+      </label>
       <input
+        id={id}
         className={`bc-input${invalid ? ' invalid' : ''}`}
         type="text"
-        inputMode="decimal"
+        inputMode={inputMode}
         value={value}
         placeholder={placeholder || ''}
-        disabled={disabled}
-        onChange={(e) => !disabled && onChange(e.target.value)}
+        aria-invalid={invalid ? 'true' : undefined}
+        onChange={(e) => onChange(e.target.value)}
       />
       {units && units.length > 0 && (
         <div className="bc-unit-toggle">
@@ -2474,7 +2465,7 @@ function InputRow({ label, value, onChange, unit, units, onUnitChange, tooltip, 
   );
 }
 
-function Readout({ label, value, highlight, dim, flickerKey }) {
+function Readout({ label, value, highlight, flickerKey }) {
   const [animClass, setAnimClass] = React.useState('');
   const isFirst = React.useRef(true);
   React.useEffect(() => {
@@ -2483,7 +2474,7 @@ function Readout({ label, value, highlight, dim, flickerKey }) {
     const t = setTimeout(() => setAnimClass(''), 200);
     return () => clearTimeout(t);
   }, [flickerKey]);
-  const cls = [highlight ? 'highlight' : dim ? 'dim' : '', animClass].filter(Boolean).join(' ');
+  const cls = [highlight ? 'highlight' : '', animClass].filter(Boolean).join(' ');
   return (
     <div className="bc-readout">
       <div className="bc-readout-label">{label}</div>

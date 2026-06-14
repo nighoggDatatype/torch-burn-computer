@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { AlertTriangle, Clock } from 'lucide-react';
 
-const APP_VERSION = 'v0.5.2';
+const APP_VERSION = 'v0.5.3';
 
 const G = 9.80665; // standard gravity, m/s²
 const AU = 149_597_870_700; // meters per astronomical unit
@@ -65,12 +65,10 @@ function parseGameTime(timeStr) {
     if (mi > 59 || s > 59 || secs >= DAY) return null;
     return { date: { y, mo, d }, seconds: secs };
   }
-  // Try time-only: HH:MM:SS or HH:MM
-  const parts = str.split(':').map((p) => p.trim());
-  if (parts.length !== 3) return null;
-  const nums = parts.map(Number);
-  if (nums.some((n) => !isFinite(n) || n < 0)) return null;
-  const [h, mi, s = 0] = nums;
+  // Try time-only: HH:MM:SS (exactly, no partial segments)
+  const timeMatch = str.match(/^(\d{1,2}):(\d{2}):(\d{2})$/);
+  if (!timeMatch) return null;
+  const [, h, mi, s] = timeMatch.map(Number);
   const secs = h * 3600 + mi * 60 + s;
   if (mi > 59 || s > 59 || secs >= DAY) return null;
   return { date: null, seconds: secs };
@@ -1250,7 +1248,7 @@ function BurnCalculatorInner() {
     : null;
   const a_mps2 = solveForAccel
     ? (accelSolveResult && !accelSolveResult.error ? accelSolveResult.a_mps2 : NaN)
-    : parseGValue(accel);
+    : (() => { const v = parseGValue(accel); return (isFinite(v) && v < 0.01 * G) ? NaN : v; })();
 
   // VCRS geometry correction (one-iteration approach):
   // Pass 1 — solve with straight-line burn distance to get approximate t_total
@@ -1412,10 +1410,12 @@ function BurnCalculatorInner() {
     && isFinite(fa_v0_mps) && fa_v0_mps > 0 && isFinite(fa_v_arrival_mps) && fa_v_arrival_mps < fa_v0_mps)
     ? (fa_v0_mps * fa_v0_mps - fa_v_arrival_mps * fa_v_arrival_mps) / (2 * fa_brake_distance_m)
     : null;
-  // Operating acceleration: computed required_a when blank, otherwise player input
+  // Reject computed acceleration below minimum viable thrust (0.01 G)
+  const fa_required_a_belowMin = fa_required_a_computed !== null && fa_required_a_computed < 0.01 * G;
+  // Operating acceleration: computed required_a when blank (and above floor), otherwise player input
   const fa_a_mps2 = faAccelBlank
-    ? (fa_required_a_computed !== null ? fa_required_a_computed : NaN)
-    : parseGValue(faAccel);
+    ? (fa_required_a_computed !== null && !fa_required_a_belowMin ? fa_required_a_computed : NaN)
+    : (() => { const v = parseGValue(faAccel); return (isFinite(v) && v < 0.01 * G) ? NaN : v; })();
 
   // FA budget conversion — parsed same as Desired Travel Time (bare number = seconds)
   const fa_budget_s = (() => {
@@ -1602,6 +1602,7 @@ function BurnCalculatorInner() {
                     units={['km', 'gm', 'au']}
                     onUnitChange={setDistanceUnit}
                     placeholder="e.g. 18902"
+                    invalid={distance.trim() === ''}
                     tooltip={{
                       desc: "After selecting your target destination, input the distance to target.",
                       img: TOOLTIP_IMG_DISTANCE,
@@ -1624,6 +1625,7 @@ function BurnCalculatorInner() {
                     units={['m/s', 'km/s']}
                     onUnitChange={setV0Unit}
                     placeholder="e.g. 511.19"
+                    invalid={v0.trim() === ''}
                     tooltip={{
                       desc: "Input your vessel's current velocity to the target. If no ETA is present, set mode to RECEDING.",
                       img: TOOLTIP_IMG_CURRENTVEL,
@@ -1673,16 +1675,17 @@ function BurnCalculatorInner() {
                     standoffKm={standoffKm}
                     setStandoffKm={setStandoffKm}
                   />
-                  <div className="bc-input-row">
-                    <div className="bc-label">Reactant Budget</div>
-                    <input
-                      className="bc-input"
-                      type="text"
-                      value={reactantBudget}
-                      placeholder="e.g. 3h 30m or 12600"
-                      onChange={(e) => setReactantBudget(e.target.value)}
-                    />
-                  </div>
+                  <InputRow
+                    label="Reactant Budget"
+                    value={reactantBudget}
+                    onChange={setReactantBudget}
+                    units={[]}
+                    placeholder="e.g. 3h 30m or 12600"
+                    tooltip={{
+                      desc: "Enter the amount of reactant you plan to allocate to this burn. It is not recommended to commit all your available reactant.",
+                      img: TOOLTIP_IMG_REACTANTBUDGET,
+                    }}
+                  />
                   {reactantBudget.trim().length > 0 && (
                     <div className="bc-field-note" style={{ marginBottom: 6, paddingLeft: 118 }}>
                       {budget_s !== null
@@ -1729,7 +1732,7 @@ function BurnCalculatorInner() {
                     onChange={setAccel}
                     units={[]}
                     placeholder="e.g. 1.95g"
-                    invalid={!solveForAccel && accel.trim() !== '' && !isFinite(a_mps2)}
+                    invalid={(!solveForAccel && accel.trim() !== '' && (!isFinite(a_mps2) || a_mps2 < 0.01 * G)) || (accel.trim() === '' && !timeFilled)}
                     tooltip={{
                       desc: "Enter your desired sustained acceleration for this burn. Leave blank to solve for required acceleration from Desired Travel Time.",
                       img: TOOLTIP_IMG_ACCELERATION,
@@ -1738,7 +1741,7 @@ function BurnCalculatorInner() {
                   <div className="bc-input-row">
                     <div className="bc-label">Desired Travel Time</div>
                     <input
-                      className={`bc-input${targetDurationError ? ' invalid' : ''}`}
+                      className={`bc-input${targetDurationError || (accel.trim() === '' && !timeFilled) ? ' invalid' : ''}`}
                       type="text"
                       placeholder="e.g. 4d 3h 2m 37s or HH:MM:SS"
                       value={targetDuration}
@@ -1755,7 +1758,7 @@ function BurnCalculatorInner() {
                   <div className="bc-input-row">
                     <div className="bc-label">Flip Time</div>
                     <input
-                      className={`bc-input${flipTimeError ? ' invalid' : ''}`}
+                      className={`bc-input${(flipTimeError || flipTime.trim() === '') ? ' invalid' : ''}`}
                       type="text"
                       value={flipTime}
                       placeholder="e.g. 60 or 1m 30s"
@@ -1810,6 +1813,7 @@ function BurnCalculatorInner() {
                     units={['km', 'gm', 'au']}
                     onUnitChange={setFaDistanceUnit}
                     placeholder="e.g. 18902"
+                    invalid={faDistance.trim() === ''}
                     tooltip={{
                       desc: "After selecting your target destination, input the distance to target.",
                       img: TOOLTIP_IMG_DISTANCE,
@@ -1832,6 +1836,7 @@ function BurnCalculatorInner() {
                     units={['m/s', 'km/s']}
                     onUnitChange={setFaVrelUnit}
                     placeholder="e.g. 511.19"
+                    invalid={faVrel.trim() === ''}
                     tooltip={{
                       desc: "Input your vessel's current velocity to the target.",
                       img: TOOLTIP_IMG_CURRENTVEL,
@@ -1855,16 +1860,17 @@ function BurnCalculatorInner() {
                     standoffKm={standoffKm}
                     setStandoffKm={setStandoffKm}
                   />
-                  <div className="bc-input-row">
-                    <div className="bc-label">Reactant Budget</div>
-                    <input
-                      className="bc-input"
-                      type="text"
-                      value={faBudget}
-                      placeholder="e.g. 3h 30m or 12600"
-                      onChange={(e) => setFaBudget(e.target.value)}
-                    />
-                  </div>
+                  <InputRow
+                    label="Reactant Budget"
+                    value={faBudget}
+                    onChange={setFaBudget}
+                    units={[]}
+                    placeholder="e.g. 3h 30m or 12600"
+                    tooltip={{
+                      desc: "Enter the amount of reactant you plan to allocate to this burn. It is not recommended to commit all your available reactant.",
+                      img: TOOLTIP_IMG_REACTANTBUDGET,
+                    }}
+                  />
                   {faBudget.trim().length > 0 && (
                     <div className="bc-field-note" style={{ marginBottom: 6, paddingLeft: 118 }}>
                       {fa_budget_s !== null
@@ -1881,7 +1887,7 @@ function BurnCalculatorInner() {
                     onChange={setFaAccel}
                     units={[]}
                     placeholder="e.g. 1.95g"
-                    invalid={!faAccelBlank && !isFinite(fa_a_mps2)}
+                    invalid={!faAccelBlank && (!isFinite(fa_a_mps2) || fa_a_mps2 < 0.01 * G)}
                     tooltip={{
                       desc: "Enter your desired sustained acceleration for this burn. Leave blank for constant-burn mode — required G computed automatically.",
                       img: TOOLTIP_IMG_ACCELERATION,
@@ -1926,21 +1932,32 @@ function BurnCalculatorInner() {
               {/* ── Pre-flight missing field check ── */}
               {(() => {
                 const missing = [];
-                if (!isFinite(distance_m) || distance_m <= 0) missing.push('CURRENT RNG');
-                if (!isFinite(v0_mps)) missing.push('CURRENT VREL');
-                if (!solveForAccel && !isFinite(a_mps2) && accel.trim() === '') missing.push('ACCELERATION');
-                if (!isFinite(t_rotate_s)) missing.push('FLIP TIME');
+                if (distance.trim() === '') missing.push('CURRENT RNG');
+                if (v0.trim() === '') missing.push('CURRENT VREL');
+                if (!solveForAccel && accel.trim() === '') missing.push('ACCELERATION');
+                if (flipTime.trim() === '') missing.push('FLIP TIME');
                 if (missing.length === 0) return null;
                 return (
                   <div className="bc-warning">
                     <AlertTriangle size={14} color="var(--red)" />
                     <div className="bc-warning-text">
-                      <strong>MISSING FIELDS</strong><br />
-                      {missing.join(', ')}
+                      <strong>MISSING OR INVALID INPUT</strong><br />
+                      One or more fields are empty or non-numeric.
                     </div>
                   </div>
                 );
               })()}
+
+              {/* Below-minimum acceleration — only when no blank required fields */}
+              {!solveForAccel && accel.trim() !== '' && isFinite(parseGValue(accel)) && parseGValue(accel) < 0.01 * G && (
+                <div className="bc-warning">
+                  <AlertTriangle size={14} color="var(--red)" />
+                  <div className="bc-warning-text">
+                    <strong>ACCELERATION BELOW MINIMUM THRUST (0.01 G)</strong><br />
+                    Enter a value of 0.01 G or higher.
+                  </div>
+                </div>
+              )}
 
               {/* Accel-solve error — only when no missing fields */}
               {solveForAccel && accelSolveResult && accelSolveResult.error
@@ -2122,6 +2139,38 @@ function BurnCalculatorInner() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div className="bc-panel scratch-b">
                 <div className="bc-panel-header">◇ Approach Solution</div>
+
+                {/* ── FA pre-flight missing field check ── */}
+                {(faDistance.trim() === '' || faVrel.trim() === '') && (
+                  <div className="bc-warning">
+                    <AlertTriangle size={14} color="var(--red)" />
+                    <div className="bc-warning-text">
+                      <strong>MISSING OR INVALID INPUT</strong><br />
+                      One or more fields are empty or non-numeric.
+                    </div>
+                  </div>
+                )}
+
+                {/* FA below-minimum entered acceleration */}
+                {!faAccelBlank && isFinite(parseGValue(faAccel)) && parseGValue(faAccel) < 0.01 * G && (
+                  <div className="bc-warning">
+                    <AlertTriangle size={14} color="var(--red)" />
+                    <div className="bc-warning-text">
+                      <strong>ACCELERATION BELOW MINIMUM THRUST (0.01 G)</strong><br />
+                      Enter a value of 0.01 G or higher.
+                    </div>
+                  </div>
+                )}
+
+                {/* FA constant-burn below-minimum computed acceleration */}
+                {faAccelBlank && fa_required_a_belowMin && (
+                  <div className="bc-warning">
+                    <AlertTriangle size={14} color="var(--red)" />
+                    <div className="bc-warning-text">
+                      <strong>REQUIRED DECELERATION BELOW MINIMUM THRUST (0.01 G) — CHECK UNITS OR INCREASE RANGE</strong>
+                    </div>
+                  </div>
+                )}
 
                 {faPlan && faPlan.error && (
                   <div className="bc-warning">

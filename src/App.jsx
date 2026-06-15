@@ -23,7 +23,7 @@ import {
   solveAcceleration,
 } from './physics.js';
 
-const APP_VERSION = 'v0.6.0';
+const APP_VERSION = 'v0.6.1';
 
 // Embedded screenshot data for tooltips
 const TOOLTIP_IMG_DISTANCE = `${import.meta.env.BASE_URL}tooltips/distance.jpg`;
@@ -327,32 +327,61 @@ function BurnCalculatorInner() {
 
   function handleBurnCopy() {
     const lines = [];
+    const distLabel =
+      distanceUnit === 'au' ? 'AU' : distanceUnit === 'gm' ? 'GM' : distanceUnit === 'km' ? 'km' : 'm';
+    lines.push('── CURRENT STATE ──');
+    lines.push(`Range: ${distance} ${distLabel}`);
+    lines.push(`VREL: ${v0} ${v0Unit} (${v0Direction.toUpperCase()})`);
+    if (vcrs.trim() !== '') lines.push(`VCRS: ${vcrs} ${vcrsUnit}`);
+    lines.push('');
+    lines.push('── ARRIVAL PARAMETERS ──');
+    if (vArrival.trim() !== '' && vArrival !== '0') lines.push(`TGT Vel: ${vArrival} ${vArrivalUnit}`);
+    lines.push(noWakeEnabled ? 'Stand-off: NO-WAKE ZONE (300 km)' : `Stand-off: ${standoffKm} km`);
+    if (reactantBudget.trim() !== '') lines.push(`Reactant Budget: ${reactantBudget}`);
+    lines.push('');
+    lines.push('── VESSEL PARAMETERS ──');
     if (solveForAccel && accelSolveResult && !accelSolveResult.error) {
-      lines.push(`Computed Accel: ${(accelSolveResult.a_mps2 / G).toFixed(2)} G`);
+      lines.push(`Acceleration: ${(accelSolveResult.a_mps2 / G).toFixed(2)} G (computed)`);
+    } else {
+      lines.push(`Acceleration: ${accel} G`);
     }
+    lines.push(`Flip Time: ${flipTime}`);
+    if (targetDuration.trim() !== '') lines.push(`Desired Travel Time: ${targetDuration}`);
+    if (gameStartTime.trim() !== '') {
+      lines.push('');
+      lines.push('── GAME CLOCK ──');
+      lines.push(`Current Time: ${gameStartTime}`);
+    }
+    lines.push('');
+    lines.push('── BURN SOLUTION ──');
     lines.push(
-      `${isDriftMode ? 'End Accel / Begin Flip' : 'Begin Rotate'}: ${gameTimeValid ? formatGameTime(rotateTarget) : 'T+' + formatTime(t_accel)}`
+      `${isDriftMode ? 'End Accel / Begin Flip' : 'Begin Rotate'}: ${gameTimeValid ? formatGameTime(rotateTarget) : 'T+' + formatTargetDuration(Math.floor(t_accel))}`
     );
     if (isDriftMode) {
       lines.push(
-        `End Drift / Begin Brake: ${gameTimeValid ? formatGameTime(driftEndTarget) : 'T+' + formatTime(t_brake_start)}`
+        `End Drift / Begin Brake: ${gameTimeValid ? formatGameTime(driftEndTarget) : 'T+' + formatTargetDuration(Math.floor(t_brake_start))}`
       );
     } else {
       lines.push(
-        `Begin Brake: ${gameTimeValid ? formatGameTime(brakeTarget) : 'T+' + formatTime(t_brake_start)}`
+        `Begin Brake: ${gameTimeValid ? formatGameTime(brakeTarget) : 'T+' + formatTargetDuration(Math.floor(t_brake_start))}`
       );
     }
     lines.push(
-      `Arrival: ${gameTimeValid ? formatGameTime(arriveTarget) : 'T+' + formatTime(t_total)}`
+      `Arrival: ${gameTimeValid ? formatGameTime(arriveTarget) : 'T+' + formatTargetDuration(Math.floor(t_total))}`
     );
     lines.push(`Accel Duration: ${formatTime(Math.floor(t_accel))}`);
     if (isDriftMode) lines.push(`Drift Duration: ${formatTime(Math.floor(finalPlan.t_drift || 0))}`);
     lines.push(`Brake Duration: ${formatTime(Math.floor(t_total) - Math.floor(t_brake_start))}`);
+    lines.push('');
+    lines.push('── BURN REFERENCE ──');
     lines.push(`Accel Distance: ${formatDistance(finalPlan.d_accel)}`);
     if (isDriftMode) lines.push(`Drift Distance: ${formatDistance(finalPlan.d_drift)}`);
     lines.push(`Brake Distance: ${formatDistance(finalPlan.d_brake)}`);
     lines.push(`Total Distance: ${formatDistance(burn_distance_m)}`);
     lines.push(`Peak Velocity: ${formatVelocity(finalPlan.v_max)}`);
+    lines.push(
+      `Min Reactant Budget: ${formatTargetDuration(Math.floor((finalPlan.t_accel || 0) + (finalPlan.t_brake || 0)))}`
+    );
     navigator.clipboard.writeText(lines.join('\n')).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -361,13 +390,38 @@ function BurnCalculatorInner() {
 
   function handleFaCopy() {
     const lines = [];
+    const faDistLabel =
+      faDistanceUnit === 'au' ? 'AU' : faDistanceUnit === 'gm' ? 'GM' : 'km';
+    lines.push('── CURRENT STATE ──');
+    lines.push(`Range: ${faDistance} ${faDistLabel}`);
+    lines.push(`VREL: ${faVrel} ${faVrelUnit} (CLOSING)`);
+    lines.push('');
+    lines.push('── ARRIVAL PARAMETERS ──');
+    if (faVArrival.trim() !== '' && faVArrival !== '0')
+      lines.push(`TGT Vel: ${faVArrival} ${faVArrivalUnit}`);
+    lines.push(noWakeEnabled ? 'Stand-off: NO-WAKE ZONE (300 km)' : `Stand-off: ${standoffKm} km`);
+    if (faBudget.trim() !== '') lines.push(`Reactant Budget: ${faBudget}`);
+    lines.push('');
+    lines.push('── VESSEL PARAMETERS ──');
+    lines.push(
+      faAccelBlank
+        ? `Acceleration: ${(faPlan.required_a / G).toFixed(2)} G (computed)`
+        : `Acceleration: ${faAccel} G`
+    );
+    if (faGameStart.trim() !== '') {
+      lines.push('');
+      lines.push('── GAME CLOCK ──');
+      lines.push(`Current Time: ${faGameStart}`);
+    }
+    lines.push('');
+    lines.push('── APPROACH SOLUTION ──');
     if (faPlan.t_coast > 1) {
       lines.push(
-        `Begin Brake: ${faGameTimeValid ? formatGameTime(faBrakeTarget) : 'T+' + formatTime(Math.floor(faPlan.t_coast))}`
+        `Begin Brake: ${faGameTimeValid ? formatGameTime(faBrakeTarget) : 'T+' + formatTargetDuration(Math.floor(faPlan.t_coast))}`
       );
     }
     lines.push(
-      `Arrival: ${faGameTimeValid ? formatGameTime(faArriveTarget) : 'T+' + formatTime(Math.floor(faPlan.t_total))}`
+      `Arrival: ${faGameTimeValid ? formatGameTime(faArriveTarget) : 'T+' + formatTargetDuration(Math.floor(faPlan.t_total))}`
     );
     lines.push(`Brake Duration: ${formatTime(Math.floor(faPlan.t_brake))}`);
     lines.push(`Brake Distance: ${formatDistance(faPlan.d_brake)}`);
@@ -393,7 +447,8 @@ function BurnCalculatorInner() {
   const flipTimeAttempted = flipTime.trim().length > 0;
   const flipTimeValid = t_rotate_s_parsed !== null;
   const flipTimeError = flipTimeAttempted && !flipTimeValid;
-  const v_arrival_mps = parseNum(vArrival) * (vArrivalUnit === 'km/s' ? 1000 : 1);
+  const v_arrival_mps =
+    vArrival.trim() === '' ? 0 : parseNum(vArrival) * (vArrivalUnit === 'km/s' ? 1000 : 1);
   const vcrs_mps = vcrs.trim() !== '' ? parseNum(vcrs) * (vcrsUnit === 'km/s' ? 1000 : 1) : 0;
 
   // ── Desired Travel Time: parse input ──
@@ -598,7 +653,8 @@ function BurnCalculatorInner() {
     parseNum(faDistance) * (faDistanceUnit === 'au' ? AU : faDistanceUnit === 'gm' ? 1e9 : 1000);
   const fa_brake_distance_m = isFinite(fa_distance_m_raw) ? fa_distance_m_raw - standoff_m : NaN;
   const fa_v0_mps = parseNum(faVrel) * (faVrelUnit === 'km/s' ? 1000 : 1);
-  const fa_v_arrival_mps = parseNum(faVArrival) * (faVArrivalUnit === 'km/s' ? 1000 : 1);
+  const fa_v_arrival_mps =
+    faVArrival.trim() === '' ? 0 : parseNum(faVArrival) * (faVArrivalUnit === 'km/s' ? 1000 : 1);
 
   // FA solve-for-accel: when acceleration field is blank, derive required_a from distance/velocities
   const faAccelBlank = faAccel.trim() === '';
@@ -683,6 +739,12 @@ function BurnCalculatorInner() {
       : null;
   const fa_throttled_ok =
     fa_throttled_brake_s !== null ? fa_budget_s >= fa_throttled_brake_s : null;
+  // Budget-floor G: lowest throttle that still completes the brake within the current budget.
+  // Only shown alongside the throttle-down caution when full-thrust reactant is sufficient.
+  const fa_budget_floor_g =
+    fa_throttled_ok === false && fa_reactant_ok === true && fa_budget_s > 0
+      ? (fa_v0_mps - fa_v_arrival_mps) / fa_budget_s / G
+      : null;
 
   // FA game clock
   const faParsedGameTime = parseGameTime(faGameStart);
@@ -750,6 +812,12 @@ function BurnCalculatorInner() {
 
   const budgetInsufficient = !!(driftPlan && driftPlan.error);
   const planValid = !plan.error && !plan.overshoot && t_total > 0 && !budgetInsufficient;
+  const burnMissingFields = [
+    distance.trim() === '' && 'CURRENT RNG',
+    v0.trim() === '' && 'CURRENT VREL',
+    !solveForAccel && accel.trim() === '' && 'ACCELERATION',
+    flipTime.trim() === '' && 'FLIP TIME',
+  ].filter(Boolean);
   const statusText = budgetInsufficient
     ? 'INVALID'
     : plan.error
@@ -1291,24 +1359,16 @@ function BurnCalculatorInner() {
                   </div>
 
                   {/* ── Pre-flight missing field check ── */}
-                  {(() => {
-                    const missing = [];
-                    if (distance.trim() === '') missing.push('CURRENT RNG');
-                    if (v0.trim() === '') missing.push('CURRENT VREL');
-                    if (!solveForAccel && accel.trim() === '') missing.push('ACCELERATION');
-                    if (flipTime.trim() === '') missing.push('FLIP TIME');
-                    if (missing.length === 0) return null;
-                    return (
-                      <div className="bc-warning" role="alert">
-                        <AlertTriangle size={14} color="var(--red)" />
-                        <div className="bc-warning-text">
-                          <strong>MISSING OR INVALID INPUT</strong>
-                          <br />
-                          One or more fields are empty or non-numeric.
-                        </div>
+                  {burnMissingFields.length > 0 && (
+                    <div className="bc-warning" role="alert">
+                      <AlertTriangle size={14} color="var(--red)" />
+                      <div className="bc-warning-text">
+                        <strong>MISSING OR INVALID INPUT</strong>
+                        <br />
+                        One or more fields are empty or non-numeric.
                       </div>
-                    );
-                  })()}
+                    </div>
+                  )}
 
                   {/* Below-minimum acceleration — only when no blank required fields */}
                   {!solveForAccel &&
@@ -1380,6 +1440,7 @@ function BurnCalculatorInner() {
 
                   {/* plan.error — suppressed when pre-flight fires or when accel-solve already showed an error */}
                   {plan.error &&
+                    !burnMissingFields.length &&
                     isFinite(distance_m) &&
                     distance_m > 0 &&
                     isFinite(v0_mps) &&
@@ -1481,6 +1542,19 @@ function BurnCalculatorInner() {
                     </>
                   )}
 
+                  {budgetInsufficient && (
+                    <div className="bc-warning" role="alert">
+                      <AlertTriangle size={14} color="var(--red)" />
+                      <div className="bc-warning-text">
+                        <strong>REACTANT BUDGET INSUFFICIENT</strong>
+                        <br />
+                        This burn requires at least{' '}
+                        {formatTargetDuration(Math.floor((plan.t_accel || 0) + (plan.t_brake || 0)))} of
+                        reactant; current budget is {formatTargetDuration(Math.floor(budget_s))}.
+                      </div>
+                    </div>
+                  )}
+
                   {!plan.error && !plan.overshoot && !budgetInsufficient && (
                     <>
                       {/* ── Computed Accel — shown when solving for acceleration ── */}
@@ -1496,7 +1570,7 @@ function BurnCalculatorInner() {
                       <Readout
                         label={isDriftMode ? 'End Accel / Begin Flip' : 'Begin Rotate'}
                         value={
-                          gameTimeValid ? formatGameTime(rotateTarget) : `T+${formatTime(t_accel)}`
+                          gameTimeValid ? formatGameTime(rotateTarget) : `T+${formatTargetDuration(Math.floor(t_accel))}`
                         }
                         highlight
                         flickerKey={flickerKey}
@@ -1507,7 +1581,7 @@ function BurnCalculatorInner() {
                           value={
                             gameTimeValid
                               ? formatGameTime(driftEndTarget)
-                              : `T+${formatTime(t_brake_start)}`
+                              : `T+${formatTargetDuration(Math.floor(t_brake_start))}`
                           }
                           highlight
                           flickerKey={flickerKey}
@@ -1519,7 +1593,7 @@ function BurnCalculatorInner() {
                           value={
                             gameTimeValid
                               ? formatGameTime(brakeTarget)
-                              : `T+${formatTime(t_brake_start)}`
+                              : `T+${formatTargetDuration(Math.floor(t_brake_start))}`
                           }
                           highlight
                           flickerKey={flickerKey}
@@ -1528,7 +1602,7 @@ function BurnCalculatorInner() {
                       <Readout
                         label="Arrival"
                         value={
-                          gameTimeValid ? formatGameTime(arriveTarget) : `T+${formatTime(t_total)}`
+                          gameTimeValid ? formatGameTime(arriveTarget) : `T+${formatTargetDuration(Math.floor(t_total))}`
                         }
                         highlight
                         flickerKey={flickerKey}
@@ -1599,6 +1673,14 @@ function BurnCalculatorInner() {
                     <Readout
                       label="Peak Velocity"
                       value={formatVelocity(finalPlan.v_max)}
+                      highlight
+                      flickerKey={flickerKey}
+                    />
+                    <Readout
+                      label="Min Reactant Budget"
+                      value={formatTargetDuration(
+                        Math.floor((finalPlan.t_accel || 0) + (finalPlan.t_brake || 0))
+                      )}
                       highlight
                       flickerKey={flickerKey}
                     />
@@ -1749,10 +1831,15 @@ function BurnCalculatorInner() {
 
                       {/* Throttled-G reactant line — only when accel entered and required_a < fa_a_mps2 */}
                       {fa_throttled_brake_s !== null && (
-                        <div className={fa_throttled_ok ? 'bc-fa-ok' : 'bc-fa-warn'}>
+                        <div className={fa_throttled_ok ? 'bc-fa-ok' : 'bc-advisory'}>
                           {fa_throttled_ok
                             ? `● IF THROTTLED TO ${(faPlan.required_a / G).toFixed(2)} G — BRAKE REQUIRES ${formatTargetDuration(Math.floor(fa_throttled_brake_s))}, BUDGET SUFFICIENT`
-                            : `⚠ IF THROTTLED TO ${(faPlan.required_a / G).toFixed(2)} G — BRAKE REQUIRES ${formatTargetDuration(Math.floor(fa_throttled_brake_s))}, BUDGET INSUFFICIENT`}
+                            : `NOTE: THROTTLING DOWN TO ${(faPlan.required_a / G).toFixed(2)} G WOULD EXTEND BRAKING BURN TO ${formatTargetDuration(Math.floor(fa_throttled_brake_s))} — REACTANT BUDGET INSUFFICIENT FOR MINIMUM ACCELERATION BURN BASED ON CURRENT SETTINGS.`}
+                        </div>
+                      )}
+                      {fa_budget_floor_g !== null && (
+                        <div className="bc-fa-ok">
+                          {`● AT CURRENT BUDGET — MINIMUM THROTTLE IS ${fa_budget_floor_g.toFixed(2)} G`}
                         </div>
                       )}
 
@@ -1763,7 +1850,7 @@ function BurnCalculatorInner() {
                             value={
                               faGameTimeValid
                                 ? formatGameTime(faBrakeTarget)
-                                : `T+${formatTime(Math.floor(faPlan.t_coast))}`
+                                : `T+${formatTargetDuration(Math.floor(faPlan.t_coast))}`
                             }
                             highlight
                             flickerKey={flickerKey}
@@ -1796,7 +1883,7 @@ function BurnCalculatorInner() {
                         value={
                           faGameTimeValid
                             ? formatGameTime(faArriveTarget)
-                            : `T+${formatTime(Math.floor(faPlan.t_total))}`
+                            : `T+${formatTargetDuration(Math.floor(faPlan.t_total))}`
                         }
                         highlight
                         flickerKey={flickerKey}
@@ -1964,7 +2051,7 @@ function BurnCalculatorInner() {
                       : '↺ Begin Rotate'
                   }
                   gameTime={planValid ? rotateTarget : null}
-                  relative={planValid ? `T+${formatTime(t_accel)}` : '--:--:--'}
+                  relative={planValid ? `T+${formatTargetDuration(Math.floor(t_accel))}` : '--:--:--'}
                 />
                 <TargetCell
                   variant="brake"
@@ -1976,13 +2063,13 @@ function BurnCalculatorInner() {
                       : '⊖ Begin Brake'
                   }
                   gameTime={planValid ? (isDriftMode ? driftEndTarget : brakeTarget) : null}
-                  relative={planValid ? `T+${formatTime(t_brake_start)}` : '--:--:--'}
+                  relative={planValid ? `T+${formatTargetDuration(Math.floor(t_brake_start))}` : '--:--:--'}
                 />
                 <TargetCell
                   variant="arrive"
                   label="◉ Arrival"
                   gameTime={planValid ? arriveTarget : null}
-                  relative={planValid ? `T+${formatTime(t_total)}` : '--:--:--'}
+                  relative={planValid ? `T+${formatTargetDuration(Math.floor(t_total))}` : '--:--:--'}
                 />
               </div>
 

@@ -187,6 +187,45 @@ body {
   text-align: center;
 }
 
+.bc-panel-header--actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
+}
+
+.bc-copy-btn {
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  padding: 3px 8px;
+  min-height: 28px;
+  min-width: 56px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: inherit;
+  text-transform: uppercase;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.bc-copy-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--text-secondary);
+}
+
+.bc-copy-btn:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+@media (forced-colors: active) {
+  .bc-copy-btn {
+    border-color: ButtonText;
+    color: ButtonText;
+  }
+}
+
 .bc-input-row {
   display: flex;
   align-items: center;

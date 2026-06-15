@@ -32,6 +32,35 @@ const TOOLTIP_IMG_VCRS = `${import.meta.env.BASE_URL}tooltips/vcrs.jpg`;
 const TOOLTIP_IMG_REACTANTBUDGET = `${import.meta.env.BASE_URL}tooltips/reactantbudget.jpg`;
 const TOOLTIP_IMG_ACCELERATION = `${import.meta.env.BASE_URL}tooltips/acceleration.jpg`;
 
+// ───── persistence helpers ─────────────────────────────────────────────────
+// URL params take precedence over localStorage; per-burn readings are URL-only.
+
+function _up(key) {
+  try {
+    return new URLSearchParams(window.location.search).get(key);
+  } catch {
+    return null;
+  }
+}
+function _ls(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+function _lsSave(key, value) {
+  try {
+    if (value !== null && value !== undefined) localStorage.setItem(key, String(value));
+    else localStorage.removeItem(key);
+  } catch {}
+}
+/** Read from URL, then localStorage, then fall back to default. */
+function _ul(urlKey, lsKey, fallback) {
+  const v = _up(urlKey);
+  return v !== null ? v : (_ls(lsKey) ?? fallback);
+}
+
 // ───── StandoffControl subcomponent ────────────────────────────────────────
 // Renders the No-Wake toggle, stand-off distance input, and the field note.
 // Shared between Burn Plan and Final Approach to avoid duplicating this block.
@@ -158,42 +187,196 @@ function BurnCalculatorInner() {
     return () => timers.forEach(clearTimeout);
   }, [booting]); // booting only true on first mount; guard above makes subsequent runs no-ops
 
-  const [appMode, setAppMode] = useState('burn'); // 'burn' | 'approach'
+  // appMode: read from URL hash (#burn / #approach)
+  const [appMode, setAppMode] = useState(() => {
+    try {
+      return window.location.hash.replace('#', '') === 'approach' ? 'approach' : 'burn';
+    } catch {
+      return 'burn';
+    }
+  });
 
-  // ── Final Approach state ──
-  const [faDistance, setFaDistance] = useState('');
-  const [faDistanceUnit, setFaDistanceUnit] = useState('km');
-  const [faVrel, setFaVrel] = useState('');
-  const [faVrelUnit, setFaVrelUnit] = useState('m/s');
-  const [faAccel, setFaAccel] = useState('');
-  const [faBudget, setFaBudget] = useState('');
-  const [faVArrival, setFaVArrival] = useState('0');
-  const [faVArrivalUnit, setFaVArrivalUnit] = useState('m/s');
-  const [faGameStart, setFaGameStart] = useState('');
+  // ── Final Approach state — per-burn fields from URL only, vessel/prefs from URL→LS ──
+  const [faDistance, setFaDistance] = useState(() => _up('fad') ?? '');
+  const [faDistanceUnit, setFaDistanceUnit] = useState(() => _ul('fadu', 'pa_fadu', 'km'));
+  const [faVrel, setFaVrel] = useState(() => _up('fav') ?? '');
+  const [faVrelUnit, setFaVrelUnit] = useState(() => _ul('favu', 'pa_favu', 'm/s'));
+  const [faAccel, setFaAccel] = useState(() => _ul('faa', 'pa_fa_accel', ''));
+  const [faBudget, setFaBudget] = useState(() => _up('fab') ?? '');
+  const [faVArrival, setFaVArrival] = useState(() => _up('fava') ?? '0');
+  const [faVArrivalUnit, setFaVArrivalUnit] = useState(() => _ul('fvau', 'pa_fvau', 'm/s'));
+  const [faGameStart, setFaGameStart] = useState(() => _up('fgt') ?? '');
 
-  const [distance, setDistance] = useState('');
-  const [distanceUnit, setDistanceUnit] = useState('km');
-  const [v0, setV0] = useState('');
-  const [v0Unit, setV0Unit] = useState('m/s');
-  const [v0Direction, setV0Direction] = useState('closing');
-  const [accel, setAccel] = useState('');
-  const [flipTime, setFlipTime] = useState('60');
-  const [reactantBudget, setReactantBudget] = useState('');
-  const [burnPreference, setBurnPreference] = useState('speed'); // 'speed' | 'efficiency'
-  const [vArrival, setVArrival] = useState('0');
-  const [vArrivalUnit, setVArrivalUnit] = useState('m/s');
-  const [vcrs, setVcrs] = useState('');
-  const [vcrsUnit, setVcrsUnit] = useState('m/s');
-  const [noWakeEnabled, setNoWakeEnabled] = useState(true); // toggle for 300 km no-wake zone
-  const [standoffKm, setStandoffKm] = useState('2.5'); // adjustable stand-off when zone OFF
-
-  const [targetDuration, setTargetDuration] = useState(''); // desired travel time input
-
-  const [gameStartTime, setGameStartTime] = useState('');
+  // Burn Plan state — per-burn fields from URL only, vessel/prefs from URL→LS
+  const [distance, setDistance] = useState(() => _up('d') ?? '');
+  const [distanceUnit, setDistanceUnit] = useState(() => _ul('du', 'pa_du', 'km'));
+  const [v0, setV0] = useState(() => _up('v') ?? '');
+  const [v0Unit, setV0Unit] = useState(() => _ul('vu', 'pa_vu', 'm/s'));
+  const [v0Direction, setV0Direction] = useState(() => _up('vd') ?? 'closing');
+  const [accel, setAccel] = useState(() => _ul('a', 'pa_accel', ''));
+  const [flipTime, setFlipTime] = useState(() => _ul('f', 'pa_flip_time', '60'));
+  const [reactantBudget, setReactantBudget] = useState(() => _up('b') ?? '');
+  const [burnPreference, setBurnPreference] = useState(() => _ul('bp', 'pa_burn_pref', 'speed'));
+  const [vArrival, setVArrival] = useState(() => _up('va') ?? '0');
+  const [vArrivalUnit, setVArrivalUnit] = useState(() => _ul('vau', 'pa_vau', 'm/s'));
+  const [vcrs, setVcrs] = useState(() => _up('cx') ?? '');
+  const [vcrsUnit, setVcrsUnit] = useState(() => _up('cu') ?? 'm/s');
+  const [noWakeEnabled, setNoWakeEnabled] = useState(() => {
+    const u = _up('nw');
+    if (u !== null) return u !== '0';
+    const l = _ls('pa_no_wake');
+    return l !== null ? l !== '0' : true;
+  });
+  const [standoffKm, setStandoffKm] = useState(() => _ul('sk', 'pa_standoff_km', '2.5'));
+  const [targetDuration, setTargetDuration] = useState(() => _up('td') ?? '');
+  const [gameStartTime, setGameStartTime] = useState(() => _up('gt') ?? '');
 
   // ── flicker state (feature 11) ──
   const [flickerKey, setFlickerKey] = useState(0);
   const prevPlanRef = useRef(null);
+
+  // ── URL state sync — update address bar whenever any input changes ──────
+  useEffect(() => {
+    const p = new URLSearchParams();
+    if (distance) p.set('d', distance);
+    if (distanceUnit !== 'km') p.set('du', distanceUnit);
+    if (v0) p.set('v', v0);
+    if (v0Unit !== 'm/s') p.set('vu', v0Unit);
+    if (v0Direction !== 'closing') p.set('vd', v0Direction);
+    if (accel) p.set('a', accel);
+    if (flipTime !== '60') p.set('f', flipTime);
+    if (reactantBudget) p.set('b', reactantBudget);
+    if (vArrival !== '0') p.set('va', vArrival);
+    if (vArrivalUnit !== 'm/s') p.set('vau', vArrivalUnit);
+    if (vcrs) p.set('cx', vcrs);
+    if (vcrsUnit !== 'm/s') p.set('cu', vcrsUnit);
+    p.set('nw', noWakeEnabled ? '1' : '0');
+    if (standoffKm !== '2.5') p.set('sk', standoffKm);
+    if (targetDuration) p.set('td', targetDuration);
+    if (burnPreference !== 'speed') p.set('bp', burnPreference);
+    if (gameStartTime) p.set('gt', gameStartTime);
+    if (faDistance) p.set('fad', faDistance);
+    if (faDistanceUnit !== 'km') p.set('fadu', faDistanceUnit);
+    if (faVrel) p.set('fav', faVrel);
+    if (faVrelUnit !== 'm/s') p.set('favu', faVrelUnit);
+    if (faAccel) p.set('faa', faAccel);
+    if (faBudget) p.set('fab', faBudget);
+    if (faVArrival !== '0') p.set('fava', faVArrival);
+    if (faVArrivalUnit !== 'm/s') p.set('fvau', faVArrivalUnit);
+    if (faGameStart) p.set('fgt', faGameStart);
+    const qs = p.toString();
+    try {
+      history.replaceState(
+        null,
+        '',
+        `${window.location.pathname}${qs ? '?' + qs : ''}#${appMode}`
+      );
+    } catch {}
+  }, [
+    distance, distanceUnit, v0, v0Unit, v0Direction, accel, flipTime, reactantBudget,
+    vArrival, vArrivalUnit, vcrs, vcrsUnit, noWakeEnabled, standoffKm, targetDuration,
+    burnPreference, gameStartTime, faDistance, faDistanceUnit, faVrel, faVrelUnit,
+    faAccel, faBudget, faVArrival, faVArrivalUnit, faGameStart, appMode,
+  ]);
+
+  // ── localStorage sync — vessel params and preferences only ───────────────
+  useEffect(() => {
+    _lsSave('pa_accel', accel || null);
+    _lsSave('pa_fa_accel', faAccel || null);
+    _lsSave('pa_flip_time', flipTime !== '60' ? flipTime : null);
+    _lsSave('pa_burn_pref', burnPreference !== 'speed' ? burnPreference : null);
+    _lsSave('pa_no_wake', noWakeEnabled ? '1' : '0');
+    _lsSave('pa_standoff_km', standoffKm !== '2.5' ? standoffKm : null);
+    _lsSave('pa_du', distanceUnit !== 'km' ? distanceUnit : null);
+    _lsSave('pa_vu', v0Unit !== 'm/s' ? v0Unit : null);
+    _lsSave('pa_vau', vArrivalUnit !== 'm/s' ? vArrivalUnit : null);
+    _lsSave('pa_fadu', faDistanceUnit !== 'km' ? faDistanceUnit : null);
+    _lsSave('pa_favu', faVrelUnit !== 'm/s' ? faVrelUnit : null);
+    _lsSave('pa_fvau', faVArrivalUnit !== 'm/s' ? faVArrivalUnit : null);
+  }, [
+    accel, faAccel, flipTime, burnPreference, noWakeEnabled, standoffKm,
+    distanceUnit, v0Unit, vArrivalUnit, faDistanceUnit, faVrelUnit, faVArrivalUnit,
+  ]);
+
+  // ── mode switch — copies shared fields (range, vrel) on transition ────────
+  function switchMode(newMode) {
+    if (newMode === 'approach' && appMode === 'burn') {
+      if (!faDistance && distance) {
+        setFaDistance(distance);
+        setFaDistanceUnit(distanceUnit);
+      }
+      if (!faVrel && v0) {
+        setFaVrel(v0);
+        setFaVrelUnit(v0Unit);
+      }
+    } else if (newMode === 'burn' && appMode === 'approach') {
+      if (!distance && faDistance) {
+        setDistance(faDistance);
+        setDistanceUnit(faDistanceUnit);
+      }
+      if (!v0 && faVrel) {
+        setV0(faVrel);
+        setV0Unit(faVrelUnit);
+      }
+    }
+    setAppMode(newMode);
+  }
+
+  // ── copy-to-clipboard state ──────────────────────────────────────────────
+  const [copied, setCopied] = useState(false);
+
+  function handleBurnCopy() {
+    const lines = [];
+    if (solveForAccel && accelSolveResult && !accelSolveResult.error) {
+      lines.push(`Computed Accel: ${(accelSolveResult.a_mps2 / G).toFixed(2)} G`);
+    }
+    lines.push(
+      `${isDriftMode ? 'End Accel / Begin Flip' : 'Begin Rotate'}: ${gameTimeValid ? formatGameTime(rotateTarget) : 'T+' + formatTime(t_accel)}`
+    );
+    if (isDriftMode) {
+      lines.push(
+        `End Drift / Begin Brake: ${gameTimeValid ? formatGameTime(driftEndTarget) : 'T+' + formatTime(t_brake_start)}`
+      );
+    } else {
+      lines.push(
+        `Begin Brake: ${gameTimeValid ? formatGameTime(brakeTarget) : 'T+' + formatTime(t_brake_start)}`
+      );
+    }
+    lines.push(
+      `Arrival: ${gameTimeValid ? formatGameTime(arriveTarget) : 'T+' + formatTime(t_total)}`
+    );
+    lines.push(`Accel Duration: ${formatTime(Math.floor(t_accel))}`);
+    if (isDriftMode) lines.push(`Drift Duration: ${formatTime(Math.floor(finalPlan.t_drift || 0))}`);
+    lines.push(`Brake Duration: ${formatTime(Math.floor(t_total) - Math.floor(t_brake_start))}`);
+    lines.push(`Accel Distance: ${formatDistance(finalPlan.d_accel)}`);
+    if (isDriftMode) lines.push(`Drift Distance: ${formatDistance(finalPlan.d_drift)}`);
+    lines.push(`Brake Distance: ${formatDistance(finalPlan.d_brake)}`);
+    lines.push(`Total Distance: ${formatDistance(burn_distance_m)}`);
+    lines.push(`Peak Velocity: ${formatVelocity(finalPlan.v_max)}`);
+    navigator.clipboard.writeText(lines.join('\n')).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  function handleFaCopy() {
+    const lines = [];
+    if (faPlan.t_coast > 1) {
+      lines.push(
+        `Begin Brake: ${faGameTimeValid ? formatGameTime(faBrakeTarget) : 'T+' + formatTime(Math.floor(faPlan.t_coast))}`
+      );
+    }
+    lines.push(
+      `Arrival: ${faGameTimeValid ? formatGameTime(faArriveTarget) : 'T+' + formatTime(Math.floor(faPlan.t_total))}`
+    );
+    lines.push(`Brake Duration: ${formatTime(Math.floor(faPlan.t_brake))}`);
+    lines.push(`Brake Distance: ${formatDistance(faPlan.d_brake)}`);
+    if (faPlan.d_coast > 0) lines.push(`Coast Distance: ${formatDistance(faPlan.d_coast)}`);
+    navigator.clipboard.writeText(lines.join('\n')).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
 
   // SI conversions
   const standoff_m = noWakeEnabled ? NO_WAKE_M : parseNum(standoffKm) * 1000 || 0;
@@ -648,13 +831,13 @@ function BurnCalculatorInner() {
               <div className="bc-mode-toggle">
                 <button
                   className={`bc-mode-btn${appMode === 'burn' ? ' active' : ''}`}
-                  onClick={() => setAppMode('burn')}
+                  onClick={() => switchMode('burn')}
                 >
                   ◈ Burn Plan
                 </button>
                 <button
                   className={`bc-mode-btn${appMode === 'approach' ? ' active' : ''}`}
-                  onClick={() => setAppMode('approach')}
+                  onClick={() => switchMode('approach')}
                 >
                   ◉ Final Approach
                 </button>
@@ -1098,7 +1281,14 @@ function BurnCalculatorInner() {
             {appMode === 'burn' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div className="bc-panel scratch-b">
-                  <div className="bc-panel-header">◇ Burn Solution</div>
+                  <div className="bc-panel-header bc-panel-header--actions">
+                    <span>◇ Burn Solution</span>
+                    {planValid && (
+                      <button className="bc-copy-btn" onClick={handleBurnCopy}>
+                        {copied ? 'COPIED' : 'COPY'}
+                      </button>
+                    )}
+                  </div>
 
                   {/* ── Pre-flight missing field check ── */}
                   {(() => {
@@ -1421,7 +1611,14 @@ function BurnCalculatorInner() {
             {appMode === 'approach' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div className="bc-panel scratch-b">
-                  <div className="bc-panel-header">◇ Approach Solution</div>
+                  <div className="bc-panel-header bc-panel-header--actions">
+                    <span>◇ Approach Solution</span>
+                    {faPlanOk && (
+                      <button className="bc-copy-btn" onClick={handleFaCopy}>
+                        {copied ? 'COPIED' : 'COPY'}
+                      </button>
+                    )}
+                  </div>
 
                   {/* ── FA pre-flight missing field check ── */}
                   {(faDistance.trim() === '' || faVrel.trim() === '') && (

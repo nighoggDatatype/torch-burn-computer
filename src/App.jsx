@@ -2236,10 +2236,10 @@ function TargetCell({ variant, label, gameTime, relative }) {
       {hasGameTime ? (
         <>
           {hasDate ? (
-            <>
-              <div className="bc-target-date">{gameTime.dateStr}</div>
-              <div className="bc-target-time game-time">{gameTime.timeStr}</div>
-            </>
+            <div className="bc-target-time game-time">
+              <span className="bc-target-date-lcd">{gameTime.dateStr}</span>
+              {gameTime.timeStr}
+            </div>
           ) : (
             <div className="bc-target-time game-time">{displayGameTime}</div>
           )}

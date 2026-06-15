@@ -23,7 +23,7 @@ import {
   solveAcceleration,
 } from './physics.js';
 
-const APP_VERSION = 'v0.5.4';
+const APP_VERSION = 'v0.6.0';
 
 // Embedded screenshot data for tooltips
 const TOOLTIP_IMG_DISTANCE = `${import.meta.env.BASE_URL}tooltips/distance.jpg`;

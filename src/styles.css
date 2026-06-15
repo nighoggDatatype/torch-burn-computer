@@ -224,6 +224,45 @@ body {
     border-color: ButtonText;
     color: ButtonText;
   }
+  .bc-unit-btn,
+  .bc-unit-btn.active {
+    border-color: ButtonText;
+    color: ButtonText;
+    background: ButtonFace;
+    forced-color-adjust: none;
+  }
+  .bc-unit-btn.active {
+    background: Highlight;
+    color: HighlightText;
+  }
+  .bc-mode-btn {
+    border-color: ButtonText;
+    color: ButtonText;
+    background: ButtonFace;
+  }
+  .bc-mode-btn.active {
+    background: Highlight;
+    color: HighlightText;
+    border-bottom-color: Highlight;
+  }
+  .bc-warning {
+    border-color: ButtonText;
+    color: ButtonText;
+  }
+  .bc-info,
+  .bc-advisory {
+    border-color: Highlight;
+    color: ButtonText;
+  }
+  .bc-fa-ok {
+    color: ButtonText;
+  }
+  .bc-fa-warn {
+    color: ButtonText;
+  }
+  .bc-panel {
+    border-color: ButtonText;
+  }
 }
 
 .bc-input-row {
@@ -317,10 +356,17 @@ body {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 10px;
   padding: 5px 8px;
+  min-height: 28px;
   cursor: pointer;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   transition: all 0.1s;
+}
+.bc-unit-btn:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+  z-index: 1;
+  position: relative;
 }
 .bc-unit-btn:hover {
   color: var(--text-secondary);
@@ -434,6 +480,10 @@ body {
 }
 .bc-mode-btn:last-child {
   border-right: none;
+}
+.bc-mode-btn:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: -2px;
 }
 .bc-mode-btn:hover {
   color: var(--text-secondary);
@@ -819,8 +869,8 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 13px;
-  height: 13px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   background: var(--bg-tertiary);
   border: 1px solid var(--border-strong);
@@ -840,7 +890,7 @@ body {
   outline: none;
 }
 .bc-tooltip-badge:focus-visible {
-  outline: 1px solid var(--amber-dim);
+  outline: 2px solid var(--blue);
   outline-offset: 2px;
 }
 .bc-tooltip-badge:hover {

@@ -820,7 +820,7 @@ function BurnCalculatorInner() {
                   className={`bc-status-light ${activeHasError ? 'invalid' : activeIsOvershoot ? 'overshoot' : 'ready'}`}
                 ></span>
               </span>
-              <span className="bc-status-text">{activeStatusText}</span>
+              <span className="bc-status-text" role="status" aria-live="polite">{activeStatusText}</span>
             </div>
           </div>
 
@@ -1280,7 +1280,7 @@ function BurnCalculatorInner() {
             {/* RIGHT COLUMN — mode-conditional */}
             {appMode === 'burn' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <div className="bc-panel scratch-b">
+                <div className="bc-panel scratch-b" aria-live="polite" aria-atomic="false">
                   <div className="bc-panel-header bc-panel-header--actions">
                     <span>◇ Burn Solution</span>
                     {planValid && (
@@ -1299,7 +1299,7 @@ function BurnCalculatorInner() {
                     if (flipTime.trim() === '') missing.push('FLIP TIME');
                     if (missing.length === 0) return null;
                     return (
-                      <div className="bc-warning">
+                      <div className="bc-warning" role="alert">
                         <AlertTriangle size={14} color="var(--red)" />
                         <div className="bc-warning-text">
                           <strong>MISSING OR INVALID INPUT</strong>
@@ -1315,7 +1315,7 @@ function BurnCalculatorInner() {
                     accel.trim() !== '' &&
                     isFinite(parseGValue(accel)) &&
                     parseGValue(accel) < 0.01 * G && (
-                      <div className="bc-warning">
+                      <div className="bc-warning" role="alert">
                         <AlertTriangle size={14} color="var(--red)" />
                         <div className="bc-warning-text">
                           <strong>ACCELERATION BELOW MINIMUM THRUST (0.01 G)</strong>
@@ -1332,7 +1332,7 @@ function BurnCalculatorInner() {
                     isFinite(distance_m) &&
                     distance_m > 0 &&
                     isFinite(v0_mps) && (
-                      <div className="bc-warning">
+                      <div className="bc-warning" role="alert">
                         <AlertTriangle size={14} color="var(--red)" />
                         <div className="bc-warning-text">
                           <strong>{accelSolveResult.error}</strong>
@@ -1361,7 +1361,7 @@ function BurnCalculatorInner() {
                           Math.abs(fwdPlan.t_total - targetDuration_s) / targetDuration_s;
                         if (diff > 0.01) {
                           return (
-                            <div className="bc-warning">
+                            <div className="bc-warning" role="alert">
                               <AlertTriangle size={14} color="var(--red)" />
                               <div className="bc-warning-text">
                                 <strong>INCONSISTENT PARAMETERS</strong>
@@ -1386,7 +1386,7 @@ function BurnCalculatorInner() {
                     (solveForAccel || isFinite(a_mps2)) &&
                     isFinite(t_rotate_s) &&
                     !(solveForAccel && accelSolveResult && accelSolveResult.error) && (
-                      <div className="bc-warning">
+                      <div className="bc-warning" role="alert">
                         <AlertTriangle size={14} color="var(--red)" />
                         <div className="bc-warning-text">
                           <strong>{plan.error}</strong>
@@ -1401,7 +1401,7 @@ function BurnCalculatorInner() {
                     )}
 
                   {plan.overshoot && (
-                    <div className="bc-warning">
+                    <div className="bc-warning" role="alert">
                       <AlertTriangle size={14} color="var(--red)" />
                       <div className="bc-warning-text">
                         <strong>CANNOT BRAKE IN TIME</strong>
@@ -1610,7 +1610,7 @@ function BurnCalculatorInner() {
             {/* FINAL APPROACH results */}
             {appMode === 'approach' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <div className="bc-panel scratch-b">
+                <div className="bc-panel scratch-b" aria-live="polite" aria-atomic="false">
                   <div className="bc-panel-header bc-panel-header--actions">
                     <span>◇ Approach Solution</span>
                     {faPlanOk && (
@@ -1622,7 +1622,7 @@ function BurnCalculatorInner() {
 
                   {/* ── FA pre-flight missing field check ── */}
                   {(faDistance.trim() === '' || faVrel.trim() === '') && (
-                    <div className="bc-warning">
+                    <div className="bc-warning" role="alert">
                       <AlertTriangle size={14} color="var(--red)" />
                       <div className="bc-warning-text">
                         <strong>MISSING OR INVALID INPUT</strong>
@@ -1636,7 +1636,7 @@ function BurnCalculatorInner() {
                   {!faAccelBlank &&
                     isFinite(parseGValue(faAccel)) &&
                     parseGValue(faAccel) < 0.01 * G && (
-                      <div className="bc-warning">
+                      <div className="bc-warning" role="alert">
                         <AlertTriangle size={14} color="var(--red)" />
                         <div className="bc-warning-text">
                           <strong>ACCELERATION BELOW MINIMUM THRUST (0.01 G)</strong>
@@ -1648,7 +1648,7 @@ function BurnCalculatorInner() {
 
                   {/* FA constant-burn below-minimum computed acceleration */}
                   {faAccelBlank && fa_required_a_belowMin && (
-                    <div className="bc-warning">
+                    <div className="bc-warning" role="alert">
                       <AlertTriangle size={14} color="var(--red)" />
                       <div className="bc-warning-text">
                         <strong>
@@ -1660,7 +1660,7 @@ function BurnCalculatorInner() {
                   )}
 
                   {faPlan && faPlan.error && (
-                    <div className="bc-warning">
+                    <div className="bc-warning" role="alert">
                       <AlertTriangle size={14} color="var(--red)" />
                       <div className="bc-warning-text">
                         <strong>{faPlan.error}</strong>
@@ -1675,7 +1675,7 @@ function BurnCalculatorInner() {
                   )}
 
                   {faPlan && faPlan.overshoot && (
-                    <div className="bc-warning">
+                    <div className="bc-warning" role="alert">
                       <AlertTriangle size={14} color="var(--red)" />
                       <div className="bc-warning-text">
                         <strong>CANNOT BRAKE IN TIME — OVERSHOOT IMMINENT</strong>

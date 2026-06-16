@@ -90,20 +90,20 @@ export function parseTargetDuration(str) {
     matched = true;
   }
 
-  // Extract h/m/s components if present: "3h", "2m", "37s"
-  const hourMatch = s.match(/(\d+)\s*h/);
-  const minMatch = s.match(/(\d+)\s*m(?!s)/); // 'm' not followed by 's' (avoid 'ms')
-  const secMatch = s.match(/(\d+)\s*s/);
+  // Extract h/m/s components if present: "3h", "2m", "37s" (decimals allowed, e.g. "39.09h")
+  const hourMatch = s.match(/([\d.]+)\s*h/);
+  const minMatch = s.match(/([\d.]+)\s*m(?!s)/); // 'm' not followed by 's' (avoid 'ms')
+  const secMatch = s.match(/([\d.]+)\s*s/);
   if (hourMatch) {
-    total += parseInt(hourMatch[1], 10) * 3600;
+    total += parseFloat(hourMatch[1]) * 3600;
     matched = true;
   }
   if (minMatch) {
-    total += parseInt(minMatch[1], 10) * 60;
+    total += parseFloat(minMatch[1]) * 60;
     matched = true;
   }
   if (secMatch) {
-    total += parseInt(secMatch[1], 10);
+    total += parseFloat(secMatch[1]);
     matched = true;
   }
 
@@ -133,7 +133,7 @@ export function parseTargetDuration(str) {
   }
 
   if (!matched || total <= 0) return null;
-  return total;
+  return Math.round(total * 1000) / 1000;
 }
 
 // ───── formatters ─────────────────────────────────────────────────────────

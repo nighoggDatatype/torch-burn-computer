@@ -723,13 +723,6 @@ body {
   text-transform: uppercase;
   margin-bottom: 8px;
 }
-.bc-target-date-lcd {
-  display: block;
-  font-size: 20px;
-  opacity: 0.8;
-  line-height: 1.25;
-}
-
 .bc-target-time {
   font-family: 'VT323', monospace;
   font-size: 36px;

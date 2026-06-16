@@ -2240,26 +2240,12 @@ function Readout({ label, value, highlight, flickerKey }) {
 function TargetCell({ variant, label, gameTime, relative }) {
   const displayGameTime = formatGameTime(gameTime);
   const hasGameTime = displayGameTime !== null;
-  const hasDate = gameTime && gameTime.hasDate;
-  const hasDayOffset = gameTime && !hasDate && gameTime.dayOffset > 0;
   return (
     <div className={`bc-target-cell ${variant}`}>
       <div className="bc-target-label">{label}</div>
       {hasGameTime ? (
         <>
-          {hasDate ? (
-            <div className="bc-target-time game-time">
-              <span className="bc-target-date-lcd">{gameTime.dateStr}</span>
-              {gameTime.timeStr}
-            </div>
-          ) : hasDayOffset ? (
-            <div className="bc-target-time game-time">
-              <span className="bc-target-date-lcd">{`T+${gameTime.dayOffset}D`}</span>
-              {gameTime.timeStr}
-            </div>
-          ) : (
-            <div className="bc-target-time game-time">{displayGameTime}</div>
-          )}
+          <div className="bc-target-time game-time">{displayGameTime}</div>
           <div className="bc-target-relative">{relative}</div>
         </>
       ) : (

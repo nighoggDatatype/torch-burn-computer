@@ -23,7 +23,7 @@ import {
   solveAcceleration,
 } from './physics.js';
 
-const APP_VERSION = 'v0.6.2';
+const APP_VERSION = 'v0.6.3';
 
 // Embedded screenshot data for tooltips
 const TOOLTIP_IMG_DISTANCE = `${import.meta.env.BASE_URL}tooltips/distance.jpg`;
@@ -369,9 +369,14 @@ function BurnCalculatorInner() {
     lines.push(
       `Arrival: ${gameTimeValid ? formatGameTime(arriveTarget) : 'T+' + formatTargetDuration(Math.floor(t_total))}`
     );
-    lines.push(`Accel Duration: ${formatTime(Math.floor(t_accel))}`);
-    if (isDriftMode) lines.push(`Drift Duration: ${formatTime(Math.floor(finalPlan.t_drift || 0))}`);
-    lines.push(`Brake Duration: ${formatTime(Math.floor(t_total) - Math.floor(t_brake_start))}`);
+    lines.push(`Accel Duration: ${formatTargetDuration(Math.floor(t_accel)) ?? '0S'}`);
+    if (isDriftMode)
+      lines.push(
+        `Drift Duration: ${formatTargetDuration(Math.floor(finalPlan.t_drift || 0)) ?? '0S'}`
+      );
+    lines.push(
+      `Brake Duration: ${formatTargetDuration(Math.floor(t_total) - Math.floor(t_brake_start)) ?? '0S'}`
+    );
     lines.push('');
     lines.push('── BURN REFERENCE ──');
     lines.push(`Accel Distance: ${formatDistance(finalPlan.d_accel)}`);
@@ -423,7 +428,7 @@ function BurnCalculatorInner() {
     lines.push(
       `Arrival: ${faGameTimeValid ? formatGameTime(faArriveTarget) : 'T+' + formatTargetDuration(Math.floor(faPlan.t_total))}`
     );
-    lines.push(`Brake Duration: ${formatTime(Math.floor(faPlan.t_brake))}`);
+    lines.push(`Brake Duration: ${formatTargetDuration(Math.floor(faPlan.t_brake)) ?? '0S'}`);
     lines.push(`Brake Distance: ${formatDistance(faPlan.d_brake)}`);
     if (faPlan.d_coast > 0) lines.push(`Coast Distance: ${formatDistance(faPlan.d_coast)}`);
     navigator.clipboard.writeText(lines.join('\n')).then(() => {
@@ -1021,81 +1026,10 @@ function BurnCalculatorInner() {
                     standoffKm={standoffKm}
                     setStandoffKm={setStandoffKm}
                   />
-                  <InputRow
-                    label="Reactant Budget"
-                    value={reactantBudget}
-                    onChange={setReactantBudget}
-                    units={[]}
-                    placeholder="e.g. 3h 30m or 12600"
-                    tooltip={{
-                      desc: 'Enter the amount of reactant you plan to allocate to this burn. It is not recommended to commit all your available reactant.',
-                      img: TOOLTIP_IMG_REACTANTBUDGET,
-                    }}
-                  />
-                  {reactantBudget.trim().length > 0 && (
-                    <div className="bc-field-note" style={{ marginBottom: 6, paddingLeft: 118 }}>
-                      {budget_s !== null ? (
-                        <span style={{ color: 'var(--green)' }}>
-                          ● {formatTargetDuration(budget_s)}
-                        </span>
-                      ) : (
-                        <span style={{ color: 'var(--red)' }}>INVALID FORMAT</span>
-                      )}
-                    </div>
-                  )}
-                  {(isDriftMode && !budgetExceedsReqWithPlan) ||
-                  budgetExceedsReqWithPlan ||
-                  budgetExceedsReq ||
-                  (driftPlan && driftPlan.error) ? (
-                    <div className="bc-field-note" style={{ marginBottom: 4, paddingLeft: 118 }}>
-                      {isDriftMode && !budgetExceedsReqWithPlan ? (
-                        <span style={{ color: 'var(--amber)' }}>◈ DRIFT MODE ACTIVE</span>
-                      ) : budgetExceedsReqWithPlan ? (
-                        <span style={{ color: 'var(--green)' }}>
-                          ● BUDGET EXCEEDS REQUIREMENT — SELECT PREFERENCE
-                        </span>
-                      ) : budgetExceedsReq ? (
-                        <span style={{ color: 'var(--green)' }}>
-                          ● BUDGET EXCEEDS REQUIREMENT — STANDARD BURN USED
-                        </span>
-                      ) : (
-                        <span style={{ color: 'var(--red)' }}>{driftPlan.error}</span>
-                      )}
-                    </div>
-                  ) : null}
-                  {budgetExceedsReqWithPlan && (
-                    <>
-                      <div style={{ display: 'flex', gap: 4, marginLeft: 118, marginBottom: 4 }}>
-                        <button
-                          className={`bc-unit-btn${burnPreference === 'speed' ? ' active' : ''}`}
-                          onClick={() => setBurnPreference('speed')}
-                        >
-                          SPEED
-                        </button>
-                        <button
-                          className={`bc-unit-btn${burnPreference === 'efficiency' ? ' active' : ''}`}
-                          onClick={() => setBurnPreference('efficiency')}
-                        >
-                          EFFICIENCY
-                        </button>
-                      </div>
-                      <div className="bc-field-note" style={{ marginBottom: 8, paddingLeft: 118 }}>
-                        {burnPreference === 'speed' ? (
-                          <span style={{ color: 'var(--amber)' }}>
-                            ◈ STANDARD BURN — FASTEST ARRIVAL, NO DRIFT
-                          </span>
-                        ) : (
-                          <span style={{ color: 'var(--cyan)' }}>
-                            ◈ DRIFT MODE — 2× TIME, MINIMUM REACTANT
-                          </span>
-                        )}
-                      </div>
-                    </>
-                  )}
 
-                  {/* ── Vessel Parameters ── */}
+                  {/* ── Trip Parameters ── */}
                   <div className="bc-panel-header" style={{ marginTop: 20 }}>
-                    ◇ Vessel Parameters
+                    ◇ Trip Parameters
                   </div>
                   <InputRow
                     label="Acceleration"
@@ -1166,6 +1100,77 @@ function BurnCalculatorInner() {
                         INVALID FORMAT — USE 60, 1M 30S, ETC.
                       </span>
                     </div>
+                  )}
+                  <InputRow
+                    label="Reactant Budget"
+                    value={reactantBudget}
+                    onChange={setReactantBudget}
+                    units={[]}
+                    placeholder="e.g. 3h 30m or 12600"
+                    tooltip={{
+                      desc: 'Enter the amount of reactant you plan to allocate to this burn. It is not recommended to commit all your available reactant.',
+                      img: TOOLTIP_IMG_REACTANTBUDGET,
+                    }}
+                  />
+                  {reactantBudget.trim().length > 0 && (
+                    <div className="bc-field-note" style={{ marginBottom: 6, paddingLeft: 118 }}>
+                      {budget_s !== null ? (
+                        <span style={{ color: 'var(--green)' }}>
+                          ● {formatTargetDuration(budget_s)}
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--red)' }}>INVALID FORMAT</span>
+                      )}
+                    </div>
+                  )}
+                  {(isDriftMode && !budgetExceedsReqWithPlan) ||
+                  budgetExceedsReqWithPlan ||
+                  budgetExceedsReq ||
+                  (driftPlan && driftPlan.error) ? (
+                    <div className="bc-field-note" style={{ marginBottom: 4, paddingLeft: 118 }}>
+                      {isDriftMode && !budgetExceedsReqWithPlan ? (
+                        <span style={{ color: 'var(--amber)' }}>◈ DRIFT MODE ACTIVE</span>
+                      ) : budgetExceedsReqWithPlan ? (
+                        <span style={{ color: 'var(--green)' }}>
+                          ● BUDGET EXCEEDS REQUIREMENT — SELECT PREFERENCE
+                        </span>
+                      ) : budgetExceedsReq ? (
+                        <span style={{ color: 'var(--green)' }}>
+                          ● BUDGET EXCEEDS REQUIREMENT — STANDARD BURN USED
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--red)' }}>{driftPlan.error}</span>
+                      )}
+                    </div>
+                  ) : null}
+                  {budgetExceedsReqWithPlan && (
+                    <>
+                      <div style={{ display: 'flex', gap: 4, marginLeft: 118, marginBottom: 4 }}>
+                        <button
+                          className={`bc-unit-btn${burnPreference === 'speed' ? ' active' : ''}`}
+                          onClick={() => setBurnPreference('speed')}
+                        >
+                          SPEED
+                        </button>
+                        <button
+                          className={`bc-unit-btn${burnPreference === 'efficiency' ? ' active' : ''}`}
+                          onClick={() => setBurnPreference('efficiency')}
+                        >
+                          EFFICIENCY
+                        </button>
+                      </div>
+                      <div className="bc-field-note" style={{ marginBottom: 8, paddingLeft: 118 }}>
+                        {burnPreference === 'speed' ? (
+                          <span style={{ color: 'var(--amber)' }}>
+                            ◈ STANDARD BURN — FASTEST ARRIVAL, NO DRIFT
+                          </span>
+                        ) : (
+                          <span style={{ color: 'var(--cyan)' }}>
+                            ◈ DRIFT MODE — 2× TIME, MINIMUM REACTANT
+                          </span>
+                        )}
+                      </div>
+                    </>
                   )}
 
                   {/* ── Game Clock ── */}
@@ -1277,6 +1282,23 @@ function BurnCalculatorInner() {
                     standoffKm={standoffKm}
                     setStandoffKm={setStandoffKm}
                   />
+
+                  {/* ── Trip Parameters ── */}
+                  <div className="bc-panel-header" style={{ marginTop: 20 }}>
+                    ◇ Trip Parameters
+                  </div>
+                  <InputRow
+                    label="Acceleration"
+                    value={faAccel}
+                    onChange={setFaAccel}
+                    units={[]}
+                    placeholder="e.g. 1.95g"
+                    invalid={!faAccelBlank && (!isFinite(fa_a_mps2) || fa_a_mps2 < 0.01 * G)}
+                    tooltip={{
+                      desc: 'Enter your desired sustained acceleration for this burn. Leave blank for constant-burn mode — required G computed automatically.',
+                      img: TOOLTIP_IMG_ACCELERATION,
+                    }}
+                  />
                   <InputRow
                     label="Reactant Budget"
                     value={faBudget}
@@ -1299,23 +1321,6 @@ function BurnCalculatorInner() {
                       )}
                     </div>
                   )}
-
-                  {/* ── Vessel Parameters ── */}
-                  <div className="bc-panel-header" style={{ marginTop: 20 }}>
-                    ◇ Vessel Parameters
-                  </div>
-                  <InputRow
-                    label="Acceleration"
-                    value={faAccel}
-                    onChange={setFaAccel}
-                    units={[]}
-                    placeholder="e.g. 1.95g"
-                    invalid={!faAccelBlank && (!isFinite(fa_a_mps2) || fa_a_mps2 < 0.01 * G)}
-                    tooltip={{
-                      desc: 'Enter your desired sustained acceleration for this burn. Leave blank for constant-burn mode — required G computed automatically.',
-                      img: TOOLTIP_IMG_ACCELERATION,
-                    }}
-                  />
 
                   {/* ── Game Clock ── */}
                   <div className="bc-panel-header" style={{ marginTop: 20 }}>
@@ -1620,21 +1625,24 @@ function BurnCalculatorInner() {
                       />
                       <Readout
                         label="Accel Duration"
-                        value={formatTime(Math.floor(t_accel))}
+                        value={formatTargetDuration(Math.floor(t_accel)) ?? '0S'}
                         highlight
                         flickerKey={flickerKey}
                       />
                       {isDriftMode && (
                         <Readout
                           label="Drift Duration"
-                          value={formatTime(Math.floor(finalPlan.t_drift || 0))}
+                          value={formatTargetDuration(Math.floor(finalPlan.t_drift || 0)) ?? '0S'}
                           highlight
                           flickerKey={flickerKey}
                         />
                       )}
                       <Readout
                         label="Brake Duration"
-                        value={formatTime(Math.floor(t_total) - Math.floor(t_brake_start))}
+                        value={
+                          formatTargetDuration(Math.floor(t_total) - Math.floor(t_brake_start)) ??
+                          '0S'
+                        }
                         highlight
                         flickerKey={flickerKey}
                       />
@@ -1901,7 +1909,7 @@ function BurnCalculatorInner() {
                       />
                       <Readout
                         label="Brake Duration"
-                        value={formatTime(Math.floor(faPlan.t_brake))}
+                        value={formatTargetDuration(Math.floor(faPlan.t_brake)) ?? '0S'}
                         highlight
                         flickerKey={flickerKey}
                       />

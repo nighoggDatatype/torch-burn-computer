@@ -81,12 +81,10 @@ export function parseTargetDuration(str) {
   let total = 0;
   let matched = false;
 
-  // Extract day component if present: e.g. "4d"
-  // Decimal days (e.g. "4.5d") are rejected — return null so user sees invalid format error.
+  // Extract day component if present: e.g. "4d" (decimals allowed, e.g. "3.5d")
   const dayMatch = s.match(/([\d.]+)\s*d/);
   if (dayMatch) {
-    if (dayMatch[1].includes('.')) return null; // fractional days not supported
-    total += parseInt(dayMatch[1], 10) * DAY;
+    total += parseFloat(dayMatch[1]) * DAY;
     matched = true;
   }
 

@@ -108,7 +108,11 @@ describe('parseTargetDuration', () => {
   it('parses "1d"', () => {
     expect(parseTargetDuration('1d')).toBe(DAY);
   });
-  it('rejects fractional days', () => expect(parseTargetDuration('4.5d')).toBeNull());
+  it('parses fractional days', () =>
+    expect(parseTargetDuration('4.5d')).toBe(4.5 * DAY));
+  it('parses fractional minutes', () => expect(parseTargetDuration('3.5m')).toBe(210));
+  it('parses fractional days combined with other units', () =>
+    expect(parseTargetDuration('1.5d 2h')).toBe(1.5 * DAY + 2 * 3600));
   it('rejects empty', () => expect(parseTargetDuration('')).toBeNull());
   it('rejects zero', () => expect(parseTargetDuration('0')).toBeNull());
   it('rejects trailing garbage digits after a unit token', () =>

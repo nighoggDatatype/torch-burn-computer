@@ -23,7 +23,7 @@ import {
   solveAcceleration,
 } from './physics.js';
 
-const APP_VERSION = 'v0.6.1';
+const APP_VERSION = 'v0.6.2';
 
 // Embedded screenshot data for tooltips
 const TOOLTIP_IMG_DISTANCE = `${import.meta.env.BASE_URL}tooltips/distance.jpg`;
@@ -380,7 +380,7 @@ function BurnCalculatorInner() {
     lines.push(`Total Distance: ${formatDistance(burn_distance_m)}`);
     lines.push(`Peak Velocity: ${formatVelocity(finalPlan.v_max)}`);
     lines.push(
-      `Min Reactant Budget: ${formatTargetDuration(Math.floor((finalPlan.t_accel || 0) + (finalPlan.t_brake || 0)))}`
+      `Min Reactant Budget: ${(((finalPlan.t_accel || 0) + (finalPlan.t_brake || 0)) / 3600).toFixed(2)}h`
     );
     navigator.clipboard.writeText(lines.join('\n')).then(() => {
       setCopied(true);
@@ -687,6 +687,13 @@ function BurnCalculatorInner() {
     return parsed !== null && parsed > 0 ? parsed : null;
   })();
 
+  const faMissingFields = [
+    (faDistance.trim() === '' || !isFinite(fa_distance_m_raw)) && 'RANGE',
+    (faVrel.trim() === '' || !isFinite(fa_v0_mps)) && 'CLOSING VELOCITY',
+    !faAccelBlank && !isFinite(parseGValue(faAccel)) && 'ACCELERATION',
+    faVArrival.trim() !== '' && !isFinite(fa_v_arrival_mps) && 'CUTOFF VELOCITY',
+  ].filter(Boolean);
+
   // Stand-off error for FA (mirrors burn-mode logic)
   const fa_standoffError = !standoffValid
     ? 'invalid-standoff'
@@ -813,10 +820,14 @@ function BurnCalculatorInner() {
   const budgetInsufficient = !!(driftPlan && driftPlan.error);
   const planValid = !plan.error && !plan.overshoot && t_total > 0 && !budgetInsufficient;
   const burnMissingFields = [
-    distance.trim() === '' && 'CURRENT RNG',
-    v0.trim() === '' && 'CURRENT VREL',
-    !solveForAccel && accel.trim() === '' && 'ACCELERATION',
+    (distance.trim() === '' || !isFinite(distance_m)) && 'CURRENT RNG',
+    (v0.trim() === '' || !isFinite(v0_mps)) && 'CURRENT VREL',
+    !solveForAccel &&
+      (accel.trim() === '' || !isFinite(parseGValue(accel))) &&
+      'ACCELERATION',
     flipTime.trim() === '' && 'FLIP TIME',
+    vArrival.trim() !== '' && !isFinite(v_arrival_mps) && 'CUTOFF VELOCITY',
+    vcrs.trim() !== '' && !isFinite(vcrs_mps) && 'VCRS',
   ].filter(Boolean);
   const statusText = budgetInsufficient
     ? 'INVALID'
@@ -1703,7 +1714,7 @@ function BurnCalculatorInner() {
                   </div>
 
                   {/* ── FA pre-flight missing field check ── */}
-                  {(faDistance.trim() === '' || faVrel.trim() === '') && (
+                  {faMissingFields.length > 0 && (
                     <div className="bc-warning" role="alert">
                       <AlertTriangle size={14} color="var(--red)" />
                       <div className="bc-warning-text">
@@ -1741,7 +1752,7 @@ function BurnCalculatorInner() {
                     </div>
                   )}
 
-                  {faPlan && faPlan.error && (
+                  {faPlan && faPlan.error && !faMissingFields.length && (
                     <div className="bc-warning" role="alert">
                       <AlertTriangle size={14} color="var(--red)" />
                       <div className="bc-warning-text">
@@ -2230,6 +2241,7 @@ function TargetCell({ variant, label, gameTime, relative }) {
   const displayGameTime = formatGameTime(gameTime);
   const hasGameTime = displayGameTime !== null;
   const hasDate = gameTime && gameTime.hasDate;
+  const hasDayOffset = gameTime && !hasDate && gameTime.dayOffset > 0;
   return (
     <div className={`bc-target-cell ${variant}`}>
       <div className="bc-target-label">{label}</div>
@@ -2238,6 +2250,11 @@ function TargetCell({ variant, label, gameTime, relative }) {
           {hasDate ? (
             <div className="bc-target-time game-time">
               <span className="bc-target-date-lcd">{gameTime.dateStr}</span>
+              {gameTime.timeStr}
+            </div>
+          ) : hasDayOffset ? (
+            <div className="bc-target-time game-time">
+              <span className="bc-target-date-lcd">{`T+${gameTime.dayOffset}D`}</span>
               {gameTime.timeStr}
             </div>
           ) : (

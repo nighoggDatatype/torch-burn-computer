@@ -111,6 +111,12 @@ describe('parseTargetDuration', () => {
   it('rejects fractional days', () => expect(parseTargetDuration('4.5d')).toBeNull());
   it('rejects empty', () => expect(parseTargetDuration('')).toBeNull());
   it('rejects zero', () => expect(parseTargetDuration('0')).toBeNull());
+  it('rejects trailing garbage digits after a unit token', () =>
+    expect(parseTargetDuration('5h555555')).toBeNull());
+  it('rejects embedded non-numeric garbage', () =>
+    expect(parseTargetDuration('5habc')).toBeNull());
+  it('still parses concatenated h+s tokens with no separator', () =>
+    expect(parseTargetDuration('5h5s')).toBe(5 * 3600 + 5));
 });
 
 // ───── formatTime ─────────────────────────────────────────────────────────
@@ -203,6 +209,20 @@ describe('addGameTime', () => {
   it('returns null for null base', () => {
     expect(addGameTime(null, 100)).toBeNull();
   });
+
+  it('wraps a time-only offset past the day boundary and reports day offset', () => {
+    const base = { date: null, seconds: 87132 }; // 24:12:12
+    const result = addGameTime(base, 123581); // ~34h19m41s later
+    expect(result.timeStr).toBe('09:49:55');
+    expect(result.hasDate).toBe(false);
+    expect(result.dayOffset).toBe(2);
+  });
+
+  it('reports dayOffset 0 when time-only offset stays within the same day', () => {
+    const base = { date: null, seconds: 3600 };
+    const result = addGameTime(base, 3600);
+    expect(result.dayOffset).toBe(0);
+  });
 });
 
 // ───── formatGameTime ─────────────────────────────────────────────────────
@@ -220,6 +240,16 @@ describe('formatGameTime', () => {
 
   it('returns null for null input', () => {
     expect(formatGameTime(null)).toBeNull();
+  });
+
+  it('prefixes day offset when time-only result has rolled over', () => {
+    const parsed = { dateStr: null, timeStr: '09:49:55', hasDate: false, dayOffset: 2 };
+    expect(formatGameTime(parsed)).toBe('T+2D 09:49:55');
+  });
+
+  it('omits day prefix when time-only result has no rollover', () => {
+    const parsed = { dateStr: null, timeStr: '02:00:00', hasDate: false, dayOffset: 0 };
+    expect(formatGameTime(parsed)).toBe('02:00:00');
   });
 });
 

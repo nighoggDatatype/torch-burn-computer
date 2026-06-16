@@ -107,6 +107,17 @@ export function parseTargetDuration(str) {
     matched = true;
   }
 
+  // Reject trailing/embedded garbage that the d/h/m/s patterns didn't consume,
+  // e.g. "5h555555" would otherwise silently parse as just "5h".
+  if (matched) {
+    let remainder = s;
+    if (dayMatch) remainder = remainder.replace(dayMatch[0], '');
+    if (hourMatch) remainder = remainder.replace(hourMatch[0], '');
+    if (minMatch) remainder = remainder.replace(minMatch[0], '');
+    if (secMatch) remainder = remainder.replace(secMatch[0], '');
+    if (remainder.trim() !== '') return null;
+  }
+
   // If no d/h/m/s tokens found, try plain HH:MM:SS or HH:MM
   if (!matched) {
     const parts = s.split(':').map((p) => p.trim());
@@ -184,9 +195,13 @@ export function addGameTime(base, offsetSeconds) {
   if (base == null || !isFinite(offsetSeconds)) return null;
   let total = base.seconds + Math.floor(offsetSeconds);
   let datePart = base.date ? { ...base.date } : null;
-  if (datePart) {
-    while (total >= DAY) {
-      total -= DAY;
+  // Day rollover always runs, even with no calendar date, so time-only inputs
+  // wrap at the DAY boundary instead of accumulating past 24h indefinitely.
+  let dayOffset = 0;
+  while (total >= DAY) {
+    total -= DAY;
+    dayOffset += 1;
+    if (datePart) {
       datePart.d += 1;
       const dim = daysInMonth(datePart.mo, datePart.y);
       if (datePart.d > dim) {
@@ -206,16 +221,18 @@ export function addGameTime(base, offsetSeconds) {
   const dateStr = datePart
     ? `${datePart.y}-${String(datePart.mo).padStart(2, '0')}-${String(datePart.d).padStart(2, '0')}`
     : null;
-  return { dateStr, timeStr, hasDate: !!datePart };
+  return { dateStr, timeStr, hasDate: !!datePart, dayOffset };
 }
 
 /**
- * @param {{ dateStr: string|null, timeStr: string, hasDate: boolean }|null} parsed
+ * @param {{ dateStr: string|null, timeStr: string, hasDate: boolean, dayOffset: number }|null} parsed
  * @returns {string|null}
  */
 export function formatGameTime(parsed) {
   if (!parsed) return null;
-  return parsed.hasDate ? `${parsed.dateStr} ${parsed.timeStr}` : parsed.timeStr;
+  if (parsed.hasDate) return `${parsed.dateStr} ${parsed.timeStr}`;
+  if (parsed.dayOffset > 0) return `T+${parsed.dayOffset}D ${parsed.timeStr}`;
+  return parsed.timeStr;
 }
 
 /**
@@ -285,10 +302,15 @@ export function computePlan({ distance_m, v0_mps, a_mps2, v_arrival_mps, t_rotat
       detail: 'Enter zero or a positive flip duration.',
     };
 
+  // Overshoot is only possible when current speed already exceeds the desired arrival
+  // speed (v0 > v_arrival) — that's the only regime where "brake only, no extra accel"
+  // is a meaningful maneuver. When v0 <= v_arrival (always true for receding ships,
+  // since v0 < 0 <= v_arrival), the ship needs to accelerate, not brake, and the
+  // quadratic solve below handles that correctly.
   const brake_only_dist =
     v0_mps * t_rotate_s + (v0_mps * v0_mps - v_arrival_mps * v_arrival_mps) / (2 * a_mps2);
 
-  if (brake_only_dist > distance_m + 1e-6) {
+  if (v0_mps > v_arrival_mps && brake_only_dist > distance_m + 1e-6) {
     return {
       overshoot: true,
       brake_only_dist,

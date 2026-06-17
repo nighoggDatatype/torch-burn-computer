@@ -1433,9 +1433,7 @@ function BurnCalculatorInner() {
                         t_rotate_s,
                       });
                       if (fwdPlan.t_total && targetDuration_s) {
-                        const diff =
-                          Math.abs(fwdPlan.t_total - targetDuration_s) / targetDuration_s;
-                        if (diff > 0.01) {
+                        if (fwdPlan.t_total > targetDuration_s * 1.01) {
                           return (
                             <div className="bc-warning" role="alert">
                               <AlertTriangle size={14} color="var(--red)" />

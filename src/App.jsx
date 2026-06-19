@@ -6,7 +6,6 @@ import {
   AU,
   DAY,
   NO_WAKE_M,
-  EFFICIENCY_TIME_MULTIPLIER,
   parseNum,
   parseGValue,
   formatTime,
@@ -24,7 +23,7 @@ import {
   buildDriftPlan,
 } from './physics.js';
 
-const APP_VERSION = 'v0.6.4';
+const APP_VERSION = 'v0.7.0';
 
 // Embedded screenshot data for tooltips
 const TOOLTIP_IMG_DISTANCE = `${import.meta.env.BASE_URL}tooltips/distance.jpg`;
@@ -341,8 +340,8 @@ function BurnCalculatorInner() {
     if (reactantBudget.trim() !== '') lines.push(`Reactant Budget: ${reactantBudget}`);
     lines.push('');
     lines.push('── VESSEL PARAMETERS ──');
-    if (solveForAccel && accelSolveResult && !accelSolveResult.error) {
-      lines.push(`Acceleration: ${(accelSolveResult.a_mps2 / G).toFixed(2)} G (computed)`);
+    if (burnPreference === 'efficiency' && accelSolveResult && !accelSolveResult.error) {
+      lines.push(`Acceleration: ${(accelSolveResult.a_mps2 / G).toFixed(2)} G (efficiency — computed)`);
     } else {
       lines.push(`Acceleration: ${accel} G`);
     }
@@ -463,29 +462,11 @@ function BurnCalculatorInner() {
   const targetDurationValid = targetDuration_s !== null;
   const targetDurationError = targetDurationAttempted && !targetDurationValid;
 
-  // ── Reactant budget: parse early (needed for solve-direction detection) ──
+  // ── Reactant budget: parse early ──
   const budget_s = (() => {
     const parsed = parseTargetDuration(reactantBudget);
     return parsed !== null && parsed > 0 ? parsed : null;
   })();
-  const budgetFilled = reactantBudget.trim().length > 0 && budget_s !== null;
-
-  // ── Implicit solve direction detection ──
-  // accel blank, time filled               → solve for acceleration
-  // accel blank, budget filled, time blank → solve for acceleration (budget as time constraint)
-  // accel blank, both filled               → solve for acceleration (time takes priority)
-  // time blank, accel filled               → solve for time (standard)
-  // both filled                            → validate consistency
-  // both blank                             → no output
-  const accelFilled = accel.trim() !== '';
-  const timeFilled = targetDurationAttempted && targetDurationValid;
-  const solveForAccel = !accelFilled && (timeFilled || budgetFilled);
-  const solveForTime = accelFilled && !targetDurationAttempted;
-  const validateBoth = accelFilled && timeFilled;
-
-  // Effective total time for the acceleration solver:
-  // desired travel time takes priority; fall back to budget + flip time
-  const solveT_s = timeFilled ? targetDuration_s : budget_s !== null ? budget_s + t_rotate_s : null;
 
   // Surface a clean error if the destination is within the stand-off zone
   const standoffError = !standoffValid
@@ -495,26 +476,32 @@ function BurnCalculatorInner() {
       : null;
   const noWakeError = standoffError !== null; // keeps downstream compat
 
-  // Derive a_mps2: from solver when solving for accel, from input otherwise.
+  // Derive accelSolveResult and a_mps2 based on burnPreference.
   // Must be after noWakeError since the solver is gated on it.
-  const accelSolveResult =
-    solveForAccel && !noWakeError
-      ? solveAcceleration({
-          distance_m: raw_burn_distance_m,
-          v0_mps,
-          v_arrival_mps,
-          t_rotate_s,
-          t_total_s: solveT_s,
-        })
-      : null;
-  const a_mps2 = solveForAccel
-    ? accelSolveResult && !accelSolveResult.error
-      ? accelSolveResult.a_mps2
-      : NaN
-    : (() => {
-        const v = parseGValue(accel);
-        return isFinite(v) && v < 0.01 * G ? NaN : v;
-      })();
+  let accelSolveResult = null;
+  let a_mps2;
+  if (burnPreference === 'efficiency') {
+    accelSolveResult =
+      targetDurationValid && !noWakeError
+        ? solveAcceleration({
+            distance_m: raw_burn_distance_m,
+            v0_mps,
+            v_arrival_mps,
+            t_rotate_s,
+            t_total_s: targetDuration_s,
+          })
+        : null;
+    if (accelSolveResult && !accelSolveResult.error && accelSolveResult.a_mps2 < 0.01 * G) {
+      accelSolveResult = {
+        error: 'REQUIRED ACCELERATION BELOW MINIMUM THRUST (0.01 G)',
+        detail: 'Extend the desired travel time or reduce the distance.',
+      };
+    }
+    a_mps2 = accelSolveResult && !accelSolveResult.error ? accelSolveResult.a_mps2 : NaN;
+  } else {
+    const v = parseGValue(accel);
+    a_mps2 = isFinite(v) && v < 0.01 * G ? NaN : v;
+  }
 
   // VCRS geometry correction (one-iteration approach):
   // Pass 1 — solve with straight-line burn distance to get approximate t_total
@@ -546,7 +533,7 @@ function BurnCalculatorInner() {
       : plan1;
 
   // ════════════════════════════════════════════════════════════════════
-  // BUDGET / DRIFT / EFFICIENCY SOLVER
+  // BUDGET / DRIFT SOLVER
   // Phase structure: ACCEL → FLIP → DRIFT → BRAKE
   //   ACCEL: v0 → v_max     t_a=(v_max−v0)/a      d_a=(v_max²−v0²)/(2a)
   //   FLIP:  coast at v_max  t_f=t_rotate          d_f=v_max·t_f
@@ -558,63 +545,38 @@ function BurnCalculatorInner() {
   // accel time, which is physically correct.
   // ════════════════════════════════════════════════════════════════════
 
-  let driftPlan = null; // budget-constrained drift (budget < requirement)
-  let efficiencyPlan = null; // 2×-time efficiency drift (budget > requirement)
-  let budgetExceedsReq = false;
+  let driftPlan = null;
 
   if (budget_s !== null && !plan.error && !plan.overshoot && isFinite(a_mps2) && a_mps2 > 0) {
-    // v_max achievable by burning the full budget (a·budget split accel+brake)
-    const v_max_budget = (a_mps2 * budget_s + v0_mps + v_arrival_mps) / 2;
-    const standard_v_max = plan.v_max || 0;
-
-    if (v_max_budget >= standard_v_max) {
-      // Budget exceeds what a standard burn needs.
-      // SPEED   → standard plan (no drift) — handled downstream by using `plan`.
-      // EFFICIENCY → lowest v_max such that t_total ≤ 2× standard-burn time.
-      budgetExceedsReq = true;
-
-      const T_target = (validateBoth && targetDuration_s) ? targetDuration_s : EFFICIENCY_TIME_MULTIPLIER * (plan.t_total || 0);
-      const P = v0_mps + v_arrival_mps + a_mps2 * T_target;
-      const Q = a_mps2 * burn_distance_m + (v0_mps * v0_mps + v_arrival_mps * v_arrival_mps) / 2;
-      const disc = P * P - 4 * Q;
-      if (disc >= 0) {
-        const v_eff = (P - Math.sqrt(disc)) / 2; // smaller root → lower v_max → less fuel
-        // Valid only if it still requires acceleration and braking
-        if (v_eff > v0_mps && v_eff > v_arrival_mps && v_eff < standard_v_max) {
-          efficiencyPlan = buildDriftPlan({ distance_m: burn_distance_m, v0_mps, a_mps2, v_arrival_mps, t_rotate_s, v_max: v_eff });
-        }
+    if (burnPreference === 'efficiency') {
+      // Efficiency mode: budget is a sufficiency check only — block output if insufficient
+      const required_thrust_s = (plan.t_accel || 0) + (plan.t_brake || 0);
+      if (budget_s < required_thrust_s) {
+        driftPlan = { error: 'REACTANT BUDGET INSUFFICIENT FOR THIS TRAVEL TIME — INCREASE BUDGET OR EXTEND DESIRED TRAVEL TIME' };
       }
-    } else if (v_max_budget <= v0_mps || v_max_budget <= v_arrival_mps) {
-      driftPlan = { error: 'BUDGET INSUFFICIENT — CANNOT BRAKE TO TARGET VELOCITY' };
     } else {
-      // Budget < requirement: drift at the budget-constrained v_max.
-      const p = buildDriftPlan({ distance_m: burn_distance_m, v0_mps, a_mps2, v_arrival_mps, t_rotate_s, v_max: v_max_budget });
-      if (p) driftPlan = p;
-      else {
-        budgetExceedsReq = true;
-      } // distance too short even here → treat as exceeds
+      // Speed mode: budget constrains v_max → engage drift if budget < requirement
+      const v_max_budget = (a_mps2 * budget_s + v0_mps + v_arrival_mps) / 2;
+      const standard_v_max = plan.v_max || 0;
+
+      if (v_max_budget >= standard_v_max) {
+        // Budget exceeds requirement — standard plan, no drift
+      } else if (v_max_budget <= v0_mps || v_max_budget <= v_arrival_mps) {
+        driftPlan = { error: 'BUDGET INSUFFICIENT — CANNOT BRAKE TO TARGET VELOCITY' };
+      } else {
+        const p = buildDriftPlan({ distance_m: burn_distance_m, v0_mps, a_mps2, v_arrival_mps, t_rotate_s, v_max: v_max_budget });
+        if (p) driftPlan = p;
+        // else distance too short even here — no drift
+      }
     }
   }
 
   // ── Active plan selection ──
-  // No budget                → standard plan
-  // Budget < requirement     → driftPlan (auto, no toggle)
-  // Budget > requirement:
-  //     SPEED      → standard plan (no drift)
-  //     EFFICIENCY → efficiencyPlan (2× time, minimum fuel)
+  // No budget / budget exceeds requirement → standard plan
+  // Budget < requirement (speed mode)     → driftPlan
+  // Budget insufficient (efficiency mode) → driftPlan.error blocks output
   const hasDriftPlan = !!(driftPlan && !driftPlan.error);
-  const hasEfficiencyPlan = !!efficiencyPlan;
-  // Toggle only meaningful when budget exceeds AND a real efficiency plan exists
-  const budgetExceedsReqWithPlan = budgetExceedsReq && hasEfficiencyPlan;
-
-  let activePlan;
-  if (budgetExceedsReqWithPlan) {
-    activePlan = burnPreference === 'efficiency' ? efficiencyPlan : plan;
-  } else if (hasDriftPlan) {
-    activePlan = driftPlan;
-  } else {
-    activePlan = plan;
-  }
+  const activePlan = hasDriftPlan ? driftPlan : plan;
   const isDriftMode = activePlan !== plan;
 
   // finalPlan is activePlan (drift mode if budget set, otherwise standard)
@@ -806,9 +768,9 @@ function BurnCalculatorInner() {
   const burnMissingFields = [
     (distance.trim() === '' || !isFinite(distance_m)) && 'CURRENT RNG',
     (v0.trim() === '' || !isFinite(v0_mps)) && 'CURRENT VREL',
-    !solveForAccel &&
-      (accel.trim() === '' || !isFinite(parseGValue(accel))) &&
-      'ACCELERATION',
+    burnPreference === 'speed'
+      ? (accel.trim() === '' || !isFinite(parseGValue(accel))) && 'ACCELERATION'
+      : (!targetDurationAttempted || !targetDurationValid) && 'DESIRED TRAVEL TIME',
     flipTime.trim() === '' && 'FLIP TIME',
     vArrival.trim() !== '' && !isFinite(v_arrival_mps) && 'CUTOFF VELOCITY',
     vcrs.trim() !== '' && !isFinite(vcrs_mps) && 'VCRS',
@@ -1010,55 +972,66 @@ function BurnCalculatorInner() {
                   <div className="bc-panel-header" style={{ marginTop: 20 }}>
                     ◇ Trip Parameters
                   </div>
-                  <InputRow
-                    label="Acceleration"
-                    value={accel}
-                    onChange={setAccel}
-                    units={[]}
-                    placeholder="e.g. 1.95g"
-                    invalid={
-                      (!solveForAccel &&
-                        accel.trim() !== '' &&
-                        (!isFinite(a_mps2) || a_mps2 < 0.01 * G)) ||
-                      (accel.trim() === '' && !timeFilled)
-                    }
-                    tooltip={{
-                      desc: 'Enter your desired sustained acceleration for this burn. Leave blank to solve for required acceleration from Desired Travel Time.',
-                      img: TOOLTIP_IMG_ACCELERATION,
-                    }}
-                  />
-                  <div className="bc-input-row">
-                    <label className="bc-label" htmlFor="desired-travel-time">
-                      Desired Travel Time
-                    </label>
-                    <input
-                      id="desired-travel-time"
-                      className={`bc-input${targetDurationError || (accel.trim() === '' && !timeFilled) ? ' invalid' : ''}`}
-                      type="text"
-                      placeholder="e.g. 4d 3h 2m 37s or HH:MM:SS"
-                      value={targetDuration}
-                      aria-invalid={
-                        targetDurationError || (accel.trim() === '' && !timeFilled)
-                          ? 'true'
-                          : undefined
-                      }
-                      onChange={(e) => setTargetDuration(e.target.value)}
+                  <div style={{ display: 'flex', gap: 4, marginLeft: 118, marginBottom: 8 }}>
+                    <button
+                      className={`bc-unit-btn${burnPreference === 'speed' ? ' active' : ''}`}
+                      onClick={() => setBurnPreference('speed')}
+                    >
+                      SPEED
+                    </button>
+                    <button
+                      className={`bc-unit-btn${burnPreference === 'efficiency' ? ' active' : ''}`}
+                      onClick={() => setBurnPreference('efficiency')}
+                    >
+                      EFFICIENCY
+                    </button>
+                  </div>
+                  {burnPreference === 'speed' && (
+                    <InputRow
+                      label="Acceleration"
+                      value={accel}
+                      onChange={setAccel}
+                      units={[]}
+                      placeholder="e.g. 1.95g"
+                      invalid={accel.trim() !== '' && (!isFinite(a_mps2) || a_mps2 < 0.01 * G)}
+                      tooltip={{
+                        desc: "Enter your vessel's sustained acceleration for this burn.",
+                        img: TOOLTIP_IMG_ACCELERATION,
+                      }}
                     />
-                  </div>
-                  <div
-                    className="bc-field-note"
-                    style={{ marginTop: 2, marginBottom: 6, paddingLeft: 118 }}
-                  >
-                    {targetDurationError ? (
-                      <span style={{ color: 'var(--red)' }}>
-                        INVALID FORMAT — USE 4D 3H 2M 37S OR HH:MM:SS
-                      </span>
-                    ) : targetDurationAttempted && targetDurationValid && !solveForTime ? (
-                      <span style={{ color: 'var(--green)' }}>
-                        ● {formatTargetDuration(targetDuration_s)}
-                      </span>
-                    ) : null}
-                  </div>
+                  )}
+                  {burnPreference === 'efficiency' && (
+                    <>
+                      <div className="bc-input-row">
+                        <label className="bc-label" htmlFor="desired-travel-time">
+                          Desired Travel Time
+                        </label>
+                        <input
+                          id="desired-travel-time"
+                          className={`bc-input${targetDurationError || !targetDurationAttempted ? ' invalid' : ''}`}
+                          type="text"
+                          placeholder="e.g. 4d 3h 2m 37s or HH:MM:SS"
+                          value={targetDuration}
+                          aria-invalid={targetDurationError || !targetDurationAttempted ? 'true' : undefined}
+                          onChange={(e) => setTargetDuration(e.target.value)}
+                        />
+                      </div>
+                      <div
+                        className="bc-field-note"
+                        style={{ marginTop: 2, marginBottom: 6, paddingLeft: 118 }}
+                      >
+                        {targetDurationError ? (
+                          <span style={{ color: 'var(--red)' }}>
+                            INVALID FORMAT — USE 4D 3H 2M 37S OR HH:MM:SS
+                          </span>
+                        ) : targetDurationAttempted && targetDurationValid ? (
+                          <span style={{ color: 'var(--green)' }}>
+                            ● {formatTargetDuration(targetDuration_s)}
+                          </span>
+                        ) : null}
+                      </div>
+                    </>
+                  )}
                   <div className="bc-input-row">
                     <label className="bc-label" htmlFor="flip-time">
                       Flip Time
@@ -1102,54 +1075,10 @@ function BurnCalculatorInner() {
                       )}
                     </div>
                   )}
-                  {(isDriftMode && !budgetExceedsReqWithPlan) ||
-                  budgetExceedsReqWithPlan ||
-                  budgetExceedsReq ||
-                  (driftPlan && driftPlan.error) ? (
+                  {isDriftMode && (
                     <div className="bc-field-note" style={{ marginBottom: 4, paddingLeft: 118 }}>
-                      {isDriftMode && !budgetExceedsReqWithPlan ? (
-                        <span style={{ color: 'var(--amber)' }}>◈ DRIFT MODE ACTIVE</span>
-                      ) : budgetExceedsReqWithPlan ? (
-                        <span style={{ color: 'var(--green)' }}>
-                          ● BUDGET EXCEEDS REQUIREMENT — SELECT PREFERENCE
-                        </span>
-                      ) : budgetExceedsReq ? (
-                        <span style={{ color: 'var(--green)' }}>
-                          ● BUDGET EXCEEDS REQUIREMENT — STANDARD BURN USED
-                        </span>
-                      ) : (
-                        <span style={{ color: 'var(--red)' }}>{driftPlan.error}</span>
-                      )}
+                      <span style={{ color: 'var(--amber)' }}>◈ DRIFT MODE ACTIVE</span>
                     </div>
-                  ) : null}
-                  {budgetExceedsReqWithPlan && (
-                    <>
-                      <div style={{ display: 'flex', gap: 4, marginLeft: 118, marginBottom: 4 }}>
-                        <button
-                          className={`bc-unit-btn${burnPreference === 'speed' ? ' active' : ''}`}
-                          onClick={() => setBurnPreference('speed')}
-                        >
-                          SPEED
-                        </button>
-                        <button
-                          className={`bc-unit-btn${burnPreference === 'efficiency' ? ' active' : ''}`}
-                          onClick={() => setBurnPreference('efficiency')}
-                        >
-                          EFFICIENCY
-                        </button>
-                      </div>
-                      <div className="bc-field-note" style={{ marginBottom: 8, paddingLeft: 118 }}>
-                        {burnPreference === 'speed' ? (
-                          <span style={{ color: 'var(--amber)' }}>
-                            ◈ STANDARD BURN — FASTEST ARRIVAL, NO DRIFT
-                          </span>
-                        ) : (
-                          <span style={{ color: 'var(--cyan)' }}>
-                            ◈ DRIFT MODE — 2× TIME, MINIMUM REACTANT
-                          </span>
-                        )}
-                      </div>
-                    </>
                   )}
 
                   {/* ── Game Clock ── */}
@@ -1366,7 +1295,7 @@ function BurnCalculatorInner() {
                   )}
 
                   {/* Below-minimum acceleration — only when no blank required fields */}
-                  {!solveForAccel &&
+                  {burnPreference === 'speed' &&
                     accel.trim() !== '' &&
                     isFinite(parseGValue(accel)) &&
                     parseGValue(accel) < 0.01 * G && (
@@ -1381,7 +1310,7 @@ function BurnCalculatorInner() {
                     )}
 
                   {/* Accel-solve error — only when no missing fields */}
-                  {solveForAccel &&
+                  {burnPreference === 'efficiency' &&
                     accelSolveResult &&
                     accelSolveResult.error &&
                     isFinite(distance_m) &&
@@ -1401,45 +1330,15 @@ function BurnCalculatorInner() {
                       </div>
                     )}
 
-                  {/* Both fields filled — consistency validation */}
-                  {validateBoth &&
-                    (() => {
-                      const fwdPlan = computePlan({
-                        distance_m: burn_distance_m,
-                        v0_mps,
-                        a_mps2,
-                        v_arrival_mps,
-                        t_rotate_s,
-                      });
-                      if (fwdPlan.t_total && targetDuration_s) {
-                        if (fwdPlan.t_total > targetDuration_s * 1.01) {
-                          return (
-                            <div className="bc-warning" role="alert">
-                              <AlertTriangle size={14} color="var(--red)" />
-                              <div className="bc-warning-text">
-                                <strong>INCONSISTENT PARAMETERS</strong>
-                                <br />
-                                At {(a_mps2 / G).toFixed(2)} G this burn takes{' '}
-                                {formatTime(Math.floor(fwdPlan.t_total))}, not{' '}
-                                {formatTargetDuration(targetDuration_s)}. Clear one field to solve
-                                for it.
-                              </div>
-                            </div>
-                          );
-                        }
-                      }
-                      return null;
-                    })()}
-
                   {/* plan.error — suppressed when pre-flight fires or when accel-solve already showed an error */}
                   {plan.error &&
                     !burnMissingFields.length &&
                     isFinite(distance_m) &&
                     distance_m > 0 &&
                     isFinite(v0_mps) &&
-                    (solveForAccel || isFinite(a_mps2)) &&
+                    (burnPreference === 'efficiency' || isFinite(a_mps2)) &&
                     isFinite(t_rotate_s) &&
-                    !(solveForAccel && accelSolveResult && accelSolveResult.error) && (
+                    !(burnPreference === 'efficiency' && accelSolveResult && accelSolveResult.error) && (
                       <div className="bc-warning" role="alert">
                         <AlertTriangle size={14} color="var(--red)" />
                         <div className="bc-warning-text">
@@ -1550,10 +1449,10 @@ function BurnCalculatorInner() {
 
                   {!plan.error && !plan.overshoot && !budgetInsufficient && (
                     <>
-                      {/* ── Computed Accel — shown when solving for acceleration ── */}
-                      {solveForAccel && accelSolveResult && !accelSolveResult.error && (
+                      {/* ── Required Accel — shown in efficiency mode ── */}
+                      {burnPreference === 'efficiency' && accelSolveResult && !accelSolveResult.error && (
                         <Readout
-                          label="Computed Accel"
+                          label="Required Accel"
                           value={`${(accelSolveResult.a_mps2 / G).toFixed(2)} G`}
                           highlight
                           flickerKey={flickerKey}

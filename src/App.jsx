@@ -21,9 +21,10 @@ import {
   parseTargetDuration,
   formatTargetDuration,
   solveAcceleration,
+  buildDriftPlan,
 } from './physics.js';
 
-const APP_VERSION = 'v0.6.3';
+const APP_VERSION = 'v0.6.4';
 
 // Embedded screenshot data for tooltips
 const TOOLTIP_IMG_DISTANCE = `${import.meta.env.BASE_URL}tooltips/distance.jpg`;
@@ -462,16 +463,29 @@ function BurnCalculatorInner() {
   const targetDurationValid = targetDuration_s !== null;
   const targetDurationError = targetDurationAttempted && !targetDurationValid;
 
+  // ── Reactant budget: parse early (needed for solve-direction detection) ──
+  const budget_s = (() => {
+    const parsed = parseTargetDuration(reactantBudget);
+    return parsed !== null && parsed > 0 ? parsed : null;
+  })();
+  const budgetFilled = reactantBudget.trim().length > 0 && budget_s !== null;
+
   // ── Implicit solve direction detection ──
-  // accel blank, time filled  → solve for acceleration
-  // time blank, accel filled  → solve for time (standard)
-  // both filled               → validate consistency
-  // both blank                → no output
+  // accel blank, time filled               → solve for acceleration
+  // accel blank, budget filled, time blank → solve for acceleration (budget as time constraint)
+  // accel blank, both filled               → solve for acceleration (time takes priority)
+  // time blank, accel filled               → solve for time (standard)
+  // both filled                            → validate consistency
+  // both blank                             → no output
   const accelFilled = accel.trim() !== '';
   const timeFilled = targetDurationAttempted && targetDurationValid;
-  const solveForAccel = !accelFilled && timeFilled;
+  const solveForAccel = !accelFilled && (timeFilled || budgetFilled);
   const solveForTime = accelFilled && !targetDurationAttempted;
   const validateBoth = accelFilled && timeFilled;
+
+  // Effective total time for the acceleration solver:
+  // desired travel time takes priority; fall back to budget + flip time
+  const solveT_s = timeFilled ? targetDuration_s : budget_s !== null ? budget_s + t_rotate_s : null;
 
   // Surface a clean error if the destination is within the stand-off zone
   const standoffError = !standoffValid
@@ -490,7 +504,7 @@ function BurnCalculatorInner() {
           v0_mps,
           v_arrival_mps,
           t_rotate_s,
-          t_total_s: targetDuration_s,
+          t_total_s: solveT_s,
         })
       : null;
   const a_mps2 = solveForAccel
@@ -531,12 +545,6 @@ function BurnCalculatorInner() {
       ? computePlan({ distance_m: burn_distance_m, v0_mps, a_mps2, v_arrival_mps, t_rotate_s })
       : plan1;
 
-  // Reactant budget conversion — parsed same as Desired Travel Time (bare number = seconds)
-  const budget_s = (() => {
-    const parsed = parseTargetDuration(reactantBudget);
-    return parsed !== null && parsed > 0 ? parsed : null;
-  })();
-
   // ════════════════════════════════════════════════════════════════════
   // BUDGET / DRIFT / EFFICIENCY SOLVER
   // Phase structure: ACCEL → FLIP → DRIFT → BRAKE
@@ -549,31 +557,6 @@ function BurnCalculatorInner() {
   // (the correct NET displacement); the receding penalty appears as extra
   // accel time, which is physically correct.
   // ════════════════════════════════════════════════════════════════════
-
-  // Build a complete drift-burn plan at a given v_max. Flip distance is
-  // subtracted explicitly so the drift phase is the PURE coast and the
-  // totals reconcile (fixes the earlier flip double-count).
-  function buildDriftPlan(v_max) {
-    const t_a = (v_max - v0_mps) / a_mps2;
-    const t_b = (v_max - v_arrival_mps) / a_mps2;
-    const d_a = (v_max * v_max - v0_mps * v0_mps) / (2 * a_mps2);
-    const d_b = (v_max * v_max - v_arrival_mps * v_arrival_mps) / (2 * a_mps2);
-    const d_f = v_max * t_rotate_s;
-    const d_dr = burn_distance_m - d_a - d_f - d_b;
-    if (d_dr < -1) return null; // no room for a drift phase at this v_max
-    const t_dr = Math.max(0, d_dr / v_max);
-    return {
-      v_max,
-      t_accel: t_a,
-      t_rotate: t_rotate_s,
-      t_drift: t_dr,
-      t_brake: t_b,
-      t_total: t_a + t_rotate_s + t_dr + t_b,
-      d_accel: d_a,
-      d_drift: Math.max(0, d_dr),
-      d_brake: d_b,
-    };
-  }
 
   let driftPlan = null; // budget-constrained drift (budget < requirement)
   let efficiencyPlan = null; // 2×-time efficiency drift (budget > requirement)
@@ -590,7 +573,7 @@ function BurnCalculatorInner() {
       // EFFICIENCY → lowest v_max such that t_total ≤ 2× standard-burn time.
       budgetExceedsReq = true;
 
-      const T_target = EFFICIENCY_TIME_MULTIPLIER * (plan.t_total || 0);
+      const T_target = (validateBoth && targetDuration_s) ? targetDuration_s : EFFICIENCY_TIME_MULTIPLIER * (plan.t_total || 0);
       const P = v0_mps + v_arrival_mps + a_mps2 * T_target;
       const Q = a_mps2 * burn_distance_m + (v0_mps * v0_mps + v_arrival_mps * v_arrival_mps) / 2;
       const disc = P * P - 4 * Q;
@@ -598,14 +581,14 @@ function BurnCalculatorInner() {
         const v_eff = (P - Math.sqrt(disc)) / 2; // smaller root → lower v_max → less fuel
         // Valid only if it still requires acceleration and braking
         if (v_eff > v0_mps && v_eff > v_arrival_mps && v_eff < standard_v_max) {
-          efficiencyPlan = buildDriftPlan(v_eff);
+          efficiencyPlan = buildDriftPlan({ distance_m: burn_distance_m, v0_mps, a_mps2, v_arrival_mps, t_rotate_s, v_max: v_eff });
         }
       }
     } else if (v_max_budget <= v0_mps || v_max_budget <= v_arrival_mps) {
       driftPlan = { error: 'BUDGET INSUFFICIENT — CANNOT BRAKE TO TARGET VELOCITY' };
     } else {
       // Budget < requirement: drift at the budget-constrained v_max.
-      const p = buildDriftPlan(v_max_budget);
+      const p = buildDriftPlan({ distance_m: burn_distance_m, v0_mps, a_mps2, v_arrival_mps, t_rotate_s, v_max: v_max_budget });
       if (p) driftPlan = p;
       else {
         budgetExceedsReq = true;
@@ -637,12 +620,8 @@ function BurnCalculatorInner() {
   // finalPlan is activePlan (drift mode if budget set, otherwise standard)
   const finalPlan = activePlan;
 
-  // VCRS advisory threshold
-  const vcrsRatioPct =
-    isFinite(vcrs_mps) && vcrs_mps !== 0 && isFinite(v0_mps) && v0_mps !== 0
-      ? (Math.abs(vcrs_mps) / Math.abs(v0_mps)) * 100
-      : 0;
-  const highVcrsWarning = Math.abs(vcrs_mps) > 500;
+  // VCRS advisory threshold — warn when cross-track drift extends burn distance by >5%
+  const highVcrsWarning = vcrs_correction_m >= burn_distance_m * 0.05;
 
   // Manual null heading + null time for high VCRS warning
   const vcrsNullTime =
@@ -1506,8 +1485,8 @@ function BurnCalculatorInner() {
                     <>
                       <div className="bc-advisory">
                         <strong>HIGH VCRS DETECTED</strong> — Cross-track velocity is{' '}
-                        {formatVelocity(Math.abs(vcrs_mps))}. RCS correction will not be sufficient
-                        at this magnitude.
+                        {formatVelocity(Math.abs(vcrs_mps))}. VCRS is significantly extending burn
+                        distance.
                       </div>
                       {manualNullBearing && (
                         <Readout

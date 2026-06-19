@@ -489,3 +489,32 @@ export function solveAcceleration({ distance_m, v0_mps, v_arrival_mps, t_rotate_
   const a = Math.min(...candidates); // smallest positive root = minimum required acceleration
   return { a_mps2: a };
 }
+
+/**
+ * Builds a complete drift-burn plan at a given peak velocity.
+ * Flip distance is subtracted explicitly so the drift phase is the pure coast.
+ *
+ * @param {{ distance_m, v0_mps, a_mps2, v_arrival_mps, t_rotate_s, v_max }} opts
+ * @returns {{ v_max, t_accel, t_rotate, t_drift, t_brake, t_total, d_accel, d_drift, d_brake } | null}
+ */
+export function buildDriftPlan({ distance_m, v0_mps, a_mps2, v_arrival_mps, t_rotate_s, v_max }) {
+  const t_a = (v_max - v0_mps) / a_mps2;
+  const t_b = (v_max - v_arrival_mps) / a_mps2;
+  const d_a = (v_max * v_max - v0_mps * v0_mps) / (2 * a_mps2);
+  const d_b = (v_max * v_max - v_arrival_mps * v_arrival_mps) / (2 * a_mps2);
+  const d_f = v_max * t_rotate_s;
+  const d_dr = distance_m - d_a - d_f - d_b;
+  if (d_dr < -1) return null; // no room for a drift phase at this v_max
+  const t_dr = Math.max(0, d_dr / v_max);
+  return {
+    v_max,
+    t_accel: t_a,
+    t_rotate: t_rotate_s,
+    t_drift: t_dr,
+    t_brake: t_b,
+    t_total: t_a + t_rotate_s + t_dr + t_b,
+    d_accel: d_a,
+    d_drift: Math.max(0, d_dr),
+    d_brake: d_b,
+  };
+}

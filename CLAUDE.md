@@ -12,7 +12,7 @@ trajectories for the game **Ostranauts**. Deployed to GitHub Pages.
 
 **Live URL:** https://bandus.github.io/torch-burn-computer
 **Dev server:** `npm run dev` → localhost:5173
-**Deploy:** `npm run deploy` (pushes to `gh-pages` branch directly — no GitHub Actions)
+**Deploy:** Push to `main` — GitHub Actions builds and deploys automatically via `.github/workflows/deploy.yml`
 
 ---
 
@@ -126,8 +126,12 @@ npm run dev
 ```
 findstr "APP_VERSION" src\App.jsx
 git add -A && git commit -m "vX.X.X — description"
-npm run deploy
+git push origin main
 ```
+
+Pushing to `main` triggers the GitHub Actions workflow (`.github/workflows/deploy.yml`),
+which builds and deploys automatically. Monitor progress at:
+https://github.com/Bandus/torch-burn-computer/actions
 
 **Verify live:** https://bandus.github.io/torch-burn-computer
 

@@ -27,6 +27,9 @@ import {
   computeFinalApproach,
   solveAcceleration,
   buildDriftPlan,
+  AccelResult,
+  ErrorResult,
+  BurnPlanResult,
 } from './physics.js';
 
 const APP_VERSION = 'v0.6.4';
@@ -493,10 +496,6 @@ function BurnCalculatorInner() {
   const targetAccelError = targetAccelAttempted && !targetAccelValid;
   const targetAccelFilled = targetAccelAttempted && targetAccelValid;
 
-  const optimizeAccel = targetBudgetFilled && targetDurationFilled;
-  const optimizeBudget = targetDurationFilled && targetAccelFilled;
-  const optimizeDuration = targetBudgetFilled && targetAccelFilled;
-
   const solveForAccel = !targetAccelAttempted && (targetDurationFilled || targetBudgetFilled);
   const solveForTime = targetAccelAttempted && !targetDurationAttempted;
   const validateBoth = targetAccelAttempted && targetDurationFilled;
@@ -524,13 +523,15 @@ function BurnCalculatorInner() {
   const standoffBlockResult = { error: standoffBlockMsg, detail: "" }
   
   //Single Solve results
-  const accelOnlyConstantBurnData = targetAccelFilled ? (() => {
+  type SingleSolveConstantBurnData = 
+    {vcrs_correction_m: number, burn_distance_m: number, accelSolveResult: AccelResult | ErrorResult | null, a_mps2: number, constantBurnPlan: BurnPlanResult}
+  const accelOnlyConstantBurnData = targetAccelFilled ? (():SingleSolveConstantBurnData => {
     const {vcrs_correction_m, burn_distance_m, constantBurnPlan} =
       performTwoPhaseSolve({hasWakeError, standoffBlockResult, raw_burn_distance_m, v0_mps, vcrs_mps, a_mps2: targetAccel_mps2, v_arrival_mps, t_rotate_s});
-    return {vcrs_correction_m, burn_distance_m, accelSolveResult: null, targetAccel_mps2, constantBurnPlan}
+    return {vcrs_correction_m, burn_distance_m, accelSolveResult: null, a_mps2: targetAccel_mps2, constantBurnPlan}
   })() : null;
 
-  const budgetOnlyConstantBurnData = targetBudgetFilled ? (() => {
+  const budgetOnlyConstantBurnData = targetBudgetFilled ? (():SingleSolveConstantBurnData => {
     const solveT_s =  targetBudget_s + t_rotate_s;
     const accelSolveResult = !hasWakeError ? solveAcceleration({
         distance_m: raw_burn_distance_m,
@@ -539,15 +540,15 @@ function BurnCalculatorInner() {
         t_rotate_s,
         t_total_s: solveT_s,
       }) : null;
-    const a_mps = accelSolveResult && accelSolveResult.error == null
+    const a_mps2 = accelSolveResult && accelSolveResult.error == null
       ? accelSolveResult.a_mps2
       : NaN;
     const {vcrs_correction_m, burn_distance_m, constantBurnPlan} =
-      performTwoPhaseSolve({hasWakeError, standoffBlockResult, raw_burn_distance_m, v0_mps, vcrs_mps, a_mps2: a_mps, v_arrival_mps, t_rotate_s});
-    return {vcrs_correction_m, burn_distance_m, accelSolveResult, a_mps, constantBurnPlan}
+      performTwoPhaseSolve({hasWakeError, standoffBlockResult, raw_burn_distance_m, v0_mps, vcrs_mps, a_mps2, v_arrival_mps, t_rotate_s});
+    return {vcrs_correction_m, burn_distance_m, accelSolveResult, a_mps2, constantBurnPlan}
   })() : null;
 
-  const durationOnlyConstantBurnData = targetDurationFilled ? (() => {
+  const durationOnlyConstantBurnData = targetDurationFilled ? (():SingleSolveConstantBurnData => {
     const accelSolveResult = !hasWakeError ? solveAcceleration({
         distance_m: raw_burn_distance_m,
         v0_mps,
@@ -555,71 +556,84 @@ function BurnCalculatorInner() {
         t_rotate_s,
         t_total_s: targetDuration_s,
       }) : null;
-    const a_mps = accelSolveResult && accelSolveResult.error == null
+    const a_mps2 = accelSolveResult && accelSolveResult.error == null
       ? accelSolveResult.a_mps2
       : NaN;
     const {vcrs_correction_m, burn_distance_m, constantBurnPlan} =
-      performTwoPhaseSolve({hasWakeError, standoffBlockResult, raw_burn_distance_m, v0_mps, vcrs_mps, a_mps2: a_mps, v_arrival_mps, t_rotate_s});
-    return {vcrs_correction_m, burn_distance_m, accelSolveResult, a_mps, constantBurnPlan}
+      performTwoPhaseSolve({hasWakeError, standoffBlockResult, raw_burn_distance_m, v0_mps, vcrs_mps, a_mps2, v_arrival_mps, t_rotate_s});
+    return {vcrs_correction_m, burn_distance_m, accelSolveResult, a_mps2, constantBurnPlan}
   })() : null;
-
-  // Derive a_mps2: from solver when solving for accel, from input otherwise.
-  // Must be after hasWakeError since the solver is gated on it.
-  const accelSolveResult =
-    solveForAccel && !hasWakeError
-      ? solveAcceleration({
-          distance_m: raw_burn_distance_m,
-          v0_mps,
-          v_arrival_mps,
-          t_rotate_s,
-          t_total_s: solveT_s,
-        })
-      : null;
-  const a_mps2 = solveForAccel
-    ? accelSolveResult && accelSolveResult.error == null
-      ? accelSolveResult.a_mps2
-      : NaN
-    : (() => {
-        const v = parseGValue(accel);
-        return isFinite(v) && v < 0.01 * G ? NaN : v;
-      })();
-  const {vcrs_correction_m, burn_distance_m, constantBurnPlan} = performTwoPhaseSolve({hasWakeError, standoffBlockResult, raw_burn_distance_m, v0_mps, vcrs_mps, a_mps2, v_arrival_mps, t_rotate_s})
 
 
   let driftPlan = null; // budget-constrained drift (budget < requirement)
   let efficiencyPlan = null; // 2×-time efficiency drift (budget > requirement)
+  
 
-  if (targetBudget_s !== null && constantBurnPlan.error === null && !constantBurnPlan.overshoot && isFinite(a_mps2) && a_mps2 > 0) {
+  const optimizeAccel = targetBudgetFilled && targetDurationFilled;
+  const optimizeBudget = targetDurationFilled && targetAccelFilled;
+  const optimizeDuration = targetBudgetFilled && targetAccelFilled;
+
+  const optimalBudgetPlan = optimizeBudget ? (() => {
+    if (accelOnlyConstantBurnData === null)
+    {
+      return null;
+    }
+    const {a_mps2, burn_distance_m, constantBurnPlan} = accelOnlyConstantBurnData
+    if (constantBurnPlan.error !== null || constantBurnPlan.overshoot || !isFinite(a_mps2) || a_mps2 <= 0)
+    {
+      return null;
+    }
+    const constantBurn_v_max = (constantBurnPlan.error === null && !constantBurnPlan.overshoot) ? constantBurnPlan.v_max : 0
+
+    const P = v0_mps + v_arrival_mps + a_mps2 * targetDuration_s;
+    const Q = a_mps2 * burn_distance_m + (v0_mps * v0_mps + v_arrival_mps * v_arrival_mps) / 2;
+    const disc = P * P - 4 * Q;
+    if (disc >= 0) {
+      const v_eff = (P - Math.sqrt(disc)) / 2; // smaller root → lower v_max → less fuel
+      // Valid only if it still requires acceleration and braking
+      if (v_eff > v0_mps && v_eff > v_arrival_mps && v_eff < constantBurn_v_max) {
+        return buildDriftPlan({ distance_m: burn_distance_m, v0_mps, a_mps2, v_arrival_mps, t_rotate_s, v_max: v_eff });
+      }
+    }
+    return null
+  })() : null
+  const optimalDurationPlan = optimizeDuration ? (() => {
+    if (accelOnlyConstantBurnData === null)
+    {
+      return null;
+    }
+    const {a_mps2, burn_distance_m, constantBurnPlan} = accelOnlyConstantBurnData
+    if (constantBurnPlan.error !== null || constantBurnPlan.overshoot || !isFinite(a_mps2) || a_mps2 <= 0)
+    {
+      return null;
+    }
     // v_max achievable by burning the full budget (a·budget split accel+brake)
     const v_max_budget = (a_mps2 * targetBudget_s + v0_mps + v_arrival_mps) / 2;
-    const standard_v_max = constantBurnPlan.v_max || 0;
 
-    if (v_max_budget >= standard_v_max) {
-      // Budget exceeds what a standard burn needs.
-      // SPEED   → standard plan (no drift) — handled downstream by using `plan`.
-      // EFFICIENCY → lowest v_max such that t_total ≤ 2× standard-burn time.
-
-      const T_target = (validateBoth && targetDuration_s) ? targetDuration_s : EFFICIENCY_TIME_MULTIPLIER * (constantBurnPlan.t_total || 0);
-      const P = v0_mps + v_arrival_mps + a_mps2 * T_target;
-      const Q = a_mps2 * burn_distance_m + (v0_mps * v0_mps + v_arrival_mps * v_arrival_mps) / 2;
-      const disc = P * P - 4 * Q;
-      if (disc >= 0) {
-        const v_eff = (P - Math.sqrt(disc)) / 2; // smaller root → lower v_max → less fuel
-        // Valid only if it still requires acceleration and braking
-        if (v_eff > v0_mps && v_eff > v_arrival_mps && v_eff < standard_v_max) {
-          efficiencyPlan = buildDriftPlan({ distance_m: burn_distance_m, v0_mps, a_mps2, v_arrival_mps, t_rotate_s, v_max: v_eff });
-        }
-      }
-    } else if (v_max_budget <= v0_mps || v_max_budget <= v_arrival_mps) {
-      driftPlan = { error: 'BUDGET INSUFFICIENT — CANNOT BRAKE TO TARGET VELOCITY', detail : "" };
+    if (v_max_budget <= v0_mps || v_max_budget <= v_arrival_mps) {
+      return { error: 'BUDGET INSUFFICIENT — CANNOT BRAKE TO TARGET VELOCITY', detail : "" };
     } else {
       // Budget < requirement: drift at the budget-constrained v_max.
-      const p = buildDriftPlan({ distance_m: burn_distance_m, v0_mps, a_mps2, v_arrival_mps, t_rotate_s, v_max: v_max_budget });
-      if (p!==null) driftPlan = p;
-      else {
-      } // distance too short even here → treat as exceeds
+      return buildDriftPlan({ distance_m: burn_distance_m, v0_mps, a_mps2, v_arrival_mps, t_rotate_s, v_max: v_max_budget })
     }
-  }
+  })() : null
+
+  
+  const optimalAccelPlan = optimizeAccel ? (() => {
+    if (constantBurnPlan.error !== null || constantBurnPlan.overshoot || !isFinite(a_mps2) || a_mps2 <= 0)
+    {
+      return null;
+    }
+    // v_max achievable by burning the full budget (a·budget split accel+brake)
+    const v_max_budget = (a_mps2 * targetBudget_s + v0_mps + v_arrival_mps) / 2;
+
+    if (v_max_budget <= v0_mps || v_max_budget <= v_arrival_mps) {
+      return { error: 'BUDGET INSUFFICIENT — CANNOT BRAKE TO TARGET VELOCITY', detail : "" };
+    } else {
+      // Budget < requirement: drift at the budget-constrained v_max.
+      return buildDriftPlan({ distance_m: burn_distance_m, v0_mps, a_mps2, v_arrival_mps, t_rotate_s, v_max: v_max_budget })
+    }
+  })() : null
 
   // finalPlan is activePlan (drift mode if budget set, otherwise standard)
   const finalPlan = (driftPlan && driftPlan.error === null) ? driftPlan : constantBurnPlan;

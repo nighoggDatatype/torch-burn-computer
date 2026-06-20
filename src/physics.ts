@@ -2,16 +2,16 @@
  * Computes a flip-and-burn trajectory.
  */
 
-type ErrorResult = { error : string, detail: string}
+export type ErrorResult = { error : string, detail: string}
 
 type OvershootBurnPlanResult = { error: null, overshoot: true, brake_only_dist: number, shortfall: number, t_brake_full: number }
 type SuccessBurnPlanResult = { error: null, overshoot: false, flip_now: boolean, v_max: number, t_accel: number, t_rotate: number, t_drift: number, t_brake: number, t_total: number, d_accel: number, d_rotate: number, d_drift: number, d_brake: number }
-type BurnPlanResult = ErrorResult | OvershootBurnPlanResult | SuccessBurnPlanResult
+export type BurnPlanResult = ErrorResult | OvershootBurnPlanResult | SuccessBurnPlanResult
 
 type OvershootFinalApproachResult = { error: null, overshoot: true, d_brake_needed: number, shortfall: number, required_a: number, t_brake_if_max: number,}
 type SuccessFinalApproachResult = { error: null, overshoot: false, t_brake: number, t_coast: number, d_brake: number, d_coast: number, required_a: number, t_total: number}
 
-type AccelResult = { error: null, a_mps2: number }
+export type AccelResult = { error: null, a_mps2: number }
 
 export function computeConstantBurnPlan({ distance_m, v0_mps, a_mps2, v_arrival_mps, t_rotate_s } : 
   { distance_m: number, v0_mps: number, a_mps2: number, v_arrival_mps: number, t_rotate_s: number}) : BurnPlanResult {

@@ -66,7 +66,7 @@ Tests cover all physics solvers, parsers, and formatters in `src/physics.js`.
 - `src/App.jsx` — React components
 - `src/physics.js` — pure solvers, parsers, and formatters
 - `src/styles.css` — all styles
-- Deployed to GitHub Pages via `gh-pages`
+- Deployed to GitHub Pages
 
 ---
 

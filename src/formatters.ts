@@ -1,6 +1,13 @@
 import { DAY } from './constants.js';
 import { daysInMonth } from './parsers.js';
 
+export type FinalGameTime = {
+    dateStr: string | null;
+    timeStr: string;
+    hasDate: boolean;
+    dayOffset: number;
+}
+
 /**
  * TODO: Double check that this actually does what it says
  * @param {number} seconds
@@ -39,7 +46,7 @@ export function formatVelocity(mps: number) {
 /**
  * Adds an offset to a parsed game-time base, rolling over day/month/year boundaries.
  */
-export function addGameTime(base: { date: { y: number; mo: number; d: number; }; seconds: number; } | { date: null; seconds: number; } | null, offsetSeconds: number) {
+export function addGameTime(base: { date: { y: number; mo: number; d: number; }; seconds: number; } | { date: null; seconds: number; } | null, offsetSeconds: number) : FinalGameTime | null {
   if (base == null || !isFinite(offsetSeconds)) return null;
   let total = base.seconds + Math.floor(offsetSeconds);
   let datePart = base.date ? { ...base.date } : null;

@@ -226,6 +226,32 @@ export function solveAcceleration({ distance_m, v0_mps, v_arrival_mps, t_rotate_
   return { a_mps2: a, error : null};
 }
 
+export function performTwoPhaseSolve({ hasWakeError, standoffBlockResult, raw_burn_distance_m, v0_mps, vcrs_mps, a_mps2, v_arrival_mps, t_rotate_s } : 
+  { hasWakeError: boolean, standoffBlockResult: ErrorResult, raw_burn_distance_m: number, v0_mps: number, vcrs_mps: number, a_mps2: number, v_arrival_mps: number, t_rotate_s: number}) :
+  {vcrs_correction_m: number, burn_distance_m: number, constantBurnPlan: BurnPlanResult}
+{
+  const pass1_plan = hasWakeError
+      ? standoffBlockResult
+      : computeConstantBurnPlan({ distance_m: raw_burn_distance_m, v0_mps, a_mps2, v_arrival_mps, t_rotate_s });
+  
+    // Compute cross-track drift over the burn duration, correct the true distance
+    const t_total_approx = pass1_plan.error === null && !pass1_plan.overshoot ? pass1_plan.t_total : 0;
+    const cross_drift_m = Math.abs(vcrs_mps) * t_total_approx;
+    const burn_distance_m =
+      vcrs_mps !== 0 && t_total_approx > 0
+        ? Math.sqrt(raw_burn_distance_m ** 2 + cross_drift_m ** 2)
+        : raw_burn_distance_m;
+    const vcrs_correction_m = burn_distance_m - raw_burn_distance_m;
+  
+    // Pass 2 — recompute with corrected distance
+    const constantBurnPlan = hasWakeError
+      ? standoffBlockResult
+      : vcrs_mps !== 0 && t_total_approx > 0
+        ? computeConstantBurnPlan({ distance_m: burn_distance_m, v0_mps, a_mps2, v_arrival_mps, t_rotate_s })
+        : pass1_plan;
+    return {vcrs_correction_m, burn_distance_m, constantBurnPlan}
+}
+
   // ════════════════════════════════════════════════════════════════════
   // BUDGET / DRIFT / EFFICIENCY SOLVER
   // Phase structure: ACCEL → FLIP → DRIFT → BRAKE

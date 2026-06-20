@@ -3,18 +3,24 @@ import {
   G,
   DAY,
   NO_WAKE_M,
+} from './constants.js';
+import {
   parseNum,
   parseGValue,
   parseGameTime,
   parseTargetDuration,
+  daysInMonth,
+} from './parsers.js';
+import {
   formatTime,
   formatDistance,
   formatVelocity,
   formatTargetDuration,
   addGameTime,
   formatGameTime,
-  daysInMonth,
-  computePlan,
+} from './formatters.js';
+import {
+  computeConstantBurnPlan,
   computeFinalApproach,
   solveAcceleration,
 } from './physics.js';
@@ -257,9 +263,9 @@ describe('formatGameTime', () => {
   });
 });
 
-// ───── computePlan ────────────────────────────────────────────────────────
+// ───── computeConstantBurnPlan ────────────────────────────────────────────────────────
 
-describe('computePlan', () => {
+describe('computeConstantBurnPlan', () => {
   const base = {
     distance_m: 1_000_000,
     v0_mps: 500,
@@ -269,41 +275,41 @@ describe('computePlan', () => {
   };
 
   it('returns a valid plan for a typical burn', () => {
-    const result = computePlan(base);
+    const result = computeConstantBurnPlan(base);
     expect(result.error).toBeUndefined();
     expect(result.t_total).toBeGreaterThan(0);
     expect(result.v_max).toBeGreaterThan(base.v0_mps);
   });
 
   it('distance conservation: d_accel + d_coast + d_brake ≈ distance_m', () => {
-    const result = computePlan(base);
+    const result = computeConstantBurnPlan(base);
     expect(result.d_accel + result.d_coast + result.d_brake).toBeCloseTo(base.distance_m, 0);
   });
 
   it('returns error for missing fields', () => {
-    const result = computePlan({ ...base, distance_m: NaN });
+    const result = computeConstantBurnPlan({ ...base, distance_m: NaN });
     expect(result.error).toBe('MISSING OR INVALID INPUT');
   });
 
   it('returns error for zero acceleration', () => {
-    const result = computePlan({ ...base, a_mps2: 0 });
+    const result = computeConstantBurnPlan({ ...base, a_mps2: 0 });
     expect(result.error).toBe('ACCELERATION MUST BE POSITIVE');
   });
 
   it('returns error for zero distance', () => {
-    const result = computePlan({ ...base, distance_m: 0 });
+    const result = computeConstantBurnPlan({ ...base, distance_m: 0 });
     expect(result.error).toBe('BURN DISTANCE IS ZERO OR NEGATIVE');
   });
 
   it('returns overshoot when distance is too short to brake', () => {
-    const result = computePlan({ ...base, distance_m: 100 });
+    const result = computeConstantBurnPlan({ ...base, distance_m: 100 });
     expect(result.overshoot).toBe(true);
     expect(result.shortfall).toBeGreaterThan(0);
   });
 
   it('returns flip_now when already past optimal flip point', () => {
     // Very high v0 relative to distance — accel phase shrinks to zero
-    const result = computePlan({
+    const result = computeConstantBurnPlan({
       distance_m: 500_000,
       v0_mps: 1000,
       a_mps2: 2 * G,
@@ -366,7 +372,7 @@ describe('solveAcceleration', () => {
       v_arrival_mps: 0,
       t_rotate_s: 60,
     };
-    const plan = computePlan(params);
+    const plan = computeConstantBurnPlan(params);
     expect(plan.error).toBeUndefined();
 
     const solved = solveAcceleration({

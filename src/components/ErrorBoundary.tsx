@@ -24,7 +24,22 @@ class ErrorBoundary extends Component<Props, State> {
 
   public render() {
     if (this.state.hasError) {
-      return <h1>Sorry.. there was an error</h1>;
+      return (
+        <div
+          style={{
+            padding: 24,
+            fontFamily: "'IBM Plex Mono', monospace",
+            color: '#ff5d5d',
+            letterSpacing: '0.1em',
+            background: '#1a1d20',
+            minHeight: '100vh',
+          }}
+        >
+          ⚠ GUIDANCE COMPUTER FAULT
+          <br />
+          Reload to restart the nav subsystem.
+        </div>
+      );
     }
 
     return this.props.children;

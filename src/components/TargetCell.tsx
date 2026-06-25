@@ -1,4 +1,4 @@
-import { FinalGameTime, formatGameTime } from "../utils/formatters";
+import { FinalGameTime, formatGameTime } from "../utils/formatters.js";
 
 function TargetCell({ variant, label, gameTime, relative } : { variant: string, label: string, gameTime : FinalGameTime | null, relative: string }) {
   const displayGameTime = formatGameTime(gameTime);

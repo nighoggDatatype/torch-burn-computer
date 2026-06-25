@@ -1,6 +1,5 @@
 import React from "react";
 
-
 function Readout({ label, value, highlight, flickerKey } : { label: string, value: any, highlight: any, flickerKey: number }) {
   const [animClass, setAnimClass] = React.useState('');
   const isFirst = React.useRef(true);

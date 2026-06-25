@@ -19,7 +19,6 @@ import {
   addGameTime,
   formatGameTime,
   formatTargetDuration,
-  FinalGameTime,
 } from './utils/formatters.js';
 import {
   computeConstantBurnPlan,
@@ -28,12 +27,12 @@ import {
   buildDriftPlan,
   BurnPlanResult,
 } from './utils/physics.js';
-import ErrorBoundary from './components/ErrorBoundary';
-import Readout from './components/Readout';
-import TargetCell from './components/TargetCell';
-import InputRow from './components/InputRow';
-import { _urlParams, _urlParams_localStorage, _localStorage, _save_localStorage } from './utils/persistence';
-import StandoffControl from './components/StandoffControl';
+import ErrorBoundary from './components/ErrorBoundary.js';
+import Readout from './components/Readout.js';
+import TargetCell from './components/TargetCell.js';
+import InputRow from './components/InputRow.js';
+import { _urlParams, _urlParams_localStorage, _localStorage, _save_localStorage } from './utils/persistence.js';
+import StandoffControl from './components/StandoffControl.js';
 
 const APP_VERSION = 'v0.6.4';
 

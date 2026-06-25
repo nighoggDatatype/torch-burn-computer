@@ -5,7 +5,7 @@
 export type ErrorResult = { error : string, detail: string}
 
 type OvershootBurnPlanResult = { error: null, overshoot: true, brake_only_dist: number, shortfall: number, t_brake_full: number }
-type SuccessBurnPlanResult = { error: null, overshoot: false, flip_now: boolean, v_max: number, t_accel: number, t_rotate: number, t_drift: number, t_brake: number, t_total: number, d_accel: number, d_rotate: number, d_drift: number, d_brake: number }
+type SuccessBurnPlanResult = { error: null, overshoot: false, flip_now: boolean, a_mps2: number, v_max: number, t_accel: number, t_rotate: number, t_drift: number, t_brake: number, t_total: number, d_accel: number, d_rotate: number, d_drift: number, d_brake: number }
 export type BurnPlanResult = ErrorResult | OvershootBurnPlanResult | SuccessBurnPlanResult
 
 type OvershootFinalApproachResult = { error: null, overshoot: true, d_brake_needed: number, shortfall: number, required_a: number, t_brake_if_max: number,}
@@ -67,6 +67,7 @@ export function computeConstantBurnPlan({ distance_m, v0_mps, a_mps2, v_arrival_
       error: null,
       overshoot: false,
       flip_now: true,
+      a_mps2,
       v_max: v0_mps,
       t_accel: 0,
       t_rotate: t_rotate_s,
@@ -87,6 +88,7 @@ export function computeConstantBurnPlan({ distance_m, v0_mps, a_mps2, v_arrival_
     overshoot: false,
     flip_now: false,
     v_max,
+    a_mps2,
     t_accel,
     t_rotate: t_rotate_s,
     t_drift: 0,
@@ -258,6 +260,7 @@ export function buildDriftPlan(
     overshoot: false,
     flip_now: false,
     v_max,
+    a_mps2,
     t_accel: t_accel,
     t_rotate: t_rotate_s,
     t_drift: t_drift,

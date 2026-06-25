@@ -43,30 +43,30 @@ const TOOLTIP_IMG_ACCELERATION = `${import.meta.env.BASE_URL}tooltips/accelerati
 // ----- persistence helpers -------------------------------------------------
 // URL params take precedence over localStorage; per-burn readings are URL-only.
 
-function _up(key: string) {
+function _urlParams(key: string) {
   try {
     return new URLSearchParams(window.location.search).get(key);
   } catch {
     return null;
   }
 }
-function _ls(key: string) {
+function _localStorage(key: string) {
   try {
     return localStorage.getItem(key);
   } catch {
     return null;
   }
 }
-function _lsSave(key: string, value: string | null | undefined) {
+function _save_localStorage(key: string, value: string | null | undefined) {
   try {
     if (value !== null && value !== undefined) localStorage.setItem(key, String(value));
     else localStorage.removeItem(key);
   } catch {}
 }
 /** Read from URL, then localStorage, then fall back to default. */
-function _ul(urlKey: string, lsKey: string, fallback: string) {
-  const v = _up(urlKey);
-  return v !== null ? v : (_ls(lsKey) ?? fallback);
+function _urlParams_localStorage(urlKey: string, lsKey: string, fallback: string) {
+  const v = _urlParams(urlKey);
+  return v !== null ? v : (_localStorage(lsKey) ?? fallback);
 }
 
 // ----- StandoffControl subcomponent ----------------------------------------
@@ -106,7 +106,7 @@ function NoWakeToggle({ noWakeEnabled, setNoWakeEnabled } : { noWakeEnabled: boo
 function StandoffControl({ noWakeEnabled, setNoWakeEnabled, standoffKm, setStandoffKm } : { noWakeEnabled: boolean, setNoWakeEnabled : React.Dispatch<React.SetStateAction<boolean>>, standoffKm: string, setStandoffKm: React.Dispatch<React.SetStateAction<string>> }) {
   return (
     <>
-      {/* STAND-OFF DISTANCE — locked at 300 when NO-WAKE ZONE, editable in OPEN SPACE */}
+      {/* STAND-OFF DISTANCE - locked at 300 when NO-WAKE ZONE, editable in OPEN SPACE */}
       <div className="bc-input-row">
         <div className="bc-label">Stand-off</div>
         <input
@@ -183,7 +183,7 @@ function BurnCalculatorInner() {
     try {
       sessionStorage.setItem('pa_booted', '1');
     } catch {
-      /* restricted context — skip */
+      /* restricted context - skip */
     }
     const timers: (number | undefined)[] = [];
     const lineDelays = [0, 300, 600, 1100, 1700, 2300, 2900, 3500, 4100, 5200];
@@ -204,51 +204,51 @@ function BurnCalculatorInner() {
     }
   });
 
-  // -- Final Approach state — per-burn fields from URL only, vessel/prefs from URL→LS --
-  const [faDistance, setFaDistance] = useState(() => _up('fad') ?? '');
-  const [faDistanceUnit, setFaDistanceUnit] = useState(() => _ul('fadu', 'pa_fadu', 'km'));
-  const [faVrel, setFaVrel] = useState(() => _up('fav') ?? '');
-  const [faVrelUnit, setFaVrelUnit] = useState(() => _ul('favu', 'pa_favu', 'm/s'));
-  const [faAccel, setFaAccel] = useState(() => _ul('faa', 'pa_fa_accel', ''));
-  const [faBudget, setFaBudget] = useState(() => _up('fab') ?? '');
-  const [faVArrival, setFaVArrival] = useState(() => _up('fava') ?? '0');
-  const [faVArrivalUnit, setFaVArrivalUnit] = useState(() => _ul('fvau', 'pa_fvau', 'm/s'));
-  const [faGameStart, setFaGameStart] = useState(() => _up('fgt') ?? '');
+  // -- Final Approach state - per-burn fields from URL only, vessel/prefs from URL→LS --
+  const [faDistance, setFaDistance] = useState(() => _urlParams('fad') ?? '');
+  const [faDistanceUnit, setFaDistanceUnit] = useState(() => _urlParams_localStorage('fadu', 'pa_fadu', 'km'));
+  const [faVrel, setFaVrel] = useState(() => _urlParams('fav') ?? '');
+  const [faVrelUnit, setFaVrelUnit] = useState(() => _urlParams_localStorage('favu', 'pa_favu', 'm/s'));
+  const [faAccel, setFaAccel] = useState(() => _urlParams_localStorage('faa', 'pa_fa_accel', ''));
+  const [faBudget, setFaBudget] = useState(() => _urlParams('fab') ?? '');
+  const [faVArrival, setFaVArrival] = useState(() => _urlParams('fava') ?? '0');
+  const [faVArrivalUnit, setFaVArrivalUnit] = useState(() => _urlParams_localStorage('fvau', 'pa_fvau', 'm/s'));
+  const [faGameStart, setFaGameStart] = useState(() => _urlParams('fgt') ?? '');
 
-  // Burn Plan state — per-burn fields from URL only, vessel/prefs from URL→LS
-  const [distance, setDistance] = useState(() => _up('d') ?? '');
-  const [distanceUnit, setDistanceUnit] = useState(() => _ul('du', 'pa_du', 'km'));
-  const [v0, setV0] = useState(() => _up('v') ?? '');
-  const [v0Unit, setV0Unit] = useState(() => _ul('vu', 'pa_vu', 'm/s'));
-  const [v0Direction, setV0Direction] = useState(() => _up('vd') ?? 'closing');
-  const [accel, setAccel] = useState(() => _ul('a', 'pa_accel', ''));
-  const [flipTime, setFlipTime] = useState(() => _ul('f', 'pa_flip_time', '60'));
-  const [reactantBudget, setReactantBudget] = useState(() => _up('b') ?? '');
-  const [vArrival, setVArrival] = useState(() => _up('va') ?? '0');
-  const [vArrivalUnit, setVArrivalUnit] = useState(() => _ul('vau', 'pa_vau', 'm/s'));
-  const [vcrs, setVcrs] = useState(() => _up('cx') ?? '');
-  const [vcrsUnit, setVcrsUnit] = useState(() => _up('cu') ?? 'm/s');
+  // Burn Plan state - per-burn fields from URL only, vessel/prefs from URL→LS
+  const [distance, setDistance] = useState(() => _urlParams('d') ?? '');
+  const [distanceUnit, setDistanceUnit] = useState(() => _urlParams_localStorage('du', 'pa_du', 'km'));
+  const [vrel, setVrel] = useState(() => _urlParams('v') ?? '');
+  const [vrelUnit, setVrelUnit] = useState(() => _urlParams_localStorage('vu', 'pa_vu', 'm/s'));
+  const [v0Direction, setV0Direction] = useState(() => _urlParams('vd') ?? 'closing');
+  const [accel, setAccel] = useState(() => _urlParams_localStorage('a', 'pa_accel', ''));
+  const [flipTime, setFlipTime] = useState(() => _urlParams_localStorage('f', 'pa_flip_time', '60'));
+  const [reactantBudget, setReactantBudget] = useState(() => _urlParams('b') ?? '');
+  const [vArrival, setVArrival] = useState(() => _urlParams('va') ?? '0');
+  const [vArrivalUnit, setVArrivalUnit] = useState(() => _urlParams_localStorage('vau', 'pa_vau', 'm/s'));
+  const [vcrs, setVcrs] = useState(() => _urlParams('cx') ?? '');
+  const [vcrsUnit, setVcrsUnit] = useState(() => _urlParams('cu') ?? 'm/s');
   const [noWakeEnabled, setNoWakeEnabled] = useState(() => {
-    const u = _up('nw');
+    const u = _urlParams('nw');
     if (u !== null) return u !== '0';
-    const l = _ls('pa_no_wake');
+    const l = _localStorage('pa_no_wake');
     return l !== null ? l !== '0' : true;
   });
-  const [standoffKm, setStandoffKm] = useState(() => _ul('sk', 'pa_standoff_km', '2.5'));
-  const [targetDuration, setTargetDuration] = useState(() => _up('td') ?? '');
-  const [gameStartTime, setGameStartTime] = useState(() => _up('gt') ?? '');
+  const [standoffKm, setStandoffKm] = useState(() => _urlParams_localStorage('sk', 'pa_standoff_km', '2.5'));
+  const [targetDuration, setTargetDuration] = useState(() => _urlParams('td') ?? '');
+  const [gameStartTime, setGameStartTime] = useState(() => _urlParams('gt') ?? '');
 
   // -- flicker state (feature 11) --
   const [flickerKey, setFlickerKey] = useState(0);
   const prevPlanRef: React.RefObject<string|null> = useRef(null);
 
-  // -- URL state sync — update address bar whenever any input changes ------
+  // -- URL state sync - update address bar whenever any input changes ------
   useEffect(() => {
     const p = new URLSearchParams();
     if (distance) p.set('d', distance);
     if (distanceUnit !== 'km') p.set('du', distanceUnit);
-    if (v0) p.set('v', v0);
-    if (v0Unit !== 'm/s') p.set('vu', v0Unit);
+    if (vrel) p.set('v', vrel);
+    if (vrelUnit !== 'm/s') p.set('vu', vrelUnit);
     if (v0Direction !== 'closing') p.set('vd', v0Direction);
     if (accel) p.set('a', accel);
     if (flipTime !== '60') p.set('f', flipTime);
@@ -279,49 +279,49 @@ function BurnCalculatorInner() {
       );
     } catch {}
   }, [
-    distance, distanceUnit, v0, v0Unit, v0Direction, accel, flipTime, reactantBudget,
+    distance, distanceUnit, vrel, vrelUnit, v0Direction, accel, flipTime, reactantBudget,
     vArrival, vArrivalUnit, vcrs, vcrsUnit, noWakeEnabled, standoffKm, targetDuration,
     gameStartTime, faDistance, faDistanceUnit, faVrel, faVrelUnit,
     faAccel, faBudget, faVArrival, faVArrivalUnit, faGameStart, appMode,
   ]);
 
-  // -- localStorage sync — vessel params and preferences only ---------------
+  // -- localStorage sync - vessel params and preferences only ---------------
   useEffect(() => {
-    _lsSave('pa_accel', accel || null);
-    _lsSave('pa_fa_accel', faAccel || null);
-    _lsSave('pa_flip_time', flipTime !== '60' ? flipTime : null);
-    _lsSave('pa_no_wake', noWakeEnabled ? '1' : '0');
-    _lsSave('pa_standoff_km', standoffKm !== '2.5' ? standoffKm : null);
-    _lsSave('pa_du', distanceUnit !== 'km' ? distanceUnit : null);
-    _lsSave('pa_vu', v0Unit !== 'm/s' ? v0Unit : null);
-    _lsSave('pa_vau', vArrivalUnit !== 'm/s' ? vArrivalUnit : null);
-    _lsSave('pa_fadu', faDistanceUnit !== 'km' ? faDistanceUnit : null);
-    _lsSave('pa_favu', faVrelUnit !== 'm/s' ? faVrelUnit : null);
-    _lsSave('pa_fvau', faVArrivalUnit !== 'm/s' ? faVArrivalUnit : null);
+    _save_localStorage('pa_accel', accel || null);
+    _save_localStorage('pa_fa_accel', faAccel || null);
+    _save_localStorage('pa_flip_time', flipTime !== '60' ? flipTime : null);
+    _save_localStorage('pa_no_wake', noWakeEnabled ? '1' : '0');
+    _save_localStorage('pa_standoff_km', standoffKm !== '2.5' ? standoffKm : null);
+    _save_localStorage('pa_du', distanceUnit !== 'km' ? distanceUnit : null);
+    _save_localStorage('pa_vu', vrelUnit !== 'm/s' ? vrelUnit : null);
+    _save_localStorage('pa_vau', vArrivalUnit !== 'm/s' ? vArrivalUnit : null);
+    _save_localStorage('pa_fadu', faDistanceUnit !== 'km' ? faDistanceUnit : null);
+    _save_localStorage('pa_favu', faVrelUnit !== 'm/s' ? faVrelUnit : null);
+    _save_localStorage('pa_fvau', faVArrivalUnit !== 'm/s' ? faVArrivalUnit : null);
   }, [
     accel, faAccel, flipTime, noWakeEnabled, standoffKm,
-    distanceUnit, v0Unit, vArrivalUnit, faDistanceUnit, faVrelUnit, faVArrivalUnit,
+    distanceUnit, vrelUnit, vArrivalUnit, faDistanceUnit, faVrelUnit, faVArrivalUnit,
   ]);
 
-  // -- mode switch — copies shared fields (range, vrel) on transition --------
+  // -- mode switch - copies shared fields (range, vrel) on transition --------
   function switchMode(newMode: React.SetStateAction<string>) {
     if (newMode === 'approach' && appMode === 'burn') {
       if (!faDistance && distance) {
         setFaDistance(distance);
         setFaDistanceUnit(distanceUnit);
       }
-      if (!faVrel && v0) {
-        setFaVrel(v0);
-        setFaVrelUnit(v0Unit);
+      if (!faVrel && vrel) {
+        setFaVrel(vrel);
+        setFaVrelUnit(vrelUnit);
       }
     } else if (newMode === 'burn' && appMode === 'approach') {
       if (!distance && faDistance) {
         setDistance(faDistance);
         setDistanceUnit(faDistanceUnit);
       }
-      if (!v0 && faVrel) {
-        setV0(faVrel);
-        setV0Unit(faVrelUnit);
+      if (!vrel && faVrel) {
+        setVrel(faVrel);
+        setVrelUnit(faVrelUnit);
       }
     }
     setAppMode(newMode);
@@ -331,10 +331,6 @@ function BurnCalculatorInner() {
   const [copied, setCopied] = useState(false);
 
   function handleBurnCopy() {
-    if (!accelSolveResult || accelSolveResult.error !== null)
-    {
-      return;
-    }
     if (!finalPlan || finalPlan.error !== null || finalPlan.overshoot)
     {
       return;
@@ -344,7 +340,7 @@ function BurnCalculatorInner() {
       distanceUnit === 'au' ? 'AU' : distanceUnit === 'gm' ? 'GM' : distanceUnit === 'km' ? 'km' : 'm';
     lines.push('-- CURRENT STATE --');
     lines.push(`Range: ${distance} ${distLabel}`);
-    lines.push(`VREL: ${v0} ${v0Unit} (${v0Direction.toUpperCase()})`);
+    lines.push(`VREL: ${vrel} ${vrelUnit} (${v0Direction.toUpperCase()})`);
     if (vcrs.trim() !== '') lines.push(`VCRS: ${vcrs} ${vcrsUnit}`);
     lines.push('');
     lines.push('-- ARRIVAL PARAMETERS --');
@@ -353,8 +349,8 @@ function BurnCalculatorInner() {
     if (reactantBudget.trim() !== '') lines.push(`Reactant Budget: ${reactantBudget}`);
     lines.push('');
     lines.push('-- VESSEL PARAMETERS --');
-    if (solveForAccel && accelSolveResult && !accelSolveResult.error) {
-      lines.push(`Acceleration: ${(accelSolveResult.a_mps2 / G).toFixed(2)} G (computed)`);
+    if (solveForAccel && finalPlanOk) {
+      lines.push(`Acceleration: ${(finalPlan.a_mps2 / G).toFixed(2)} G (computed)`);
     } else {
       lines.push(`Acceleration: ${accel} G`);
     }
@@ -461,8 +457,8 @@ function BurnCalculatorInner() {
   const distance_m =
     parseNum(distance) *
     (distanceUnit === 'au' ? AU : distanceUnit === 'gm' ? 1e9 : distanceUnit === 'km' ? 1000 : 1);
-  const v0_mps =
-    parseNum(v0) * (v0Unit === 'km/s' ? 1000 : 1) * (v0Direction === 'receding' ? -1 : 1); //TODO: Make changes here to account for the fact this includes vcrs, and may be angled
+  const vrel_mps =
+    parseNum(vrel) * (vrelUnit === 'km/s' ? 1000 : 1) * (v0Direction === 'receding' ? -1 : 1); //TODO: Make changes here to account for the fact this includes vcrs, and may be angled
   const t_rotate_s_parsed = parseTargetDuration(flipTime);
   const t_rotate_s = t_rotate_s_parsed !== null ? t_rotate_s_parsed : parseNum(flipTime) || 0;
   const flipTimeAttempted = flipTime.trim() !== '';
@@ -498,13 +494,13 @@ function BurnCalculatorInner() {
   const solveForTime = targetAccelAttempted && !targetDurationAttempted;
   const validateBoth = targetAccelAttempted && targetDurationFilled;
 
-  // Surface a clean error if the destination is within the stand-off zone
+  // Standoff error checking
   const standoffError = !standoffValid
     ? 'invalid-standoff'
     : isFinite(distance_m) && distance_m <= standoff_m
       ? 'within-standoff'
       : null;
-  const hasWakeError = standoffError !== null; // keeps downstream compat
+  const hasWakeError = standoffError !== null;
   const standoffBlockMsg =
     standoffError === 'invalid-standoff'
       ? 'INVALID STAND-OFF DISTANCE'
@@ -512,83 +508,48 @@ function BurnCalculatorInner() {
         ? 'DISTANCE WITHIN NO-WAKE ZONE'
         : `DISTANCE WITHIN STAND-OFF ZONE (${standoffKm} KM)`;
   const standoffBlockResult = { error: standoffBlockMsg, detail: "" }
-  
-  //Single Solve results
-  type SingleSolveConstantBurnData = 
-    {vcrs_correction_m: number, burn_distance_m: number, accelSolveResult: AccelResult | ErrorResult | null, constantBurnPlan: BurnPlanResult};
-  
-  const accelOnlyConstantBurnData = targetAccelFilled ? (():SingleSolveConstantBurnData => {
-    //Phase 1, compute approximate time 
-    const zero_vcrs_burn_distance_m = distance_m - standoff_m;
-    const phase_1_constantBurnPlan = hasWakeError
-      ? standoffBlockResult
-      : computeConstantBurnPlan({ distance_m: zero_vcrs_burn_distance_m, v0_mps, a_mps2: targetAccel_mps2, v_arrival_mps, t_rotate_s })
-    if (phase_1_constantBurnPlan.error !== null || phase_1_constantBurnPlan.overshoot)
-    {
-      return {vcrs_correction_m: NaN, burn_distance_m: zero_vcrs_burn_distance_m, accelSolveResult: null, constantBurnPlan: phase_1_constantBurnPlan};
-    }
-    if (!isFinite(vcrs_mps) || vcrs_mps === 0)
-    { //No cross drift, so we got an exact solution already
-      return {vcrs_correction_m: 0, burn_distance_m: zero_vcrs_burn_distance_m, accelSolveResult: null, constantBurnPlan: phase_1_constantBurnPlan};
-    }
-    const drift_time_estimate_t = phase_1_constantBurnPlan.t_total;
+  const burn_distance_m = hasWakeError ? NaN : distance_m - standoff_m;
 
-    //Compute estimated burn_distance for a given cross drift
-    const cross_drift_m = Math.abs(vcrs_mps) * drift_time_estimate_t;
-    const burn_distance_m = Math.sqrt(distance_m ** 2 + cross_drift_m ** 2) - standoff_m
-    const vcrs_correction_m = burn_distance_m - zero_vcrs_burn_distance_m;
-    const constantBurnPlan = hasWakeError
+  // v0 error checking
+  const v0_squared = vrel_mps * vrel_mps - vcrs_mps - vcrs_mps;
+  const hasV0Error = isFinite(v0_squared) && v0_squared > 0;
+  const v0_mps = hasV0Error ? NaN : Math.sqrt(v0_squared);
+  
+  const accelOnlyConstantBurnPlan = targetAccelFilled ? (():BurnPlanResult => {
+    return hasWakeError
       ? standoffBlockResult
       : computeConstantBurnPlan({ distance_m: burn_distance_m, v0_mps, a_mps2: targetAccel_mps2, v_arrival_mps, t_rotate_s })
 
-    return {vcrs_correction_m, burn_distance_m, accelSolveResult: null, constantBurnPlan}
-
   })() : null;
 
-  const budgetOnlyConstantBurnData = targetBudgetFilled ? (():SingleSolveConstantBurnData => {
+  const budgetOnlyConstantBurnPlan = targetBudgetFilled ? (():BurnPlanResult => {
     //Compute duration from target constant burn time
     const solveT_s =  targetBudget_s + t_rotate_s;
-    
-    // Compute cross-track drift for the computed target duration, correct the true distance
-    const zero_vcrs_burn_distance_m = distance_m - standoff_m;
-    const cross_drift_m = Math.abs(vcrs_mps) * solveT_s;
-    const burn_distance_m =
-      vcrs_mps !== 0
-        ? Math.sqrt(distance_m ** 2 + cross_drift_m ** 2) - standoff_m
-        : zero_vcrs_burn_distance_m;
-    const vcrs_correction_m = burn_distance_m - zero_vcrs_burn_distance_m;
 
     const accelSolveResult = solveAcceleration({distance_m: burn_distance_m, v0_mps, v_arrival_mps, t_rotate_s, t_total_s: solveT_s});
-    const a_mps2 = accelSolveResult.error !== null ? 0 : accelSolveResult.a_mps2;
+    if (accelSolveResult.error !== null)
+    {
+      return accelSolveResult;
+    }
 
     //compute burn plan
-    const constantBurnPlan = hasWakeError
+    return hasWakeError
       ? standoffBlockResult
-      : computeConstantBurnPlan({ distance_m: burn_distance_m, v0_mps, a_mps2, v_arrival_mps, t_rotate_s })
-
-    return {vcrs_correction_m, burn_distance_m, accelSolveResult, constantBurnPlan}
+      : computeConstantBurnPlan({ distance_m: burn_distance_m, v0_mps, a_mps2: accelSolveResult.a_mps2, v_arrival_mps, t_rotate_s })
   })() : null;
 
-  const durationOnlyConstantBurnData = targetDurationFilled ? (():SingleSolveConstantBurnData => {
-    
-    // Compute cross-track drift for the computed target duration, correct the true distance
-    const zero_vcrs_burn_distance_m = distance_m - standoff_m;
-    const cross_drift_m = Math.abs(vcrs_mps) * targetDuration_s;
-    const burn_distance_m =
-      vcrs_mps !== 0
-        ? Math.sqrt(distance_m ** 2 + cross_drift_m ** 2) - standoff_m
-        : zero_vcrs_burn_distance_m;
-    const vcrs_correction_m = burn_distance_m - zero_vcrs_burn_distance_m;
+  const durationOnlyConstantBurnPlan = targetDurationFilled ? (():BurnPlanResult => {
 
     const accelSolveResult = solveAcceleration({distance_m: burn_distance_m, v0_mps, v_arrival_mps, t_rotate_s, t_total_s: targetDuration_s});
-    const a_mps2 = accelSolveResult.error !== null ? 0 : accelSolveResult.a_mps2;
+    if (accelSolveResult.error !== null)
+    {
+      return accelSolveResult;
+    }
 
     //compute burn plan
-    const constantBurnPlan = hasWakeError
+    return hasWakeError
       ? standoffBlockResult
-      : computeConstantBurnPlan({ distance_m: burn_distance_m, v0_mps, a_mps2, v_arrival_mps, t_rotate_s })
-
-    return {vcrs_correction_m, burn_distance_m, accelSolveResult, constantBurnPlan}
+      : computeConstantBurnPlan({ distance_m: burn_distance_m, v0_mps, a_mps2: accelSolveResult.a_mps2, v_arrival_mps, t_rotate_s })
   })() : null;
 
   const optimizeAccel = targetBudgetFilled && targetDurationFilled;
@@ -596,17 +557,28 @@ function BurnCalculatorInner() {
   const optimizeDuration = targetBudgetFilled && targetAccelFilled;
 
   const optimalBudgetPlan = optimizeBudget ? (() => {
-    if (accelOnlyConstantBurnData === null)
+    if (accelOnlyConstantBurnPlan === null)
     {
       return null;
     }
-    const {burn_distance_m, constantBurnPlan} = accelOnlyConstantBurnData
+    if (accelOnlyConstantBurnPlan.error !== null || accelOnlyConstantBurnPlan.overshoot)
+    {
+      return accelOnlyConstantBurnPlan;
+    }
     const a_mps2 = targetAccel_mps2;
-    if (constantBurnPlan.error !== null || constantBurnPlan.overshoot || !isFinite(a_mps2) || a_mps2 <= 0)
+    if (!isFinite(a_mps2) || a_mps2 <= 0)
+    {
+      return null; //TODO: Replace with targetAccel_mps2 parsing error
+    }
+    const constantBurn_v_max = accelOnlyConstantBurnPlan.v_max;
+    if(durationOnlyConstantBurnPlan === null)
     {
       return null;
     }
-    const constantBurn_v_max = (constantBurnPlan.error === null && !constantBurnPlan.overshoot) ? constantBurnPlan.v_max : 0
+    if (durationOnlyConstantBurnPlan.error !== null || durationOnlyConstantBurnPlan.overshoot)
+    {
+      return durationOnlyConstantBurnPlan;
+    }
 
     //Kinamatic equations will eventually give you m^2 - Pm + Q = 0 as below, so the equations below is just implementing the quadratic equation.
     //P is fliped to negative for ease of computation
@@ -618,65 +590,83 @@ function BurnCalculatorInner() {
       const v_max_small_root = (P - Math.sqrt(disc)) / 2; // attempt smaller root first
       if (v_max_small_root > v0_mps && v_max_small_root > v_arrival_mps && v_max_small_root < constantBurn_v_max) {
         const plan = buildDriftPlan({ distance_m: burn_distance_m, v0_mps, a_mps2, v_arrival_mps, t_rotate_s, v_max: v_max_small_root });
-        if (plan !== null) //Skip plan is bad, to attempt larger root
+        if (plan !== null) 
         {
           return plan;
         }
       }
-      const v_max_large_root = (P - Math.sqrt(disc)) / 2; // try larger root next (TODO: Check if this gives sensible solutions, not sure what this means physically)
+      const v_max_large_root = (P + Math.sqrt(disc)) / 2; // try larger root next (TODO: Check if this gives sensible solutions, not sure what this means physically)
       if (v_max_large_root > v0_mps && v_max_large_root > v_arrival_mps && v_max_large_root < constantBurn_v_max) {
         return buildDriftPlan({ distance_m: burn_distance_m, v0_mps, a_mps2, v_arrival_mps, t_rotate_s, v_max: v_max_large_root });
       }
     }
-    return null
+    return null //TODO: Replace with error
   })() : null
   const optimalDurationPlan = optimizeDuration ? (() => {
-    if (accelOnlyConstantBurnData === null)
+    if (accelOnlyConstantBurnPlan === null)
     {
       return null;
     }
-    const {burn_distance_m} = accelOnlyConstantBurnData
+    if (accelOnlyConstantBurnPlan.error !== null || accelOnlyConstantBurnPlan.overshoot)
+    {
+      return accelOnlyConstantBurnPlan;
+    }
+    if (budgetOnlyConstantBurnPlan === null)
+    {
+      return null;
+    }
+    if (budgetOnlyConstantBurnPlan.error !== null || budgetOnlyConstantBurnPlan.overshoot)
+    {
+      return budgetOnlyConstantBurnPlan;
+    }
     const a_mps2 = targetAccel_mps2;
     if (!isFinite(a_mps2) || a_mps2 <= 0)
     {
       return null;
     }
-    // v_max achievable by burning the full budget (a·budget split accel+brake)
     const v_max_budget = (a_mps2 * targetBudget_s + v0_mps + v_arrival_mps) / 2;
 
     if (v_max_budget <= v0_mps || v_max_budget <= v_arrival_mps) {
-      return { error: 'BUDGET INSUFFICIENT — CANNOT BRAKE TO TARGET VELOCITY', detail : "" };
+        const requiredDeltaV = Math.abs(v_arrival_mps - v0_mps)
+        const requiredBudget = formatTargetDuration(Math.floor(requiredDeltaV / a_mps2));
+        const targetBudget = formatTargetDuration(Math.floor(targetBudget_s));
+        return {error : "REACTANT BUDGET INSUFFICIENT", detail : `This burn requires at least ${requiredBudget} of reactant; current budget is ${targetBudget}.`}
     } else {
-      // Budget < requirement: drift at the budget-constrained v_max.
-      return buildDriftPlan({ distance_m: burn_distance_m, v0_mps, a_mps2, v_arrival_mps, t_rotate_s, v_max: v_max_budget })
+      const driftPlan = buildDriftPlan({ distance_m: burn_distance_m, v0_mps, a_mps2, v_arrival_mps, t_rotate_s, v_max: v_max_budget });
+      if (driftPlan !== null)
+      {
+        return driftPlan
+      }
+      else //Excess budget, go back to accelOnly
+      {
+        return accelOnlyConstantBurnPlan;
+      }
     }
   })() : null
 
   
   const optimalAccelPlan = optimizeAccel ? (() => {
     //Extract budgetOnly extrema data
-    if(budgetOnlyConstantBurnData === null)
+    if(budgetOnlyConstantBurnPlan === null)
     {
       return null;
     }
-    const {accelSolveResult: budgetOnlyAccelSolveResults, constantBurnPlan: budgetOnlyConstantBurnPlan} = budgetOnlyConstantBurnData
-    if (budgetOnlyAccelSolveResults === null || budgetOnlyAccelSolveResults.error !== null)
+    if (budgetOnlyConstantBurnPlan.error !== null || budgetOnlyConstantBurnPlan.overshoot)
     {
-      return null;
+      return budgetOnlyConstantBurnPlan;
     }
-    let max_a_mps2 = budgetOnlyAccelSolveResults.a_mps2;
+    let max_a_mps2 = budgetOnlyConstantBurnPlan.a_mps2;
 
     //Extract durationOnly extrema data
-    if(durationOnlyConstantBurnData === null)
+    if(durationOnlyConstantBurnPlan === null)
     {
       return null;
     }
-    const {burn_distance_m, accelSolveResult: durationOnlyConstantBurnResults, constantBurnPlan: durationOnlyConstantBurnPlan} = durationOnlyConstantBurnData;
-    if (durationOnlyConstantBurnResults === null || durationOnlyConstantBurnResults.error !== null)
+    if (durationOnlyConstantBurnPlan.error !== null || durationOnlyConstantBurnPlan.overshoot)
     {
-      return null;
+      return durationOnlyConstantBurnPlan;
     }
-    let min_a_mps2 = durationOnlyConstantBurnResults.a_mps2
+    let min_a_mps2 = durationOnlyConstantBurnPlan.a_mps2
     if (min_a_mps2 >= max_a_mps2) //budgetOnly no longer satisfies duration requriements, but durationOnly still would satisfy budget in excess
     {
       return durationOnlyConstantBurnPlan;
@@ -718,13 +708,17 @@ function BurnCalculatorInner() {
   const singleconstraintSolving = targetBudgetFilled || targetDurationFilled || targetAccelFilled
 
   const doublePlan = optimalBudgetPlan ?? optimalDurationPlan ?? optimalAccelPlan;
-  const singlePlanData = accelOnlyConstantBurnData ?? budgetOnlyConstantBurnData ?? durationOnlyConstantBurnData;
-  const finalPlan = (driftPlan && driftPlan.error === null) ? driftPlan : constantBurnPlan;
-  const finalPlanOk = finalPlan && finalPlan.error === null && !finalPlan.overshoot && constantBurnPlan.error === null && !constantBurnPlan.overshoot;
+  const singlePlan = accelOnlyConstantBurnPlan ?? budgetOnlyConstantBurnPlan ?? durationOnlyConstantBurnPlan;
+  const finalPlan = doubleConstraintSolving ? doublePlan : singlePlan;
+  const finalPlanOk = finalPlan && finalPlan.error === null && !finalPlan.overshoot;
   const isDriftMode = finalPlanOk && finalPlan.t_drift !== 0 && finalPlan.d_drift !== 0;
 
-  // VCRS advisory threshold — warn when cross-track drift extends burn distance by >5%
-  const highVcrsWarning = vcrs_correction_m >= burn_distance_m * 0.05;
+  //Temp finalPlanUnpacking (TODO: Refactor)
+  const a_mps2 = finalPlanOk ? finalPlan.a_mps2 : NaN;
+
+  // VCRS advisory threshold - warn when cross-track drift extends burn distance by >5%
+  const vcrs_drift_m = finalPlanOk ? finalPlan.t_total * vcrs_mps : NaN;
+  const highVcrsWarning = vcrs_drift_m >= burn_distance_m * 0.05;
 
   // Manual null heading + null time for high VCRS warning
   const vcrsNullTime =
@@ -768,7 +762,7 @@ function BurnCalculatorInner() {
         return isFinite(v) && v < 0.01 * G ? NaN : v;
       })();
 
-  // FA budget conversion — parsed same as Desired Travel Time (bare number = seconds)
+  // FA budget conversion - parsed same as Desired Travel Time (bare number = seconds)
   const fa_budget_s = (() => {
     const parsed = parseTargetDuration(faBudget);
     return parsed !== null && parsed > 0 ? parsed : null;
@@ -906,11 +900,9 @@ function BurnCalculatorInner() {
   const driftPercent = t_total && isDriftMode ? (t_drift / t_total) * 100 : 0;
   const brakePercent = t_total ? ((finalPlanOk ? finalPlan.t_brake : 0) / t_total) * 100 : 0;
 
-  const budgetInsufficient = !!(driftPlan && driftPlan.error);
-  const inputAndFinalPlanValid = finalPlanOk && t_total > 0 && !budgetInsufficient;
   const burnMissingFields = [
     (distance.trim() === '' || !isFinite(distance_m)) && 'CURRENT RNG',
-    (v0.trim() === '' || !isFinite(v0_mps)) && 'CURRENT VREL',
+    (vrel.trim() === '' || !isFinite(v0_mps)) && 'CURRENT VREL',
     !solveForAccel &&
       (accel.trim() === '' || !isFinite(parseGValue(accel))) &&
       'ACCELERATION',
@@ -918,22 +910,18 @@ function BurnCalculatorInner() {
     vArrival.trim() !== '' && !isFinite(v_arrival_mps) && 'CUTOFF VELOCITY',
     vcrs.trim() !== '' && !isFinite(vcrs_mps) && 'VCRS',
   ].filter(Boolean);
-  const statusText = budgetInsufficient
-    ? 'INVALID'
-    : !finalPlan || finalPlan.error !== null
-      ? 'INVALID'
-      : finalPlan.overshoot
-        ? 'OVERSHOOT'
-        : inputAndFinalPlanValid
-          ? 'READY'
-          : 'STANDBY';
+  const statusText = 
+    finalPlan === null ? 'STANDBY' :
+    finalPlan.error !== null ? 'INVALID' :
+    finalPlan.overshoot ? 'OVERSHOOT' :
+    'READY';
 
-  // Combined status for header light — mode-aware
+  // Combined status for header light - mode-aware
   const activeStatusText = appMode === 'approach' ? faStatusText : statusText;
   const activeHasError =
     appMode === 'approach'
       ? faPlan && (faPlan.error || fa_hasWakeError)
-      : constantBurnPlan.error || hasWakeError || !!(driftPlan && driftPlan.error);
+      : (finalPlan && finalPlan.error !== null);
   const activeIsOvershoot = appMode === 'approach' ? faPlan && faPlan.error === null && faPlan.overshoot : finalPlan && finalPlan.error === null && finalPlan.overshoot;
 
   return (
@@ -1044,13 +1032,13 @@ function BurnCalculatorInner() {
                   )}
                   <InputRow
                     label="Current VREL"
-                    value={v0}
-                    onChange={setV0}
-                    unit={v0Unit}
+                    value={vrel}
+                    onChange={setVrel}
+                    unit={vrelUnit}
                     units={['m/s', 'km/s']}
-                    onUnitChange={setV0Unit}
+                    onUnitChange={setVrelUnit}
                     placeholder="e.g. 511.19"
-                    invalid={v0.trim() === ''}
+                    invalid={vrel.trim() === ''}
                     inputMode="decimal"
                     tooltip={{
                       desc: "Input your vessel's current velocity to the target. If no ETA is present, set mode to RECEDING.",
@@ -1156,7 +1144,7 @@ function BurnCalculatorInner() {
                   >
                     {targetDurationError ? (
                       <span style={{ color: 'var(--red)' }}>
-                        INVALID FORMAT — USE 4D 3H 2M 37S OR HH:MM:SS
+                        INVALID FORMAT - USE 4D 3H 2M 37S OR HH:MM:SS
                       </span>
                     ) : targetDurationAttempted && targetDurationValid ? (
                       <span style={{ color: 'var(--green)' }}>
@@ -1181,7 +1169,7 @@ function BurnCalculatorInner() {
                   {flipTimeError && (
                     <div className="bc-field-note" style={{ marginBottom: 6, paddingLeft: 118 }}>
                       <span style={{ color: 'var(--red)' }}>
-                        INVALID FORMAT — USE 60, 1M 30S, ETC.
+                        INVALID FORMAT - USE 60, 1M 30S, ETC.
                       </span>
                     </div>
                   )}
@@ -1238,14 +1226,14 @@ function BurnCalculatorInner() {
                   <div className="bc-field-note" style={{ marginTop: 6, paddingLeft: 118 }}>
                     {gameTimeError ? (
                       <span style={{ color: 'var(--red)' }}>
-                        INVALID FORMAT — USE YYYY-MM-DD HH:MM:SS OR HH:MM:SS
+                        INVALID FORMAT - USE YYYY-MM-DD HH:MM:SS OR HH:MM:SS
                       </span>
                     ) : gameTimeValid ? (
                       <span style={{ color: 'var(--green)' }}>
                         ● TARGETS COMPUTED FROM GAME CLOCK
                       </span>
                     ) : (
-                      <span>LEAVE BLANK FOR RELATIVE (T+) TIMES — DATE OPTIONAL</span>
+                      <span>LEAVE BLANK FOR RELATIVE (T+) TIMES - DATE OPTIONAL</span>
                     )}
                   </div>
                 </>
@@ -1256,7 +1244,7 @@ function BurnCalculatorInner() {
                   {/* -- Current State -- */}
                   <div className="bc-panel-header">◇ Current State</div>
                   <div className="bc-fa-notice">
-                    VCRS SHOULD BE 0.00 M/S BEFORE FINAL APPROACH — NULL CROSS-TRACK VELOCITY BEFORE
+                    VCRS SHOULD BE 0.00 M/S BEFORE FINAL APPROACH - NULL CROSS-TRACK VELOCITY BEFORE
                     PROCEEDING
                   </div>
                   <InputRow
@@ -1335,7 +1323,7 @@ function BurnCalculatorInner() {
                     placeholder="e.g. 1.95g"
                     invalid={!faAccelBlank && (!isFinite(fa_a_mps2) || fa_a_mps2 < 0.01 * G)}
                     tooltip={{
-                      desc: 'Enter your desired sustained acceleration for this burn. Leave blank for constant-burn mode — required G computed automatically.',
+                      desc: 'Enter your desired sustained acceleration for this burn. Leave blank for constant-burn mode - required G computed automatically.',
                       img: TOOLTIP_IMG_ACCELERATION,
                     }}
                   />
@@ -1387,27 +1375,27 @@ function BurnCalculatorInner() {
                   <div className="bc-field-note" style={{ marginTop: 6, paddingLeft: 118 }}>
                     {faGameTimeError ? (
                       <span style={{ color: 'var(--red)' }}>
-                        INVALID FORMAT — USE YYYY-MM-DD HH:MM:SS OR HH:MM:SS
+                        INVALID FORMAT - USE YYYY-MM-DD HH:MM:SS OR HH:MM:SS
                       </span>
                     ) : faGameTimeValid ? (
                       <span style={{ color: 'var(--green)' }}>
                         ● TARGETS COMPUTED FROM GAME CLOCK
                       </span>
                     ) : (
-                      <span>LEAVE BLANK FOR RELATIVE (T+) TIMES — DATE OPTIONAL</span>
+                      <span>LEAVE BLANK FOR RELATIVE (T+) TIMES - DATE OPTIONAL</span>
                     )}
                   </div>
                 </>
               )}
             </div>
 
-            {/* RIGHT COLUMN — mode-conditional */}
+            {/* RIGHT COLUMN - mode-conditional */}
             {appMode === 'burn' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div className="bc-panel scratch-b" aria-live="polite" aria-atomic="false">
                   <div className="bc-panel-header bc-panel-header--actions">
                     <span>◇ Burn Solution</span>
-                    {inputAndFinalPlanValid && (
+                    {finalPlanOk && (
                       <button className="bc-copy-btn" onClick={handleBurnCopy}>
                         {copied ? 'COPIED' : 'COPY'}
                       </button>
@@ -1426,7 +1414,7 @@ function BurnCalculatorInner() {
                     </div>
                   )}
 
-                  {/* Below-minimum acceleration — only when no blank required fields */}
+                  {/* Below-minimum acceleration - only when no blank required fields */}
                   {!solveForAccel &&
                     accel.trim() !== '' &&
                     isFinite(parseGValue(accel)) &&
@@ -1441,36 +1429,14 @@ function BurnCalculatorInner() {
                       </div>
                     )}
 
-                  {/* Accel-solve error — only when no missing fields */}
-                  {solveForAccel &&
-                    accelSolveResult &&
-                    accelSolveResult.error &&
-                    isFinite(distance_m) &&
-                    distance_m > 0 &&
-                    isFinite(v0_mps) && (
-                      <div className="bc-warning" role="alert">
-                        <AlertTriangle size={14} color="var(--red)" />
-                        <div className="bc-warning-text">
-                          <strong>{accelSolveResult.error}</strong>
-                          {accelSolveResult.detail && (
-                            <>
-                              <br />
-                              {accelSolveResult.detail}
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                  {/* finalPlan.error — suppressed when pre-flight fires or when accel-solve already showed an error */}
-                  {finalPlan.error !== null &&
+                  {/* finalPlan.error - suppressed when pre-flight fires or when accel-solve already showed an error */}
+                  {finalPlan && finalPlan.error !== null &&
                     !burnMissingFields.length &&
                     isFinite(distance_m) &&
                     distance_m > 0 &&
                     isFinite(v0_mps) &&
                     (solveForAccel || isFinite(a_mps2)) &&
-                    isFinite(t_rotate_s) &&
-                    !(solveForAccel && accelSolveResult && accelSolveResult.error) && (
+                    isFinite(t_rotate_s) && (
                       <div className="bc-warning" role="alert">
                         <AlertTriangle size={14} color="var(--red)" />
                         <div className="bc-warning-text">
@@ -1485,7 +1451,7 @@ function BurnCalculatorInner() {
                       </div>
                     )}
 
-                  {finalPlan.error === null && finalPlan.overshoot && (
+                  {finalPlan && finalPlan.error === null && finalPlan.overshoot && (
                     <div className="bc-warning" role="alert">
                       <AlertTriangle size={14} color="var(--red)" />
                       <div className="bc-warning-text">
@@ -1507,7 +1473,7 @@ function BurnCalculatorInner() {
 
                   {finalPlanOk && finalPlan.flip_now && (
                     <div className="bc-info">
-                      <strong>ROTATE NOW</strong> — at or past geometric flip point. Begin rotation
+                      <strong>ROTATE NOW</strong> - at or past geometric flip point. Begin rotation
                       immediately.
                     </div>
                   )}
@@ -1515,7 +1481,7 @@ function BurnCalculatorInner() {
                   {finalPlanOk && highVcrsWarning && (
                     <>
                       <div className="bc-advisory">
-                        <strong>HIGH VCRS DETECTED</strong> — Cross-track velocity is{' '}
+                        <strong>HIGH VCRS DETECTED</strong> - Cross-track velocity is{' '}
                         {formatVelocity(Math.abs(vcrs_mps))}. VCRS is significantly extending burn
                         distance.
                       </div>
@@ -1558,7 +1524,7 @@ function BurnCalculatorInner() {
                               lineHeight: 1.6,
                             }}
                           >
-                            BURN AT {manualNullBearing} FOR THIS DURATION — THEN RE-ENTER VALUES FOR
+                            BURN AT {manualNullBearing} FOR THIS DURATION - THEN RE-ENTER VALUES FOR
                             A FRESH BURN PLAN
                           </div>
                         </>
@@ -1566,26 +1532,13 @@ function BurnCalculatorInner() {
                     </>
                   )}
 
-                  {budgetInsufficient && (
-                    <div className="bc-warning" role="alert">
-                      <AlertTriangle size={14} color="var(--red)" />
-                      <div className="bc-warning-text">
-                        <strong>REACTANT BUDGET INSUFFICIENT</strong>
-                        <br />
-                        This burn requires at least{' '}
-                        {formatTargetDuration(Math.floor((constantBurnPlan.t_accel || 0) + (constantBurnPlan.t_brake || 0)))} of
-                        reactant; current budget is {formatTargetDuration(Math.floor(targetBudget_s))}.
-                      </div>
-                    </div>
-                  )}
-
-                  {constantBurnPlan.error === null && !constantBurnPlan.overshoot && !budgetInsufficient && (
+                  {finalPlanOk && (
                     <>
-                      {/* -- Computed Accel — shown when solving for acceleration -- */}
-                      {solveForAccel && accelSolveResult && accelSolveResult.error === null && (
+                      {/* -- Computed Accel - shown when solving for acceleration -- */}
+                      {solveForAccel && (
                         <Readout
                           label="Computed Accel"
-                          value={`${(accelSolveResult.a_mps2 / G).toFixed(2)} G`}
+                          value={`${(finalPlan.a_mps2 / G).toFixed(2)} G`}
                           highlight
                           flickerKey={flickerKey}
                         />
@@ -1656,10 +1609,10 @@ function BurnCalculatorInner() {
                       />
 
                       {/* -- Divider -- */}
-                      {vcrs_correction_m >= burn_distance_m * 0.001 && (
+                      {vcrs_drift_m >= burn_distance_m * 0.001 && (
                         <div className="bc-info" style={{ marginTop: 10 }}>
-                          <strong>CROSS-TRACK CORRECTION APPLIED</strong> — burn distance extended
-                          by {formatDistance(vcrs_correction_m)} due to VCRS drift over burn
+                          <strong>CROSS-TRACK CORRECTION APPLIED</strong> - burn distance extended
+                          by {formatDistance(vcrs_drift_m)} due to VCRS drift over burn
                           duration.
                         </div>
                       )}
@@ -1667,8 +1620,8 @@ function BurnCalculatorInner() {
                   )}
                 </div>
 
-                {/* BURN REFERENCE — right column, below Burn Solution */}
-                {inputAndFinalPlanValid && (
+                {/* BURN REFERENCE - right column, below Burn Solution */}
+                {finalPlanOk && (
                   <div className="bc-panel scratch-b">
                     <div className="bc-panel-header">◇ Burn Reference</div>
                     <Readout
@@ -1761,7 +1714,7 @@ function BurnCalculatorInner() {
                       <AlertTriangle size={14} color="var(--red)" />
                       <div className="bc-warning-text">
                         <strong>
-                          REQUIRED DECELERATION BELOW MINIMUM THRUST (0.01 G) — CHECK UNITS OR
+                          REQUIRED DECELERATION BELOW MINIMUM THRUST (0.01 G) - CHECK UNITS OR
                           INCREASE RANGE
                         </strong>
                       </div>
@@ -1787,7 +1740,7 @@ function BurnCalculatorInner() {
                     <div className="bc-warning" role="alert">
                       <AlertTriangle size={14} color="var(--red)" />
                       <div className="bc-warning-text">
-                        <strong>CANNOT BRAKE IN TIME — OVERSHOOT IMMINENT</strong>
+                        <strong>CANNOT BRAKE IN TIME - OVERSHOOT IMMINENT</strong>
                         <br />
                         At {formatVelocity(fa_v0_mps)} closing, you cannot stop before the{' '}
                         {noWakeEnabled
@@ -1807,17 +1760,17 @@ function BurnCalculatorInner() {
                         <br />
                         Shortfall:{' '}
                         <strong>
-                          {isFinite(faPlan.shortfall) ? formatDistance(faPlan.shortfall) : '—'}
+                          {isFinite(faPlan.shortfall) ? formatDistance(faPlan.shortfall) : '-'}
                         </strong>
                         <br />
                         Required deceleration:{' '}
                         <strong>
                           {isFinite(faPlan.required_a)
                             ? (faPlan.required_a / G).toFixed(2) + ' G'
-                            : '—'}
+                            : '-'}
                         </strong>{' '}
-                        — exceeds available{' '}
-                        {isFinite(fa_a_mps2) ? (fa_a_mps2 / G).toFixed(2) + ' G' : '—'}.<br />
+                        - exceeds available{' '}
+                        {isFinite(fa_a_mps2) ? (fa_a_mps2 / G).toFixed(2) + ' G' : '-'}.<br />
                         The solver cannot recover this approach. Reduce closing velocity immediately
                         if possible.
                       </div>
@@ -1826,13 +1779,13 @@ function BurnCalculatorInner() {
 
                   {faPlanOk && (
                     <>
-                      {/* Required G vs available G — or constant-burn mode */}
+                      {/* Required G vs available G - or constant-burn mode */}
                       {(() => {
                         const req_g = faPlan.required_a / G;
                         if (faAccelBlank) {
                           return (
                             <div className="bc-fa-ok">
-                              {`● CONSTANT BURN — REQUIRED: ${req_g.toFixed(2)} G`}
+                              {`● CONSTANT BURN - REQUIRED: ${req_g.toFixed(2)} G`}
                             </div>
                           );
                         }
@@ -1841,8 +1794,8 @@ function BurnCalculatorInner() {
                         return (
                           <div className={gOk ? 'bc-fa-ok' : 'bc-fa-warn'}>
                             {gOk
-                              ? `● DECELERATION OK — REQUIRED: ${req_g.toFixed(2)} G / AVAILABLE: ${avail_g.toFixed(2)} G`
-                              : `⚠ DECELERATION MARGINAL — REQUIRED: ${req_g.toFixed(2)} G / AVAILABLE: ${avail_g.toFixed(2)} G — EXCEEDING RATED THRUST IS RISKY`}
+                              ? `● DECELERATION OK - REQUIRED: ${req_g.toFixed(2)} G / AVAILABLE: ${avail_g.toFixed(2)} G`
+                              : `⚠ DECELERATION MARGINAL - REQUIRED: ${req_g.toFixed(2)} G / AVAILABLE: ${avail_g.toFixed(2)} G - EXCEEDING RATED THRUST IS RISKY`}
                           </div>
                         );
                       })()}
@@ -1851,22 +1804,22 @@ function BurnCalculatorInner() {
                       {fa_reactant_ok !== null && (
                         <div className={fa_reactant_ok ? 'bc-fa-ok' : 'bc-fa-warn'}>
                           {fa_reactant_ok
-                            ? `● REACTANT SUFFICIENT — BRAKE REQUIRES ${formatTargetDuration(Math.floor(faPlan.t_brake))}, BUDGET IS ${formatTargetDuration(Math.floor(fa_budget_s))}`
-                            : `⚠ REACTANT DEFICIT — BRAKE REQUIRES ${formatTargetDuration(Math.floor(faPlan.t_brake))}, BUDGET IS ONLY ${formatTargetDuration(Math.floor(fa_budget_s))}`}
+                            ? `● REACTANT SUFFICIENT - BRAKE REQUIRES ${formatTargetDuration(Math.floor(faPlan.t_brake))}, BUDGET IS ${formatTargetDuration(Math.floor(fa_budget_s))}`
+                            : `⚠ REACTANT DEFICIT - BRAKE REQUIRES ${formatTargetDuration(Math.floor(faPlan.t_brake))}, BUDGET IS ONLY ${formatTargetDuration(Math.floor(fa_budget_s))}`}
                         </div>
                       )}
 
-                      {/* Throttled-G reactant line — only when accel entered and required_a < fa_a_mps2 */}
+                      {/* Throttled-G reactant line - only when accel entered and required_a < fa_a_mps2 */}
                       {fa_throttled_brake_s !== null && (
                         <div className={fa_throttled_ok ? 'bc-fa-ok' : 'bc-advisory'}>
                           {fa_throttled_ok
-                            ? `● IF THROTTLED TO ${(faPlan.required_a / G).toFixed(2)} G — BRAKE REQUIRES ${formatTargetDuration(Math.floor(fa_throttled_brake_s))}, BUDGET SUFFICIENT`
-                            : `NOTE: THROTTLING DOWN TO ${(faPlan.required_a / G).toFixed(2)} G WOULD EXTEND BRAKING BURN TO ${formatTargetDuration(Math.floor(fa_throttled_brake_s))} — REACTANT BUDGET INSUFFICIENT FOR MINIMUM ACCELERATION BURN BASED ON CURRENT SETTINGS.`}
+                            ? `● IF THROTTLED TO ${(faPlan.required_a / G).toFixed(2)} G - BRAKE REQUIRES ${formatTargetDuration(Math.floor(fa_throttled_brake_s))}, BUDGET SUFFICIENT`
+                            : `NOTE: THROTTLING DOWN TO ${(faPlan.required_a / G).toFixed(2)} G WOULD EXTEND BRAKING BURN TO ${formatTargetDuration(Math.floor(fa_throttled_brake_s))} - REACTANT BUDGET INSUFFICIENT FOR MINIMUM ACCELERATION BURN BASED ON CURRENT SETTINGS.`}
                         </div>
                       )}
                       {fa_budget_floor_g !== null && (
                         <div className="bc-fa-ok">
-                          {`● AT CURRENT BUDGET — MINIMUM THROTTLE IS ${fa_budget_floor_g.toFixed(2)} G`}
+                          {`● AT CURRENT BUDGET - MINIMUM THROTTLE IS ${fa_budget_floor_g.toFixed(2)} G`}
                         </div>
                       )}
 
@@ -1901,7 +1854,7 @@ function BurnCalculatorInner() {
                         </>
                       ) : (
                         <div className="bc-fa-warn" style={{ marginBottom: 8 }}>
-                          ⚠ BRAKE NOW — YOU ARE AT OR PAST THE BRAKE INITIATION POINT
+                          ⚠ BRAKE NOW - YOU ARE AT OR PAST THE BRAKE INITIATION POINT
                         </div>
                       )}
 
@@ -1955,13 +1908,13 @@ function BurnCalculatorInner() {
             )}
           </div>
 
-          {/* TIMELINE + GAME-TIME TARGETS — burn mode only */}
+          {/* TIMELINE + GAME-TIME TARGETS - burn mode only */}
           {appMode === 'burn' && (
             <div className="bc-panel bc-timeline-panel scratch-c">
               <div className="bc-panel-header">◇ Burn Timeline</div>
 
               <div className="bc-timeline">
-                {inputAndFinalPlanValid ? (
+                {finalPlanOk ? (
                   <>
                     {t_accel > 0 && (
                       <div
@@ -2071,36 +2024,36 @@ function BurnCalculatorInner() {
                 <TargetCell
                   variant="rotate"
                   label={
-                    inputAndFinalPlanValid
+                    finalPlanOk
                       ? isDriftMode
                         ? '↺ End Accel / Flip'
                         : '↺ Begin Rotate'
                       : '↺ Begin Rotate'
                   }
-                  gameTime={inputAndFinalPlanValid ? rotateTarget : null}
-                  relative={inputAndFinalPlanValid ? `T+${formatTargetDuration(Math.floor(t_accel))}` : '--:--:--'}
+                  gameTime={finalPlanOk ? rotateTarget : null}
+                  relative={finalPlanOk ? `T+${formatTargetDuration(Math.floor(t_accel))}` : '--:--:--'}
                 />
                 <TargetCell
                   variant="brake"
                   label={
-                    inputAndFinalPlanValid
+                    finalPlanOk
                       ? isDriftMode
                         ? '⊖ End Drift / Brake'
                         : '⊖ Begin Brake'
                       : '⊖ Begin Brake'
                   }
-                  gameTime={inputAndFinalPlanValid ? (isDriftMode ? driftEndTarget : brakeTarget) : null}
-                  relative={inputAndFinalPlanValid ? `T+${formatTargetDuration(Math.floor(t_brake_start))}` : '--:--:--'}
+                  gameTime={finalPlanOk ? (isDriftMode ? driftEndTarget : brakeTarget) : null}
+                  relative={finalPlanOk ? `T+${formatTargetDuration(Math.floor(t_brake_start))}` : '--:--:--'}
                 />
                 <TargetCell
                   variant="arrive"
                   label="◉ Arrival"
-                  gameTime={inputAndFinalPlanValid ? arriveTarget : null}
-                  relative={inputAndFinalPlanValid ? `T+${formatTargetDuration(Math.floor(t_total))}` : '--:--:--'}
+                  gameTime={finalPlanOk ? arriveTarget : null}
+                  relative={finalPlanOk ? `T+${formatTargetDuration(Math.floor(t_total))}` : '--:--:--'}
                 />
               </div>
 
-              {inputAndFinalPlanValid && !gameTimeValid && (
+              {finalPlanOk && !gameTimeValid && (
                 <div
                   style={{
                     marginTop: 12,

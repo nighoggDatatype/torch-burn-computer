@@ -3,14 +3,14 @@ import {
   G,
   DAY,
   NO_WAKE_M,
-} from './constants.js';
+} from '../utils/constants.js';
 import {
   parseNum,
   parseGValue,
   parseGameTime,
   parseTargetDuration,
   daysInMonth,
-} from './parsers.js';
+} from '../utils/parsers.js';
 import {
   formatTime,
   formatDistance,
@@ -18,12 +18,12 @@ import {
   formatTargetDuration,
   addGameTime,
   formatGameTime,
-} from './formatters.js';
+} from '../utils/formatters.js';
 import {
   computeConstantBurnPlan,
   computeFinalApproach,
   solveAcceleration,
-} from './physics.js';
+} from '../utils/physics.js';
 
 // ───── constants ──────────────────────────────────────────────────────────
 

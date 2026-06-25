@@ -5,13 +5,13 @@ import {
   G,
   AU,
   NO_WAKE_M,
-} from './constants.js';
+} from './utils/constants.js';
 import {
   parseNum,
   parseGValue,
   parseGameTime,
   parseTargetDuration,
-} from './parsers.js';
+} from './utils/parsers.js';
 import {
   formatTime,
   formatDistance,
@@ -20,16 +20,20 @@ import {
   formatGameTime,
   formatTargetDuration,
   FinalGameTime,
-} from './formatters.js';
+} from './utils/formatters.js';
 import {
   computeConstantBurnPlan,
   computeFinalApproach,
   solveAcceleration,
   buildDriftPlan,
-  AccelResult,
-  ErrorResult,
   BurnPlanResult,
-} from './physics.js';
+} from './utils/physics.js';
+import ErrorBoundary from './components/ErrorBoundary';
+import Readout from './components/Readout';
+import TargetCell from './components/TargetCell';
+import InputRow from './components/InputRow';
+import { _urlParams, _urlParams_localStorage, _localStorage, _save_localStorage } from './utils/persistence';
+import StandoffControl from './components/StandoffControl';
 
 const APP_VERSION = 'v0.6.4';
 
@@ -39,124 +43,6 @@ const TOOLTIP_IMG_CURRENTVEL = `${import.meta.env.BASE_URL}tooltips/current-vel.
 const TOOLTIP_IMG_VCRS = `${import.meta.env.BASE_URL}tooltips/vcrs.jpg`;
 const TOOLTIP_IMG_REACTANTBUDGET = `${import.meta.env.BASE_URL}tooltips/reactantbudget.jpg`;
 const TOOLTIP_IMG_ACCELERATION = `${import.meta.env.BASE_URL}tooltips/acceleration.jpg`;
-
-// ----- persistence helpers -------------------------------------------------
-// URL params take precedence over localStorage; per-burn readings are URL-only.
-
-function _urlParams(key: string) {
-  try {
-    return new URLSearchParams(window.location.search).get(key);
-  } catch {
-    return null;
-  }
-}
-function _localStorage(key: string) {
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-function _save_localStorage(key: string, value: string | null | undefined) {
-  try {
-    if (value !== null && value !== undefined) localStorage.setItem(key, String(value));
-    else localStorage.removeItem(key);
-  } catch {}
-}
-/** Read from URL, then localStorage, then fall back to default. */
-function _urlParams_localStorage(urlKey: string, lsKey: string, fallback: string) {
-  const v = _urlParams(urlKey);
-  return v !== null ? v : (_localStorage(lsKey) ?? fallback);
-}
-
-// ----- StandoffControl subcomponent ----------------------------------------
-// Renders the No-Wake toggle, stand-off distance input, and the field note.
-// Shared between Burn Plan and Final Approach to avoid duplicating this block.
-
-function NoWakeToggle({ noWakeEnabled, setNoWakeEnabled } : { noWakeEnabled: boolean, setNoWakeEnabled: React.Dispatch<React.SetStateAction<boolean>> }) {
-  return (
-    <div
-      style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 118, marginBottom: 8 }}
-    >
-      <button
-        className={`bc-unit-btn${!noWakeEnabled ? ' active' : ''}`}
-        onClick={() => setNoWakeEnabled(false)}
-      >
-        OPEN SPACE
-      </button>
-      <button
-        className={`bc-unit-btn${noWakeEnabled ? ' active' : ''}`}
-        onClick={() => setNoWakeEnabled(true)}
-        style={
-          noWakeEnabled
-            ? {
-                color: 'var(--cyan)',
-                borderColor: 'var(--cyan)',
-                background: 'rgba(77,208,255,0.12)',
-              }
-            : {}
-        }
-      >
-        NO-WAKE ZONE
-      </button>
-    </div>
-  );
-}
-
-function StandoffControl({ noWakeEnabled, setNoWakeEnabled, standoffKm, setStandoffKm } : { noWakeEnabled: boolean, setNoWakeEnabled : React.Dispatch<React.SetStateAction<boolean>>, standoffKm: string, setStandoffKm: React.Dispatch<React.SetStateAction<string>> }) {
-  return (
-    <>
-      {/* STAND-OFF DISTANCE - locked at 300 when NO-WAKE ZONE, editable in OPEN SPACE */}
-      <div className="bc-input-row">
-        <div className="bc-label">Stand-off</div>
-        <input
-          className="bc-input"
-          type="text"
-          inputMode="decimal"
-          value={noWakeEnabled ? '300km' : standoffKm}
-          placeholder="e.g. 2.5km"
-          disabled={noWakeEnabled}
-          onChange={(e) => !noWakeEnabled && setStandoffKm(e.target.value)}
-        />
-      </div>
-      <NoWakeToggle noWakeEnabled={noWakeEnabled} setNoWakeEnabled={setNoWakeEnabled} />
-    </>
-  );
-}
-
-// ----- error boundary --------------------------------------------------
-
-class ErrorBoundary extends React.Component {
-  state = { err: null };
-  static getDerivedStateFromError(err: any) {
-    return { err };
-  }
-  render() {
-    if (this.state.err) {
-      return (
-        <div
-          style={{
-            padding: 24,
-            fontFamily: "'IBM Plex Mono', monospace",
-            color: '#ff5d5d',
-            letterSpacing: '0.1em',
-            background: '#1a1d20',
-            minHeight: '100vh',
-          }}
-        >
-          ⚠ GUIDANCE COMPUTER FAULT
-          <br />
-          <br />
-          {String(this.state.err?.message || this.state.err)}
-          <br />
-          <br />
-          Reload to restart the nav subsystem.
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
 
 export default function BurnCalculator() {
   return (
@@ -2074,163 +1960,3 @@ function BurnCalculatorInner() {
   );
 }
 
-// ----- subcomponents ---------------------------------------------------
-
-function InputRow({
-  label,
-  value,
-  onChange,
-  unit,
-  units,
-  onUnitChange = () => {},
-  tooltip,
-  placeholder = "",
-  invalid = false,
-  inputMode = 'text',
-} : {
-  label: string,
-  value: string,
-  onChange: React.Dispatch<React.SetStateAction<string>>,
-  unit?: string,
-  units: string[],
-  onUnitChange?: React.Dispatch<React.SetStateAction<string>>,
-  tooltip? : {desc: string, img: string},
-  placeholder?: string,
-  invalid? : boolean,
-  inputMode? : "text" | "decimal"
-}) {
-  const id = React.useId();
-  const [showTip, setShowTip] = React.useState(false);
-  const [tipPos, setTipPos] = React.useState({ top: 0, left: 0 });
-  const badgeRef = React.useRef<HTMLButtonElement>(null);
-  const cardRef = React.useRef<HTMLDivElement>(null);
-
-  const openTip = () => {
-    if (badgeRef.current) {
-      const rect = badgeRef.current.getBoundingClientRect();
-      setTipPos({ top: rect.bottom + 6, left: rect.left });
-    }
-    setShowTip(true);
-  };
-
-  // After the card renders, measure its real height and reposition if needed
-  React.useEffect(() => {
-    if (!showTip || !cardRef.current || !badgeRef.current) return;
-    const card = cardRef.current;
-    const rect = badgeRef.current.getBoundingClientRect();
-    const cardHeight = card.offsetHeight;
-    const spaceBelow = window.innerHeight - rect.bottom - 6;
-    const spaceAbove = rect.top - 6;
-    const top =
-      spaceBelow >= cardHeight || spaceBelow >= spaceAbove
-        ? rect.bottom + 6
-        : Math.max(8, rect.top - cardHeight - 6);
-    setTipPos({ top, left: rect.left });
-  }, [showTip]);
-
-  return (
-    <div className="bc-input-row">
-      <label className="bc-label" htmlFor={id} style={{ display: 'flex', alignItems: 'center' }}>
-        <span style={{ flex: 1 }}>{label}</span>
-        {tooltip && (
-          <span className="bc-tooltip-wrap">
-            <button
-              type="button"
-              className="bc-tooltip-badge"
-              ref={badgeRef}
-              aria-label={`Help for ${label}`}
-              onMouseEnter={openTip}
-              onMouseLeave={() => setShowTip(false)}
-              onFocus={openTip}
-              onBlur={() => setShowTip(false)}
-            >
-              ?
-            </button>
-            {showTip && (
-              <div
-                className="bc-tooltip-card"
-                ref={cardRef}
-                style={{ top: tipPos.top, left: tipPos.left }}
-              >
-                <div className="bc-tooltip-header">{label}</div>
-                <div className="bc-tooltip-desc">{tooltip.desc}</div>
-                {tooltip.img && (
-                  <img
-                    className="bc-tooltip-img"
-                    src={tooltip.img}
-                    alt={label}
-                    onError={(e) => {
-                      e.currentTarget.style.display = 'none';
-                    }}
-                  />
-                )}
-              </div>
-            )}
-          </span>
-        )}
-      </label>
-      <input
-        id={id}
-        className={`bc-input${invalid ? ' invalid' : ''}`}
-        type="text"
-        inputMode={inputMode}
-        value={value}
-        placeholder={placeholder || ''}
-        aria-invalid={invalid ? 'true' : undefined}
-        onChange={(e) => onChange(e.target.value)}
-      />
-      {units && units.length > 0 && (
-        <div className="bc-unit-toggle">
-          {units.map((u: string) => (
-            <button
-              key={u}
-              className={`bc-unit-btn ${unit === u ? 'active' : ''}`}
-              onClick={() => onUnitChange(u)}
-            >
-              {u}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Readout({ label, value, highlight, flickerKey } : { label: string, value: any, highlight: any, flickerKey: number }) {
-  const [animClass, setAnimClass] = React.useState('');
-  const isFirst = React.useRef(true);
-  React.useEffect(() => {
-    if (isFirst.current) {
-      isFirst.current = false;
-      return;
-    }
-    setAnimClass('flicker');
-    const t = setTimeout(() => setAnimClass(''), 200);
-    return () => clearTimeout(t);
-  }, [flickerKey]);
-  const cls = [highlight ? 'highlight' : '', animClass].filter(Boolean).join(' ');
-  return (
-    <div className="bc-readout">
-      <div className="bc-readout-label">{label}</div>
-      <div className={`bc-readout-value ${cls}`}>{value}</div>
-    </div>
-  );
-}
-
-function TargetCell({ variant, label, gameTime, relative } : { variant: string, label: string, gameTime : FinalGameTime | null, relative: string }) {
-  const displayGameTime = formatGameTime(gameTime);
-  const hasGameTime = displayGameTime !== null;
-  return (
-    <div className={`bc-target-cell ${variant}`}>
-      <div className="bc-target-label">{label}</div>
-      {hasGameTime ? (
-        <>
-          <div className="bc-target-time game-time">{displayGameTime}</div>
-          <div className="bc-target-relative">{relative}</div>
-        </>
-      ) : (
-        <div className="bc-target-time">{relative}</div>
-      )}
-    </div>
-  );
-}

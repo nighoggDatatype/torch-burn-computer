@@ -2,7 +2,7 @@
  * Computes a flip-and-burn trajectory.
  */
 
-export type ErrorResult = { error : string, detail: string}
+export type ErrorResult = { error : string, detail: string | null}
 
 export type OvershootBurnPlanResult = { error: null, overshoot: true, brake_only_dist: number, shortfall: number, t_brake_full: number }
 export type SuccessBurnPlanResult = { error: null, overshoot: false, flip_now: boolean, a_mps2: number, v_max: number, t_accel: number, t_rotate: number, t_drift: number, t_brake: number, t_total: number, d_accel: number, d_rotate: number, d_drift: number, d_brake: number }

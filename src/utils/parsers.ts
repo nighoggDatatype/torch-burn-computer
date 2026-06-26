@@ -1,5 +1,8 @@
 import { G, DAY } from './constants.js';
 
+type GameDate =  {y:number,mo:number,d:number}
+export type GameDateTime = {date:GameDate|null, seconds:number}
+
 /**
  * Strict numeric parser. Strips thousands-separator commas; rejects non-numeric
  * trailing characters that parseFloat would swallow (e.g. "12abc" → NaN).
@@ -27,10 +30,8 @@ export function parseGValue(str: string) {
 /**
  * Parses a game clock string. Accepts full datetime "YYYY-MM-DD HH:MM:SS"
  * or strict time-only "HH:MM:SS". Bare "HH:MM" is intentionally rejected.
- * @param {string} timeStr
- * @returns {{ date: {y:number,mo:number,d:number}|null, seconds: number }|null}
  */
-export function parseGameTime(timeStr: string) {
+export function parseGameTime(timeStr: string) : GameDateTime | null {
   if (!timeStr || !timeStr.trim()) return null;
   const str = timeStr.trim();
   // Try full datetime: YYYY-MM-DD HH:MM:SS

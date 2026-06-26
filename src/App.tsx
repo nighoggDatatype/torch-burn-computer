@@ -403,7 +403,6 @@ function BurnCalculatorInner() {
     ...((!anyConstraintAttempted || targetBudgetError) ? ['REACTANT BUDGET'] : []),
     ...((!anyConstraintAttempted || (targetAccelAttempted && !isFinite(targetAccel_mps2))) ? ['ACCELERATION'] : []),
   ]
-  console.log(burnMissingFields)
   // Standoff error checking
   const standoffError = !standoffValid
     ? 'invalid-standoff'

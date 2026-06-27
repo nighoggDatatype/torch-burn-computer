@@ -593,13 +593,13 @@ function BurnCalculatorInner() {
       }
       const candiateDriftPlan = buildDriftPlan({ distance_m: burn_distance_m, v0_mps, a_mps2, v_arrival_mps, t_rotate_s, v_max })
       if (candiateDriftPlan === null) { //v_max too high, reduce
-        max_a_mps2 == a_mps2;
+        max_a_mps2 = a_mps2;
         continue;
       }
       const candidate_duration = candiateDriftPlan.t_total;
       if (candidate_duration > targetDuration_s) //Too slow, faster acceleration
       {
-        min_a_mps2 == a_mps2;
+        min_a_mps2 = a_mps2;
         continue
       }
       //Candidate plan is now valid, bisection guarantees it has lower a_mps2 so we use it as new best value

@@ -3,7 +3,7 @@ import Readout from "../components/Readout.js";
 import { G } from "../utils/constants.js";
 import { formatDistance, formatVelocity, formatGameTime, formatTime, formatTargetDuration, addGameTime } from "../utils/formatters.js";
 import { GameDateTime } from "../utils/parsers.js";
-import { BurnPlanResult } from "../utils/physics.js";
+import { BurnPlanResult } from "../solvers/physics.js";
 
 type RequiredBurnInput = {
     vcrs_mps : number, 

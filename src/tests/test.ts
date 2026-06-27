@@ -23,7 +23,7 @@ import {
   computeConstantBurnPlan,
   computeFinalApproach,
   solveAcceleration,
-} from '../utils/physics.js';
+} from '../solvers/physics.js';
 
 // ───── constants ──────────────────────────────────────────────────────────
 

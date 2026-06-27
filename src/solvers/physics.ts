@@ -2,7 +2,8 @@
  * Computes a flip-and-burn trajectory.
  */
 
-export type ErrorResult = { error : string, detail: string | null}
+import { badInputError, ErrorResult, finalApproach_negativeInitialVelocityError, finalApproach_nonBrakingVelocityDeltaError, flipTimeGreaterThanDurationError, negativeArrivalVelocityError, negativeFlipTimeError, nonPositiveAccelError, nonPositiveBurnDistanceError, nonPositiveDurationError } from "../utils/errors.js"
+
 
 export type OvershootBurnPlanResult = { error: null, overshoot: true, brake_only_dist: number, shortfall: number, t_brake_full: number }
 export type SuccessBurnPlanResult = { error: null, overshoot: false, flip_now: boolean, a_mps2: number, v_max: number, t_accel: number, t_rotate: number, t_drift: number, t_brake: number, t_total: number, d_accel: number, d_rotate: number, d_drift: number, d_brake: number }
@@ -16,28 +17,20 @@ type AccelResult = { error: null, a_mps2: number }
 export function computeConstantBurnPlan({ distance_m, v0_mps, a_mps2, v_arrival_mps, t_rotate_s } : 
   { distance_m: number, v0_mps: number, a_mps2: number, v_arrival_mps: number, t_rotate_s: number}) : BurnPlanResult {
   if (![distance_m, v0_mps, a_mps2, v_arrival_mps, t_rotate_s].every(isFinite)) {
-    return {
-      error: 'MISSING OR INVALID INPUT',
-      detail: 'One or more fields are empty or non-numeric.',
-    };
+    return badInputError;
   }
-  if (a_mps2 <= 0)
-    return {
-      error: 'ACCELERATION MUST BE POSITIVE',
-      detail: 'Enter a thrust value greater than zero.',
-    };
-  if (distance_m <= 0)
-    return { error: 'BURN DISTANCE IS ZERO OR NEGATIVE', detail: 'Increase the total distance.' };
-  if (v_arrival_mps < 0)
-    return {
-      error: 'CUTOFF VELOCITY CANNOT BE NEGATIVE',
-      detail: 'Enter the desired speed at torch cutoff.',
-    };
-  if (t_rotate_s < 0)
-    return {
-      error: 'FLIP TIME CANNOT BE NEGATIVE',
-      detail: 'Enter zero or a positive flip duration.',
-    };
+  if (a_mps2 <= 0){
+    return nonPositiveAccelError;
+  }
+  if (distance_m <= 0) {
+    return nonPositiveBurnDistanceError;
+  }
+  if (v_arrival_mps < 0) {
+    return negativeArrivalVelocityError;
+  }
+  if (t_rotate_s < 0) {
+    return negativeFlipTimeError;
+  }
 
   // Overshoot is only possible when current speed already exceeds the desired arrival
   // speed (v0 > v_arrival) — that's the only regime where "brake only, no extra accel"
@@ -108,33 +101,23 @@ export function computeFinalApproach({ distance_m, v0_mps, a_mps2, v_arrival_mps
   { distance_m: number, v0_mps: number, a_mps2: number, v_arrival_mps: number}) :
   ErrorResult | OvershootFinalApproachResult | SuccessFinalApproachResult {
   if (![distance_m, v0_mps, a_mps2, v_arrival_mps].every(isFinite)) {
-    return {
-      error: 'MISSING OR INVALID INPUT',
-      detail: 'One or more fields are empty or non-numeric.',
-    };
+    return badInputError;
   }
-  if (a_mps2 <= 0)
-    return {
-      error: 'ACCELERATION MUST BE POSITIVE',
-      detail: 'Enter a thrust value greater than zero.',
-    };
-  if (v0_mps <= 0)
-    return {
-      error: 'CLOSING VELOCITY MUST BE POSITIVE',
-      detail: 'Enter a positive closing speed.',
-    };
-  if (distance_m <= 0)
-    return { error: 'RANGE IS ZERO OR NEGATIVE', detail: 'Increase the distance to target.' };
-  if (v_arrival_mps < 0)
-    return {
-      error: 'CUTOFF VELOCITY CANNOT BE NEGATIVE',
-      detail: 'Enter the desired speed at torch cutoff.',
-    };
-  if (v_arrival_mps >= v0_mps)
-    return {
-      error: 'CUTOFF VELOCITY MUST BE LESS THAN CURRENT VREL',
-      detail: 'You must be braking toward a lower speed.',
-    };
+  if (a_mps2 <= 0){
+    return nonPositiveAccelError;
+  }
+  if (v0_mps <= 0){
+    return finalApproach_negativeInitialVelocityError;
+  }
+  if (distance_m <= 0) {
+    return nonPositiveBurnDistanceError;
+  }
+  if (v_arrival_mps < 0) {
+    return negativeArrivalVelocityError
+  };
+  if (v_arrival_mps >= v0_mps) {
+    return finalApproach_nonBrakingVelocityDeltaError;
+  }
 
   const d_brake_max = (v0_mps * v0_mps - v_arrival_mps * v_arrival_mps) / (2 * a_mps2);
   const t_brake_max = (v0_mps - v_arrival_mps) / a_mps2;
@@ -181,27 +164,22 @@ export function solveAcceleration({ distance_m, v0_mps, v_arrival_mps, t_rotate_
   { distance_m: number, v0_mps: number, v_arrival_mps: number, t_rotate_s: number, t_total_s: number}) :
   ErrorResult | AccelResult {
   if (![distance_m, v0_mps, v_arrival_mps, t_rotate_s, t_total_s].every(isFinite)) {
-    return {
-      error: 'MISSING OR INVALID INPUT',
-      detail: 'One or more fields are empty or non-numeric.',
-    };
+    return badInputError;
   }
-  if (distance_m <= 0)
-    return { error: 'BURN DISTANCE IS ZERO OR NEGATIVE', detail: 'Increase the total distance.' };
-  if (v_arrival_mps < 0)
-    return {
-      error: 'CUTOFF VELOCITY CANNOT BE NEGATIVE',
-      detail: 'Enter the desired speed at torch cutoff.',
-    };
-  if (t_total_s <= 0)
-    return {
-      error: 'TARGET DURATION MUST BE POSITIVE',
-      detail: 'Enter a duration greater than zero.',
-    };
+  if (distance_m <= 0) {
+    return nonPositiveBurnDistanceError;
+  }
+  if (v_arrival_mps < 0) {
+    return negativeArrivalVelocityError;
+  }
+  if (t_total_s <= 0) {
+    return nonPositiveDurationError;
+  }
 
   const T = t_total_s - t_rotate_s;
-  if (T <= 0)
-    return { error: 'DURATION TOO SHORT', detail: 'Target duration must exceed the flip time.' };
+  if (T <= 0) {
+    return flipTimeGreaterThanDurationError;
+  }
 
   const S = v0_mps + v_arrival_mps;
   const D = distance_m;

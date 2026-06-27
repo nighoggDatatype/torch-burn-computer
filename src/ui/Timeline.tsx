@@ -1,7 +1,7 @@
 import TargetCell from "../components/TargetCell.js";
 import { addGameTime, formatTargetDuration } from "../utils/formatters.js";
 import { GameDateTime } from "../utils/parsers.js";
-import { BurnPlanResult } from "../utils/physics.js";
+import { BurnPlanResult } from "../solvers/physics.js";
 
 function TimeLine({finalPlan, parsedGameTime} : {finalPlan : BurnPlanResult | null, parsedGameTime : GameDateTime | null}) {
     const finalPlanOk = finalPlan!==null && finalPlan.error === null && !finalPlan.overshoot;

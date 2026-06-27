@@ -21,12 +21,8 @@ import {
   formatTargetDuration,
 } from './utils/formatters.js';
 import {
-  computeConstantBurnPlan,
   computeFinalApproach,
-  solveAcceleration,
-  buildDriftPlan,
-  BurnPlanResult,
-} from './utils/physics.js';
+} from './solvers/physics.js';
 import ErrorBoundary from './components/ErrorBoundary.js';
 import Readout from './components/Readout.js';
 import InputRow from './components/InputRow.js';
@@ -34,6 +30,8 @@ import { _urlParams, _urlParams_localStorage, _localStorage, _save_localStorage 
 import StandoffControl from './components/StandoffControl.js';
 import Timeline from './ui/Timeline.js';
 import BurnOutput from './ui/BurnOutput.js';
+import { badInputError, getStandOffError, getV0Error, targetAccelTooSmallError } from './utils/errors.js';
+import { accelOnlySolver, budgetOnlySolver, durationOnlySolver, optimalAccelSolver, optimalBudgetSolver, optimalDurationSolver } from './solvers/burnSolvers.js';
 
 const APP_VERSION = 'v0.6.4';
 
@@ -389,8 +387,6 @@ function BurnCalculatorInner() {
   // Plan group switches
   const tripleConstraintSolving = targetBudgetFilled && targetDurationFilled && targetAccelFilled;
   const doubleConstraintSolving = optimizeAccel || optimizeBudget || optimizeDuration;
-  const singleConstraintSolving = targetBudgetFilled || targetDurationFilled || targetAccelFilled;
-
   const anyConstraintAttempted = targetDurationAttempted || budgetAttempted || targetAccelAttempted
 
   const burnMissingFields = [
@@ -410,209 +406,50 @@ function BurnCalculatorInner() {
       ? 'within-standoff'
       : null;
   const hasWakeError = standoffError !== null;
-  const standoffBlockMsg =
-    standoffError === 'invalid-standoff'
-      ? 'INVALID STAND-OFF DISTANCE'
-      : noWakeEnabled
-        ? 'DISTANCE WITHIN NO-WAKE ZONE'
-        : `DISTANCE WITHIN STAND-OFF ZONE (${standoffKm} KM)`;
-  const standoffBlockResult = { error: standoffBlockMsg, detail: null }
   const burn_distance_m = hasWakeError ? NaN : distance_m - standoff_m;
-  
-  const targetAccelTooSmallError = {
-    error: "ACCELERATION BELOW MINIMUM THRUST (0.01 G)",
-    detail: "Enter a value of 0.01 G or higher."
-  }
 
   // v0 error checking
   const v0_squared = vrel_mps * vrel_mps - vcrs_mps - vcrs_mps;
   const hasV0Error = !isFinite(v0_squared) || v0_squared < 0;
   const v0_mps = hasV0Error ? NaN : Math.sqrt(v0_squared);
-  const v0ErrorResult = { 
-    error : "VREL CANNOT BE SMALLER THAN VCRS", 
-    detail : `Given the current VCRS value, VREL must either be greater than ${Math.abs(vcrs_mps)}, or less than ${-Math.abs(vcrs_mps)}`
-  }
 
   const inputError = 
-      burnMissingFields.length > 0 ? { error : "MISSING OR INVALID INPUT", detail : "One or more fields are empty or non-numeric."} :
+      burnMissingFields.length > 0 ? badInputError :
       targetAccelTooSmall ? targetAccelTooSmallError :
-      hasWakeError ? standoffBlockResult :
-      hasV0Error ? v0ErrorResult : 
+      hasWakeError ? getStandOffError({standoffError, noWakeEnabled, standoffKm}) :
+      hasV0Error ? getV0Error({vcrs_mps}) : 
       null
   
-  const accelOnlyConstantBurnPlan = targetAccelFilled ? 
-    computeConstantBurnPlan({ distance_m: burn_distance_m, v0_mps, a_mps2: targetAccel_mps2, v_arrival_mps, t_rotate_s }) :
-    null;
+  const accelOnlyConstantBurnPlan = targetAccelFilled
+    ? accelOnlySolver({burn_distance_m, v0_mps, targetAccel_mps2, v_arrival_mps, t_rotate_s})
+    : null;
 
-  const budgetOnlyConstantBurnPlan = targetBudgetFilled ? (():BurnPlanResult => {
-    //Compute duration from target constant burn time
-    const solveT_s =  targetBudget_s + t_rotate_s;
+  const budgetOnlyConstantBurnPlan = targetBudgetFilled 
+    ? budgetOnlySolver({burn_distance_m , v0_mps, targetBudget_s, v_arrival_mps, t_rotate_s})
+    : null;
 
-    const accelSolveResult = solveAcceleration({distance_m: burn_distance_m, v0_mps, v_arrival_mps, t_rotate_s, t_total_s: solveT_s});
-    if (accelSolveResult.error !== null)
-    {
-      return accelSolveResult;
-    }
+  const durationOnlyConstantBurnPlan = targetDurationFilled
+    ? durationOnlySolver({burn_distance_m , v0_mps, targetDuration_s, v_arrival_mps, t_rotate_s})
+    : null;
 
-    return computeConstantBurnPlan({ distance_m: burn_distance_m, v0_mps, a_mps2: accelSolveResult.a_mps2, v_arrival_mps, t_rotate_s })
-  })() : null;
-
-  const durationOnlyConstantBurnPlan = targetDurationFilled ? (():BurnPlanResult => {
-    const accelSolveResult = solveAcceleration({distance_m: burn_distance_m, v0_mps, v_arrival_mps, t_rotate_s, t_total_s: targetDuration_s});
-    if (accelSolveResult.error !== null)
-    {
-      return accelSolveResult;
-    }
-
-    return  computeConstantBurnPlan({ distance_m: burn_distance_m, v0_mps, a_mps2: accelSolveResult.a_mps2, v_arrival_mps, t_rotate_s })
-  })() : null;
-
-  const optimalBudgetPlan = optimizeBudget ? (() => {
-    if (accelOnlyConstantBurnPlan === null)
-    {
-      return null;
-    }
-    if (accelOnlyConstantBurnPlan.error !== null || accelOnlyConstantBurnPlan.overshoot)
-    {
-      return accelOnlyConstantBurnPlan;
-    }
-    const a_mps2 = targetAccel_mps2;
-    if (!isFinite(a_mps2) || a_mps2 <= 0)
-    {
-      return null; //TODO: Replace with targetAccel_mps2 parsing error
-    }
-    const constantBurn_v_max = accelOnlyConstantBurnPlan.v_max;
-    if(durationOnlyConstantBurnPlan === null)
-    {
-      return null;
-    }
-    if (durationOnlyConstantBurnPlan.error !== null || durationOnlyConstantBurnPlan.overshoot)
-    {
-      return durationOnlyConstantBurnPlan;
-    }
-
-    //Kinamatic equations will eventually give you m^2 - Pm + Q = 0 as below, so the equations below is just implementing the quadratic equation.
-    //P is fliped to negative for ease of computation
-    const P = v0_mps + v_arrival_mps + a_mps2 * targetDuration_s;
-    const Q = a_mps2 * burn_distance_m + (v0_mps * v0_mps + v_arrival_mps * v_arrival_mps) / 2;
-    const disc = P * P - 4 * Q;
-
-    if (disc >= 0) {
-      const v_max_small_root = (P - Math.sqrt(disc)) / 2; // attempt smaller root first
-      if (v_max_small_root > v0_mps && v_max_small_root > v_arrival_mps && v_max_small_root < constantBurn_v_max) {
-        const plan = buildDriftPlan({ distance_m: burn_distance_m, v0_mps, a_mps2, v_arrival_mps, t_rotate_s, v_max: v_max_small_root });
-        if (plan !== null) 
-        {
-          return plan;
-        }
-      }
-      const v_max_large_root = (P + Math.sqrt(disc)) / 2; // try larger root next (TODO: Check if this gives sensible solutions, not sure what this means physically)
-      if (v_max_large_root > v0_mps && v_max_large_root > v_arrival_mps && v_max_large_root < constantBurn_v_max) {
-        return buildDriftPlan({ distance_m: burn_distance_m, v0_mps, a_mps2, v_arrival_mps, t_rotate_s, v_max: v_max_large_root });
-      }
-    }
-    return null //TODO: Replace with error
-  })() : null
-  const optimalDurationPlan = optimizeDuration ? (() => {
-    if (accelOnlyConstantBurnPlan === null)
-    {
-      return null;
-    }
-    if (accelOnlyConstantBurnPlan.error !== null || accelOnlyConstantBurnPlan.overshoot)
-    {
-      return accelOnlyConstantBurnPlan;
-    }
-    if (budgetOnlyConstantBurnPlan === null)
-    {
-      return null;
-    }
-    if (budgetOnlyConstantBurnPlan.error !== null || budgetOnlyConstantBurnPlan.overshoot)
-    {
-      return budgetOnlyConstantBurnPlan;
-    }
-    const a_mps2 = targetAccel_mps2;
-    if (!isFinite(a_mps2) || a_mps2 <= 0)
-    {
-      return null;
-    }
-    const v_max_budget = (a_mps2 * targetBudget_s + v0_mps + v_arrival_mps) / 2;
-
-    if (v_max_budget <= v0_mps || v_max_budget <= v_arrival_mps) {
-        const requiredDeltaV = Math.abs(v_arrival_mps - v0_mps)
-        const requiredBudget = formatTargetDuration(Math.floor(requiredDeltaV / a_mps2));
-        const targetBudget = formatTargetDuration(Math.floor(targetBudget_s));
-        return {error : "REACTANT BUDGET INSUFFICIENT", detail : `This burn requires at least ${requiredBudget} of reactant; current budget is ${targetBudget}.`}
-    } else {
-      const driftPlan = buildDriftPlan({ distance_m: burn_distance_m, v0_mps, a_mps2, v_arrival_mps, t_rotate_s, v_max: v_max_budget });
-      if (driftPlan !== null)
-      {
-        return driftPlan
-      }
-      else //Excess budget, go back to accelOnly
-      {
-        return accelOnlyConstantBurnPlan;
-      }
-    }
-  })() : null
-
-  
-  const optimalAccelPlan = optimizeAccel ? (() => {
-    //Extract budgetOnly extrema data
-    if(budgetOnlyConstantBurnPlan === null)
-    {
-      return null;
-    }
-    if (budgetOnlyConstantBurnPlan.error !== null || budgetOnlyConstantBurnPlan.overshoot)
-    {
-      return budgetOnlyConstantBurnPlan;
-    }
-    let max_a_mps2 = budgetOnlyConstantBurnPlan.a_mps2;
-
-    //Extract durationOnly extrema data
-    if(durationOnlyConstantBurnPlan === null)
-    {
-      return null;
-    }
-    if (durationOnlyConstantBurnPlan.error !== null || durationOnlyConstantBurnPlan.overshoot)
-    {
-      return durationOnlyConstantBurnPlan;
-    }
-    let min_a_mps2 = durationOnlyConstantBurnPlan.a_mps2
-    if (min_a_mps2 >= max_a_mps2) //budgetOnly no longer satisfies duration requriements, but durationOnly still would satisfy budget in excess
-    {
-      return durationOnlyConstantBurnPlan;
-    }
-    let bestDriftPlan = budgetOnlyConstantBurnPlan;
-    for (let i = 0; i < 30; i++)
-    {
-      const a_mps2 = (max_a_mps2 + min_a_mps2) / 2
-      const v_max = (a_mps2 * targetBudget_s + v0_mps + v_arrival_mps) / 2;
-      if (v_max <= v0_mps || v_max <= v_arrival_mps) { // v_max too small => a_mps2 too small => increase min_a_mps2
-        min_a_mps2 = a_mps2;
-        continue;
-      }
-      const candiateDriftPlan = buildDriftPlan({ distance_m: burn_distance_m, v0_mps, a_mps2, v_arrival_mps, t_rotate_s, v_max })
-      if (candiateDriftPlan === null) { //v_max too high, reduce
-        max_a_mps2 = a_mps2;
-        continue;
-      }
-      const candidate_duration = candiateDriftPlan.t_total;
-      if (candidate_duration > targetDuration_s + 1) //Too slow, faster acceleration (allow 1 second leeway for display purposes)
-      {
-        min_a_mps2 = a_mps2;
-        continue
-      }
-      //Candidate plan is now valid, bisection guarantees it has lower a_mps2 so we use it as new best value
-      bestDriftPlan = candiateDriftPlan; 
-      if (targetDuration_s - Math.floor(candidate_duration) < 1) //Display duration will be the same
-      {
-        break; //Early exit for performance
-      }
-      max_a_mps2 = a_mps2;
-      //Implicit continue
-    }
-    return bestDriftPlan;
-  })() : null
+  const optimalBudgetPlan = optimizeBudget 
+  ? optimalBudgetSolver({
+    accelOnlyConstantBurnPlan, durationOnlyConstantBurnPlan,
+    burn_distance_m, v0_mps, v_arrival_mps, t_rotate_s,
+    targetDuration_s, targetAccel_mps2
+  }) : null
+  const optimalDurationPlan = optimizeDuration 
+  ? optimalDurationSolver({
+    budgetOnlyConstantBurnPlan, accelOnlyConstantBurnPlan,
+    burn_distance_m, v0_mps, v_arrival_mps, t_rotate_s,
+    targetAccel_mps2, targetBudget_s
+    }): null
+  const optimalAccelPlan = optimizeAccel 
+  ? optimalAccelSolver({
+    budgetOnlyConstantBurnPlan, durationOnlyConstantBurnPlan,
+    burn_distance_m, v0_mps, v_arrival_mps, t_rotate_s,
+    targetDuration_s, targetBudget_s
+  }) : null
 
   const doublePlan = optimalBudgetPlan ?? optimalDurationPlan ?? optimalAccelPlan;
   const singlePlan = accelOnlyConstantBurnPlan ?? budgetOnlyConstantBurnPlan ?? durationOnlyConstantBurnPlan;
@@ -673,7 +510,7 @@ function BurnCalculatorInner() {
   // FA budget conversion - parsed same as Desired Travel Time (bare number = seconds)
   const fa_budget_s = (() => {
     const parsed = parseTargetDuration(faBudget);
-    return parsed !== null && parsed > 0 ? parsed : null;
+    return parsed !== null && parsed > 0 ? parsed : NaN;
   })();
 
   const faMissingFields = [
@@ -785,10 +622,6 @@ function BurnCalculatorInner() {
   const gameTimeValid = parsedGameTime !== null;
   const gameTimeAttempted = gameStartTime.trim() !== '';
   const gameTimeError = gameTimeAttempted && !gameTimeValid;
-
-  // Game clock time at end of VCRS null burn (needs gameTimeValid/parsedGameTime)
-  const vcrsNullTarget =
-    vcrsNullTime !== null && gameTimeValid ? addGameTime(parsedGameTime, vcrsNullTime) : null;
 
   const t_accel = finalPlanOk ? finalPlan.t_accel : 0;
   const t_rot = finalPlanOk ? finalPlan.t_rotate : 0;

@@ -597,7 +597,7 @@ function BurnCalculatorInner() {
         continue;
       }
       const candidate_duration = candiateDriftPlan.t_total;
-      if (candidate_duration > targetDuration_s) //Too slow, faster acceleration
+      if (candidate_duration > targetDuration_s + 1) //Too slow, faster acceleration (allow 1 second leeway for display purposes)
       {
         min_a_mps2 = a_mps2;
         continue

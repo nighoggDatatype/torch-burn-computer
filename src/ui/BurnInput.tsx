@@ -2,6 +2,7 @@ import { Clock } from "lucide-react";
 import InputRow from "../components/InputRow.js";
 import StandoffControl from "../components/StandoffControl.js";
 import { formatTargetDuration } from "../utils/formatters.js";
+import InputNote from "../components/InputNote.js";
 
 const TOOLTIP_IMG_DISTANCE = `${import.meta.env.BASE_URL}tooltips/distance.jpg`;
 const TOOLTIP_IMG_CURRENTVEL = `${import.meta.env.BASE_URL}tooltips/current-vel.jpg`;
@@ -61,18 +62,17 @@ function BurnInput({args} : {args : BurnInputArgs}) {
             img: TOOLTIP_IMG_DISTANCE,
         }}
         />
-        {hasWakeError && (
-        <div
-            className="bc-field-note"
-            style={{ color: 'var(--red)', marginBottom: 10, paddingLeft: 118 }}
-        >
-            {standoffError === 'invalid-standoff'
-            ? '⚠ INVALID STAND-OFF DISTANCE'
-            : noWakeEnabled
-                ? '⚠ DESTINATION IS WITHIN THE 300 KM NO-WAKE ZONE'
-                : `⚠ DESTINATION IS WITHIN THE STAND-OFF ZONE (${standoffKm} KM)`}
-        </div>
-        )}
+        <InputNote 
+            note = {
+                standoffError === 'within-standoff' ? noWakeEnabled
+                    ? '⚠ DESTINATION IS WITHIN THE 300 KM NO-WAKE ZONE'
+                    : `⚠ DESTINATION IS WITHIN THE STAND-OFF ZONE (${standoffKm} KM)` 
+                : null
+            }
+            style = {
+                standoffError === 'within-standoff' ? { color: 'var(--red)' } : undefined
+            }
+        />
         <InputRow
         label="Current VREL"
         value={vrel}
@@ -140,6 +140,7 @@ function BurnInput({args} : {args : BurnInputArgs}) {
         setNoWakeEnabled={setNoWakeEnabled}
         standoffKm={standoffKm}
         setStandoffKm={setStandoffKm}
+        standoffError={standoffError}
         />
 
         {/* -- Trip Parameters -- */}
@@ -166,20 +167,18 @@ function BurnInput({args} : {args : BurnInputArgs}) {
         placeholder="e.g. 4d 3h 2m 37s or HH:MM:SS"
         invalid={!anyConstraintAttempted || targetDurationError}
         />
-        <div
-        className="bc-field-note"
-        style={{ marginTop: 2, marginBottom: 6, paddingLeft: 118 }}
-        >
-        {targetDurationError ? (
-            <span style={{ color: 'var(--red)' }}>
-            INVALID FORMAT - USE 4D 3H 2M 37S OR HH:MM:SS
-            </span>
-        ) : targetDuration_s != null ? (
-            <span style={{ color: 'var(--green)' }}>
-            ● {formatTargetDuration(targetDuration_s)}
-            </span>
-        ) : null}
-        </div>
+        <InputNote 
+            note = {
+                targetDurationError ? "INVALID FORMAT - USE 4D 3H 2M 37S OR HH:MM:SS" :
+                targetDuration_s != null ? `● ${formatTargetDuration(targetDuration_s)}` : 
+                null
+            }
+            style = {
+                targetDurationError ? { color: 'var(--red)' } :
+                targetDuration_s != null ? { color: 'var(--green)' } : 
+                undefined
+            }
+        />
         <InputRow
         label="Reactant Budget"
         value={reactantBudget}
@@ -192,23 +191,29 @@ function BurnInput({args} : {args : BurnInputArgs}) {
             img: TOOLTIP_IMG_REACTANTBUDGET,
         }}
         />
-        {reactantBudget.trim() !== '' && (
-        <div className="bc-field-note" style={{ marginBottom: 6, paddingLeft: 118 }}>
-            {targetBudget_s !== null ? (
-            <span style={{ color: 'var(--green)' }}>
-                ● {formatTargetDuration(targetBudget_s)}
-            </span>
-            ) : (
-            <span style={{ color: 'var(--red)' }}>INVALID FORMAT</span>
-            )}
+        <InputNote 
+            note = {
+                targetBudgetError ? "INVALID FORMAT - USE 1D 1H 17M 55S OR 37.15H" :
+                targetBudget_s != null ? `● ${formatTargetDuration(targetBudget_s)}` : //TODO: Add decimal hour formatting here
+                null
+            }
+            style = {
+                targetBudgetError ? { color: 'var(--red)' } :
+                targetBudget_s != null ? { color: 'var(--green)' } : 
+                undefined
+            }
+        />
+        <InputNote 
+            note = {
+                isDriftMode ? "◈ DRIFT MODE ACTIVE" : null
+            }
+            style = {
+                isDriftMode ? { color: 'var(--amber)' } : undefined
+            }
+        />
+        <div className="bc-panel-header" style={{ marginTop: 20 }}>
+        ◇ Ship Parameters
         </div>
-        )}
-        {(isDriftMode) ? (
-        <div className="bc-field-note" style={{ marginBottom: 4, paddingLeft: 118 }}>
-            <span style={{ color: 'var(--amber)' }}>◈ DRIFT MODE ACTIVE</span>
-        </div>
-        ) : null}
-        {/** TODO: Add light subdivider here */}
         <InputRow
         label="Flip Time"
         value={flipTime}
@@ -217,13 +222,14 @@ function BurnInput({args} : {args : BurnInputArgs}) {
         placeholder="e.g. 60 or 1m 30s"
         invalid={flipTimeError}
         />
-        {flipTimeError && (
-        <div className="bc-field-note" style={{ marginBottom: 6, paddingLeft: 118 }}>
-            <span style={{ color: 'var(--red)' }}>
-            INVALID FORMAT - USE 60, 1M 30S, ETC.
-            </span>
-        </div>
-        )}
+        <InputNote 
+            note = {
+                flipTimeError ? "INVALID FORMAT - USE 60, 1M 30S, ETC." : null
+            }
+            style = {
+                flipTimeError ? { color: 'var(--red)' } : undefined
+            }
+        />
 
         {/* -- Game Clock -- */}
         
@@ -239,19 +245,18 @@ function BurnInput({args} : {args : BurnInputArgs}) {
         placeholder="e.g. 60 or 1m 30s"
         invalid={gameTimeError}
         />
-        <div className="bc-field-note" style={{ marginTop: 6, paddingLeft: 118 }}>
-        {gameTimeError ? (
-            <span style={{ color: 'var(--red)' }}>
-            INVALID FORMAT - USE YYYY-MM-DD HH:MM:SS OR HH:MM:SS
-            </span>
-        ) : gameTimeValid ? (
-            <span style={{ color: 'var(--green)' }}>
-            ● TARGETS COMPUTED FROM GAME CLOCK
-            </span>
-        ) : (
-            <span>LEAVE BLANK FOR RELATIVE (T+) TIMES - DATE OPTIONAL</span>
-        )}
-        </div>
+        <InputNote 
+            note = {
+                gameTimeError ? "INVALID FORMAT - USE YYYY-MM-DD HH:MM:SS OR HH:MM:SS" :
+                gameTimeValid ? "● TARGETS COMPUTED FROM GAME CLOCK" :
+                "LEAVE BLANK FOR RELATIVE (T+) TIMES - DATE OPTIONAL"
+            }
+            style = {
+                gameTimeError ? { color: 'var(--red)' } :
+                gameTimeValid ? { color: 'var(--green)' } : 
+                undefined
+            }
+        />
     </>);
 }
 

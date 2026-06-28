@@ -815,6 +815,7 @@ function BurnCalculatorInner() {
                     setNoWakeEnabled={setNoWakeEnabled}
                     standoffKm={standoffKm}
                     setStandoffKm={setStandoffKm}
+                    standoffError={standoffError}
                   />
 
                   {/* -- Trip Parameters -- */}

@@ -1,3 +1,5 @@
+import InputNote from "./InputNote.js";
+
 function NoWakeToggle({ noWakeEnabled, setNoWakeEnabled } : { noWakeEnabled: boolean, setNoWakeEnabled: React.Dispatch<React.SetStateAction<boolean>> }) {
   return (
     <div
@@ -28,7 +30,14 @@ function NoWakeToggle({ noWakeEnabled, setNoWakeEnabled } : { noWakeEnabled: boo
   );
 }
 
-function StandoffControl({ noWakeEnabled, setNoWakeEnabled, standoffKm, setStandoffKm } : { noWakeEnabled: boolean, setNoWakeEnabled : React.Dispatch<React.SetStateAction<boolean>>, standoffKm: string, setStandoffKm: React.Dispatch<React.SetStateAction<string>> }) {
+function StandoffControl(
+  { noWakeEnabled, setNoWakeEnabled, standoffKm, setStandoffKm, standoffError } : 
+  { noWakeEnabled: boolean, 
+    setNoWakeEnabled : React.Dispatch<React.SetStateAction<boolean>>, 
+    standoffKm: string, 
+    setStandoffKm: React.Dispatch<React.SetStateAction<string>>,
+    standoffError: string | null }
+) {
   return (
     <>
       {/* STAND-OFF DISTANCE - locked at 300km when NO-WAKE ZONE, editable in OPEN SPACE */}
@@ -44,6 +53,14 @@ function StandoffControl({ noWakeEnabled, setNoWakeEnabled, standoffKm, setStand
           onChange={(e) => !noWakeEnabled && setStandoffKm(e.target.value)}
         />
       </div>
+      <InputNote 
+          note = {
+              standoffError === 'invalid-standoff' ? "INVALID STAND-OFF DISTANCE" : null
+          }
+          style = {
+              standoffError === 'invalid-standoff' ? { color: 'var(--red)' } : undefined
+          }
+      />
       <NoWakeToggle noWakeEnabled={noWakeEnabled} setNoWakeEnabled={setNoWakeEnabled} />
     </>
   );

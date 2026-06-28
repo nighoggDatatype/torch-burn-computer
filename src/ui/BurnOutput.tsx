@@ -285,10 +285,10 @@ function BurnOutput(
             flickerKey={flickerKey}
         />
         <Readout
-            label="Min Reactant Budget"
+            label="Min Reactant Budget" //TODO Change text depending on whether reactant was computed or provided
             value={formatTargetDuration(
             Math.floor((finalPlan.t_accel || 0) + (finalPlan.t_brake || 0))
-            )}
+            )} // TODO: Add decimal hour formatting here
             highlight
             flickerKey={flickerKey}
         />

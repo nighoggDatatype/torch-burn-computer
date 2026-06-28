@@ -55,7 +55,6 @@ function InputRow({ //TODO: add bottom text note feature here
   }, [showTip]);
 
   return (
-    <>
     <div className="bc-input-row">
       <label className="bc-label" htmlFor={id} style={{ display: 'flex', alignItems: 'center' }}>
         <span style={{ flex: 1 }}>{labelIcon}{label}</span>
@@ -120,7 +119,6 @@ function InputRow({ //TODO: add bottom text note feature here
         </div>
       )}
     </div>
-    </>
   );
 }
 

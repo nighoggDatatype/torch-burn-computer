@@ -1,6 +1,7 @@
 import React from "react";
 
-function InputRow({
+function InputRow({ //TODO: add bottom text note feature here
+  labelIcon,
   label,
   value,
   onChange,
@@ -12,6 +13,7 @@ function InputRow({
   invalid = false,
   inputMode = 'text',
 } : {
+  labelIcon? : React.JSX.Element,
   label: string,
   value: string,
   onChange: React.Dispatch<React.SetStateAction<string>>,
@@ -53,9 +55,10 @@ function InputRow({
   }, [showTip]);
 
   return (
+    <>
     <div className="bc-input-row">
       <label className="bc-label" htmlFor={id} style={{ display: 'flex', alignItems: 'center' }}>
-        <span style={{ flex: 1 }}>{label}</span>
+        <span style={{ flex: 1 }}>{labelIcon}{label}</span>
         {tooltip && (
           <span className="bc-tooltip-wrap">
             <button
@@ -117,6 +120,7 @@ function InputRow({
         </div>
       )}
     </div>
+    </>
   );
 }
 

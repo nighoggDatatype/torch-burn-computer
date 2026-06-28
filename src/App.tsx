@@ -32,6 +32,7 @@ import Timeline from './ui/Timeline.js';
 import BurnOutput from './ui/BurnOutput.js';
 import { badInputError, getStandOffError, getV0Error, targetAccelTooSmallError } from './utils/errors.js';
 import { accelOnlySolver, budgetOnlySolver, durationOnlySolver, optimalAccelSolver, optimalBudgetSolver, optimalDurationSolver } from './solvers/burnSolvers.js';
+import BurnInput from './ui/BurnInput.js';
 
 const APP_VERSION = 'v0.6.4';
 
@@ -455,7 +456,7 @@ function BurnCalculatorInner() {
   const singlePlan = accelOnlyConstantBurnPlan ?? budgetOnlyConstantBurnPlan ?? durationOnlyConstantBurnPlan;
   const finalPlanIgnoreInputErrors = doubleConstraintSolving ? doublePlan : singlePlan;
   const finalPlan = inputError ?? finalPlanIgnoreInputErrors
-  const finalPlanOk = finalPlan && finalPlan.error === null && !finalPlan.overshoot;
+  const finalPlanOk = finalPlan !== null && finalPlan.error === null && !finalPlan.overshoot;
   const isDriftMode = finalPlanOk && finalPlan.t_drift !== 0 && finalPlan.d_drift !== 0;
 
   //Temp finalPlanUnpacking (TODO: Refactor)
@@ -650,6 +651,21 @@ function BurnCalculatorInner() {
       : (finalPlan && finalPlan.error !== null);
   const activeIsOvershoot = appMode === 'approach' ? faPlan && faPlan.error === null && faPlan.overshoot : finalPlan && finalPlan.error === null && finalPlan.overshoot;
 
+  const burnInputArgs = {
+    distance, setDistance, distanceUnit, setDistanceUnit, 
+    vrel, setVrel, vrelUnit, setVrelUnit,
+    v0Direction, setV0Direction,
+    vcrs, setVcrs, vcrsUnit, setVcrsUnit,
+    vArrival, setVArrival, vArrivalUnit, setVArrivalUnit,
+    noWakeEnabled, setNoWakeEnabled, standoffKm, setStandoffKm, standoffError,
+    accel, setAccel, targetAccelError,
+    targetDuration, setTargetDuration, targetDurationError, targetDuration_s,
+    reactantBudget, setReactantBudget, targetBudgetError, targetBudget_s,
+    flipTime, setFlipTime, flipTimeError,
+    gameStartTime, setGameStartTime, gameTimeError, gameTimeValid,
+    isDriftMode, anyConstraintAttempted
+  }
+
   return (
     <>
       {booting && (
@@ -726,243 +742,7 @@ function BurnCalculatorInner() {
               </div>
 
               {appMode === 'burn' && (
-                <>
-                  {/* -- Current State -- */}
-                  <div className="bc-panel-header">◇ Current State</div>
-                  <InputRow
-                    label="Current RNG"
-                    value={distance}
-                    onChange={setDistance}
-                    unit={distanceUnit}
-                    units={['km', 'gm', 'au']}
-                    onUnitChange={setDistanceUnit}
-                    placeholder="e.g. 18902"
-                    invalid={distance.trim() === ''}
-                    inputMode="decimal"
-                    tooltip={{
-                      desc: 'After selecting your target destination, input the distance to target.',
-                      img: TOOLTIP_IMG_DISTANCE,
-                    }}
-                  />
-                  {hasWakeError && (
-                    <div
-                      className="bc-field-note"
-                      style={{ color: 'var(--red)', marginBottom: 10, paddingLeft: 118 }}
-                    >
-                      {standoffError === 'invalid-standoff'
-                        ? '⚠ INVALID STAND-OFF DISTANCE'
-                        : noWakeEnabled
-                          ? '⚠ DESTINATION IS WITHIN THE 300 KM NO-WAKE ZONE'
-                          : `⚠ DESTINATION IS WITHIN THE STAND-OFF ZONE (${standoffKm} KM)`}
-                    </div>
-                  )}
-                  <InputRow
-                    label="Current VREL"
-                    value={vrel}
-                    onChange={setVrel}
-                    unit={vrelUnit}
-                    units={['m/s', 'km/s']}
-                    onUnitChange={setVrelUnit}
-                    placeholder="e.g. 511.19"
-                    invalid={vrel.trim() === ''}
-                    inputMode="decimal"
-                    tooltip={{
-                      desc: "Input your vessel's current velocity to the target. If no ETA is present, set mode to RECEDING.",
-                      img: TOOLTIP_IMG_CURRENTVEL,
-                    }}
-                  />
-                  <div style={{ display: 'flex', gap: 4, marginLeft: 118, marginBottom: 8 }}>
-                    <button
-                      className={`bc-unit-btn${v0Direction === 'closing' ? ' active' : ''}`}
-                      onClick={() => setV0Direction('closing')}
-                    >
-                      CLOSING
-                    </button>
-                    <button
-                      className={`bc-unit-btn${v0Direction === 'receding' ? ' active' : ''}`}
-                      onClick={() => setV0Direction('receding')}
-                      style={{
-                        color: v0Direction === 'receding' ? 'var(--red)' : undefined,
-                        borderColor: v0Direction === 'receding' ? 'var(--red)' : undefined,
-                        background: v0Direction === 'receding' ? 'rgba(255,93,93,0.15)' : undefined,
-                      }}
-                    >
-                      RECEDING
-                    </button>
-                  </div>
-                  <InputRow
-                    label="Current VCRS"
-                    value={vcrs}
-                    onChange={setVcrs}
-                    unit={vcrsUnit}
-                    units={['m/s', 'km/s']}
-                    onUnitChange={setVcrsUnit}
-                    placeholder="e.g. -0.02"
-                    tooltip={{
-                      desc: 'Input your VCRS to the target destination.',
-                      img: TOOLTIP_IMG_VCRS,
-                    }}
-                  />
-
-                  {/* -- Arrival Parameters -- */}
-                  <div className="bc-panel-header" style={{ marginTop: 20 }}>
-                    ◇ Arrival Parameters
-                  </div>
-                  <InputRow
-                    label={noWakeEnabled ? 'Tgt Vel at 300km' : `Tgt Vel at ${standoffKm || '?'}km`}
-                    value={vArrival}
-                    onChange={setVArrival}
-                    unit={vArrivalUnit}
-                    units={['m/s', 'km/s']}
-                    onUnitChange={setVArrivalUnit}
-                    placeholder="e.g. 0"
-                    inputMode="decimal"
-                  />
-                  <StandoffControl
-                    noWakeEnabled={noWakeEnabled}
-                    setNoWakeEnabled={setNoWakeEnabled}
-                    standoffKm={standoffKm}
-                    setStandoffKm={setStandoffKm}
-                  />
-
-                  {/* -- Trip Parameters -- */}
-                  <div className="bc-panel-header" style={{ marginTop: 20 }}>
-                    ◇ Trip Parameters
-                  </div>
-                  <InputRow
-                    label="Acceleration"
-                    value={accel}
-                    onChange={setAccel}
-                    units={[]}
-                    placeholder="e.g. 1.95g"
-                    invalid={
-                      (!solveForAccel &&
-                        accel.trim() !== '' &&
-                        (!isFinite(a_mps2) || a_mps2 < 0.01 * G)) ||
-                      (accel.trim() === '' && !targetDurationFilled)
-                    }
-                    tooltip={{
-                      desc: 'Enter your desired sustained acceleration for this burn. Leave blank to solve for required acceleration from Desired Travel Time.',
-                      img: TOOLTIP_IMG_ACCELERATION,
-                    }}
-                  />
-                  <div className="bc-input-row">
-                    <label className="bc-label" htmlFor="desired-travel-time">
-                      Desired Travel Time
-                    </label>
-                    <input
-                      id="desired-travel-time"
-                      className={`bc-input${targetDurationError || (accel.trim() === '' && !targetDurationFilled) ? ' invalid' : ''}`}
-                      type="text"
-                      placeholder="e.g. 4d 3h 2m 37s or HH:MM:SS"
-                      value={targetDuration}
-                      aria-invalid={
-                        targetDurationError || (accel.trim() === '' && !targetDurationFilled)
-                          ? 'true'
-                          : undefined
-                      }
-                      onChange={(e) => setTargetDuration(e.target.value)}
-                    />
-                  </div>
-                  <div
-                    className="bc-field-note"
-                    style={{ marginTop: 2, marginBottom: 6, paddingLeft: 118 }}
-                  >
-                    {targetDurationError ? (
-                      <span style={{ color: 'var(--red)' }}>
-                        INVALID FORMAT - USE 4D 3H 2M 37S OR HH:MM:SS
-                      </span>
-                    ) : targetDurationAttempted && targetDurationValid ? (
-                      <span style={{ color: 'var(--green)' }}>
-                        ● {formatTargetDuration(targetDuration_s)}
-                      </span>
-                    ) : null}
-                  </div>
-                  <div className="bc-input-row">
-                    <label className="bc-label" htmlFor="flip-time">
-                      Flip Time
-                    </label>
-                    <input
-                      id="flip-time"
-                      className={`bc-input${flipTimeError || flipTime.trim() === '' ? ' invalid' : ''}`}
-                      type="text"
-                      value={flipTime}
-                      placeholder="e.g. 60 or 1m 30s"
-                      aria-invalid={flipTimeError || flipTime.trim() === '' ? 'true' : undefined}
-                      onChange={(e) => setFlipTime(e.target.value)}
-                    />
-                  </div>
-                  {flipTimeError && (
-                    <div className="bc-field-note" style={{ marginBottom: 6, paddingLeft: 118 }}>
-                      <span style={{ color: 'var(--red)' }}>
-                        INVALID FORMAT - USE 60, 1M 30S, ETC.
-                      </span>
-                    </div>
-                  )}
-                  <InputRow
-                    label="Reactant Budget"
-                    value={reactantBudget}
-                    onChange={setReactantBudget}
-                    units={[]}
-                    placeholder="e.g. 3h 30m or 12600"
-                    tooltip={{
-                      desc: 'Enter the amount of reactant you plan to allocate to this burn. It is not recommended to commit all your available reactant.',
-                      img: TOOLTIP_IMG_REACTANTBUDGET,
-                    }}
-                  />
-                  {reactantBudget.trim() !== '' && (
-                    <div className="bc-field-note" style={{ marginBottom: 6, paddingLeft: 118 }}>
-                      {targetBudget_s !== null ? (
-                        <span style={{ color: 'var(--green)' }}>
-                          ● {formatTargetDuration(targetBudget_s)}
-                        </span>
-                      ) : (
-                        <span style={{ color: 'var(--red)' }}>INVALID FORMAT</span>
-                      )}
-                    </div>
-                  )}
-                  {(isDriftMode) ? (
-                    <div className="bc-field-note" style={{ marginBottom: 4, paddingLeft: 118 }}>
-                      <span style={{ color: 'var(--amber)' }}>◈ DRIFT MODE ACTIVE</span>
-                    </div>
-                  ) : null}
-
-                  {/* -- Game Clock -- */}
-                  <div className="bc-panel-header" style={{ marginTop: 20 }}>
-                    ◇ Game Clock
-                  </div>
-                  <div className="bc-input-row">
-                    <div className="bc-label">
-                      <Clock
-                        size={10}
-                        style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }}
-                      />
-                      Burn Start
-                    </div>
-                    <input
-                      className={`bc-input${gameTimeError ? ' invalid' : ''}`}
-                      type="text"
-                      aria-label="Burn Start time"
-                      placeholder="YYYY-MM-DD HH:MM:SS or HH:MM:SS"
-                      value={gameStartTime}
-                      aria-invalid={gameTimeError ? 'true' : undefined}
-                      onChange={(e) => setGameStartTime(e.target.value)}
-                    />
-                  </div>
-                  <div className="bc-field-note" style={{ marginTop: 6, paddingLeft: 118 }}>
-                    {gameTimeError ? (
-                      <span style={{ color: 'var(--red)' }}>
-                        INVALID FORMAT - USE YYYY-MM-DD HH:MM:SS OR HH:MM:SS
-                      </span>
-                    ) : gameTimeValid ? (
-                      <span style={{ color: 'var(--green)' }}>
-                        ● TARGETS COMPUTED FROM GAME CLOCK
-                      </span>
-                    ) : (
-                      <span>LEAVE BLANK FOR RELATIVE (T+) TIMES - DATE OPTIONAL</span>
-                    )}
-                  </div>
-                </>
+                <BurnInput args={burnInputArgs}/>
               )}
 
               {appMode === 'approach' && (

@@ -4,6 +4,7 @@ import { G } from "../utils/constants.js";
 import { formatDistance, formatVelocity, formatGameTime, formatTime, formatTargetDuration, addGameTime } from "../utils/formatters.js";
 import { GameDateTime } from "../utils/parsers.js";
 import { BurnPlanResult } from "../solvers/physics.js";
+import { useEffect, useRef, useState } from "react";
 
 type RequiredBurnInput = {
     vcrs_mps : number, 
@@ -14,9 +15,9 @@ type RequiredBurnInput = {
 }
 
 function BurnOutput(
-    {finalPlan, parsedGameTime, input, flickerKey, copied, handleCopy} : 
+    {finalPlan, parsedGameTime, input, copied, handleCopy} : 
     {finalPlan: BurnPlanResult | null, parsedGameTime : GameDateTime | null, input : RequiredBurnInput,
-        flickerKey : number, copied : boolean, handleCopy : () => void}) {
+        copied : boolean, handleCopy : () => void}) {
 
     const finalPlanOk = finalPlan && finalPlan.error === null && !finalPlan.overshoot;
     const isDriftMode = finalPlanOk && finalPlan.t_drift !== 0 && finalPlan.d_drift !== 0;
@@ -52,6 +53,29 @@ function BurnOutput(
         highVcrsWarning && isFinite(vcrs_mps) ? (vcrs_mps >= 0 ? '90.00°' : '270.00°') : null;
     const vcrsNullTarget =
         vcrsNullTime !== null && gameTimeValid ? addGameTime(parsedGameTime, vcrsNullTime) : null;
+    
+    // -- flicker state (feature 11) --
+    const [flickerKey, setFlickerKey] = useState(0);
+    const prevPlanRef: React.RefObject<string|null> = useRef(null);
+        
+    // Flicker effect: trigger when plan output changes
+    useEffect(() => {
+    const key = JSON.stringify({
+        v_max: finalPlanOk ? finalPlan.v_max : null,
+        t_accel: finalPlanOk ? finalPlan.t_accel : null,
+        t_total: finalPlanOk ? finalPlan.t_total : null,
+        error: finalPlan ? finalPlan.error: null,
+    });
+    if (prevPlanRef.current !== null && prevPlanRef.current !== key) {
+        setFlickerKey((k) => k + 1);
+    }
+    prevPlanRef.current = key;
+    }, [
+        finalPlanOk ? finalPlan.v_max : null,
+        finalPlanOk ? finalPlan.t_accel : null,
+        finalPlanOk ? finalPlan.t_total : null,
+        finalPlan ? finalPlan.error: null
+        ]);
 
     return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>

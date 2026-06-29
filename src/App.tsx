@@ -602,20 +602,20 @@ function BurnCalculatorInner() {
   // Flicker effect: trigger when plan output changes
   useEffect(() => {
     const key = JSON.stringify({
-      v_max: finalPlanOk ? finalPlan.v_max : null,
-      t_accel: finalPlanOk ? finalPlan.t_accel : null,
-      t_total: finalPlanOk ? finalPlan.t_total : null,
-      error: finalPlan ? finalPlan.error: null,
+      required_a: faPlanOk ? faPlan.required_a : null,
+      t_accel: faPlanOk ? faPlan.t_brake : null,
+      t_total: faPlanOk ? faPlan.t_total : null,
+      error: faPlan ? faPlan.error: null,
     });
     if (prevPlanRef.current !== null && prevPlanRef.current !== key) {
       setFlickerKey((k) => k + 1);
     }
     prevPlanRef.current = key;
   }, [
-        finalPlanOk ? finalPlan.v_max : null,
-        finalPlanOk ? finalPlan.t_accel : null,
-        finalPlanOk ? finalPlan.t_total : null,
-        finalPlan ? finalPlan.error: null
+        faPlanOk ? faPlan.required_a : null,
+        faPlanOk ? faPlan.t_brake : null,
+        faPlanOk ? faPlan.t_total : null,
+        faPlan ? faPlan.error: null
       ]);
 
   // Game time parsing
@@ -902,7 +902,6 @@ function BurnCalculatorInner() {
               finalPlan={finalPlan} 
               parsedGameTime={parsedGameTime} 
               input={{vcrs_mps, inputAccel_mps: solveForAccel ? null : targetAccel_mps2, burn_distance_m, noWakeEnabled, standoffKm}}
-              flickerKey={flickerKey}
               copied={copied}
               handleCopy={handleBurnCopy}
             />)}

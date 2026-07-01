@@ -32,6 +32,10 @@ export const nonPositiveDurationError = {
     error: 'TARGET DURATION MUST BE POSITIVE',
     detail: 'Enter a duration greater than zero.',
 }
+export const nonPositiveBudgetError = {
+    error: 'TARGET BUDGET MUST BE POSITIVE',
+    detail: 'Enter a duration greater than zero.',
+}
 
 //Multi input error
 
@@ -105,4 +109,8 @@ export const finalApproach_negativeInitialVelocityError = {
 export const finalApproach_nonBrakingVelocityDeltaError = {
     error: 'CUTOFF VELOCITY MUST BE LESS THAN CURRENT VREL',
     detail: 'You must be braking toward a lower speed.',
+}
+export const finalApproach_computedDecelTooFast = {
+    error : 'REQUIRED DECELERATION BELOW MINIMUM THRUST (0.01 G)',
+    detail : 'Check input units or allow for decreased range'
 }

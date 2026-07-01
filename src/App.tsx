@@ -5,6 +5,10 @@ import {
   G,
   AU,
   NO_WAKE_M,
+  TOOLTIP_IMG_DISTANCE,
+  TOOLTIP_IMG_ACCELERATION,
+  TOOLTIP_IMG_CURRENTVEL,
+  TOOLTIP_IMG_REACTANTBUDGET,
 } from './utils/constants.js';
 import {
   parseNum,
@@ -20,9 +24,6 @@ import {
   formatGameTime,
   formatTargetDuration,
 } from './utils/formatters.js';
-import {
-  computeFinalApproach,
-} from './solvers/physics.js';
 import ErrorBoundary from './components/ErrorBoundary.js';
 import Readout from './components/Readout.js';
 import InputRow from './components/InputRow.js';
@@ -30,18 +31,12 @@ import { _urlParams, _urlParams_localStorage, _localStorage, _save_localStorage 
 import StandoffControl from './components/StandoffControl.js';
 import Timeline from './ui/Timeline.js';
 import BurnOutput from './ui/BurnOutput.js';
-import { badInputError, getStandOffError, getV0Error, targetAccelTooSmallError } from './utils/errors.js';
+import { badInputError, finalApproach_computedDecelTooFast, getStandOffError, getV0Error, targetAccelTooSmallError } from './utils/errors.js';
 import { accelOnlySolver, budgetOnlySolver, durationOnlySolver, optimalAccelSolver, optimalBudgetSolver, optimalDurationSolver } from './solvers/burnSolvers.js';
 import BurnInput from './ui/BurnInput.js';
+import { computeFinalApproach_constantBurn, computeFinalApproach_givenAccel } from './solvers/approachSolvers.js';
 
 const APP_VERSION = 'v0.6.4';
-
-// Embedded screenshot data for tooltips
-const TOOLTIP_IMG_DISTANCE = `${import.meta.env.BASE_URL}tooltips/distance.jpg`;
-const TOOLTIP_IMG_CURRENTVEL = `${import.meta.env.BASE_URL}tooltips/current-vel.jpg`;
-const TOOLTIP_IMG_VCRS = `${import.meta.env.BASE_URL}tooltips/vcrs.jpg`;
-const TOOLTIP_IMG_REACTANTBUDGET = `${import.meta.env.BASE_URL}tooltips/reactantbudget.jpg`;
-const TOOLTIP_IMG_ACCELERATION = `${import.meta.env.BASE_URL}tooltips/acceleration.jpg`;
 
 export default function BurnCalculator() {
   return (
@@ -307,8 +302,8 @@ function BurnCalculatorInner() {
     lines.push('');
     lines.push('-- VESSEL PARAMETERS --');
     lines.push(
-      faAccelBlank
-        ? `Acceleration: ${(faPlan.required_a / G).toFixed(2)} G (computed)`
+      !faTargetAccelAttempted
+        ? `Acceleration: ${(fa_required_a_mps2 / G).toFixed(2)} G (computed)`
         : `Acceleration: ${faAccel} G`
     );
     if (faGameStart.trim() !== '') {
@@ -459,22 +454,6 @@ function BurnCalculatorInner() {
   const finalPlanOk = finalPlan !== null && finalPlan.error === null && !finalPlan.overshoot;
   const isDriftMode = finalPlanOk && finalPlan.t_drift !== 0 && finalPlan.d_drift !== 0;
 
-  //Temp finalPlanUnpacking (TODO: Refactor)
-  const a_mps2 = finalPlanOk ? finalPlan.a_mps2 : NaN;
-
-  // VCRS advisory threshold - warn when cross-track drift extends burn distance by >5%
-  const vcrs_drift_m = finalPlanOk ? finalPlan.t_total * vcrs_mps : NaN;
-  const highVcrsWarning = vcrs_drift_m >= burn_distance_m * 0.05;
-
-  // Manual null heading + null time for high VCRS warning
-  const vcrsNullTime =
-    highVcrsWarning && isFinite(vcrs_mps) && isFinite(a_mps2) && a_mps2 > 0
-      ? Math.abs(vcrs_mps) / a_mps2
-      : null;
-
-  const manualNullBearing =
-    highVcrsWarning && isFinite(vcrs_mps) ? (vcrs_mps >= 0 ? '90.00°' : '270.00°') : null;
-
   // -- Final Approach calculations --
   const fa_distance_m_raw =
     parseNum(faDistance) * (faDistanceUnit === 'au' ? AU : faDistanceUnit === 'gm' ? 1e9 : 1000);
@@ -483,30 +462,33 @@ function BurnCalculatorInner() {
   const fa_v_arrival_mps =
     faVArrival.trim() === '' ? 0 : parseNum(faVArrival) * (faVArrivalUnit === 'km/s' ? 1000 : 1);
 
-  // FA solve-for-accel: when acceleration field is blank, derive required_a from distance/velocities
-  const faAccelBlank = faAccel.trim() === '';
-  const fa_required_a_computed =
-    faAccelBlank &&
-    isFinite(fa_brake_distance_m) &&
-    fa_brake_distance_m > 0 &&
-    isFinite(fa_v0_mps) &&
-    fa_v0_mps > 0 &&
-    isFinite(fa_v_arrival_mps) &&
-    fa_v_arrival_mps < fa_v0_mps
-      ? (fa_v0_mps * fa_v0_mps - fa_v_arrival_mps * fa_v_arrival_mps) / (2 * fa_brake_distance_m)
-      : null;
+  const faTargetAccelAttempted = faAccel.trim() !== '';
+  const faTargetAccel_mps2 = parseGValue(faAccel);
+  const faTargetAccelTooSmall = isFinite(faTargetAccel_mps2) && faTargetAccel_mps2 < 0.01 * G
+  const faTargetAccelValid = isFinite(faTargetAccel_mps2) && !faTargetAccelTooSmall
+  const faTargetAccelError = faTargetAccelAttempted && !faTargetAccelValid
+
+  const faConstantBurnPlan = computeFinalApproach_constantBurn({ 
+    distance_m: fa_brake_distance_m, 
+    v0_mps : fa_v0_mps, 
+    v_arrival_mps : fa_v_arrival_mps 
+  });
+
+  const fa_required_a_mps2 = 
+    faConstantBurnPlan && faConstantBurnPlan.error === null
+      ? faConstantBurnPlan.a_mps2
+      : NaN;
   // Reject computed acceleration below minimum viable thrust (0.01 G)
   const fa_required_a_belowMin =
-    fa_required_a_computed !== null && fa_required_a_computed < 0.01 * G;
+    isFinite(fa_required_a_mps2) && fa_required_a_mps2 < 0.01 * G;
   // Operating acceleration: computed required_a when blank (and above floor), otherwise player input
-  const fa_a_mps2 = faAccelBlank
-    ? fa_required_a_computed !== null && !fa_required_a_belowMin
-      ? fa_required_a_computed
+  const fa_a_mps2 = !faTargetAccelAttempted
+    ? isFinite(fa_required_a_mps2) && !fa_required_a_belowMin
+      ? fa_required_a_mps2
       : NaN
-    : (() => {
-        const v = parseGValue(faAccel);
-        return isFinite(v) && v < 0.01 * G ? NaN : v;
-      })();
+    : faTargetAccelTooSmall 
+      ? NaN
+      : faTargetAccel_mps2
 
   // FA budget conversion - parsed same as Desired Travel Time (bare number = seconds)
   const fa_budget_s = (() => {
@@ -515,11 +497,11 @@ function BurnCalculatorInner() {
   })();
 
   const faMissingFields = [
-    (faDistance.trim() === '' || !isFinite(fa_distance_m_raw)) && 'RANGE',
-    (faVrel.trim() === '' || !isFinite(fa_v0_mps)) && 'CLOSING VELOCITY',
-    !faAccelBlank && !isFinite(parseGValue(faAccel)) && 'ACCELERATION',
-    faVArrival.trim() !== '' && !isFinite(fa_v_arrival_mps) && 'CUTOFF VELOCITY',
-  ].filter(Boolean);
+    ...(!isFinite(fa_distance_m_raw) ? ['RANGE'] : []),
+    ...(!isFinite(fa_v0_mps) ? ['CLOSING VELOCITY'] : []),
+    ...((!!faTargetAccelAttempted && !isFinite(faTargetAccel_mps2)) ? ['ACCELERATION'] : []),
+    ...((faVArrival.trim() !== '' && !isFinite(fa_v_arrival_mps)) ? ['CUTOFF VELOCITY'] : []),
+  ];
 
   // Stand-off error for FA (mirrors burn-mode logic)
   const fa_standoffError = !standoffValid
@@ -529,46 +511,44 @@ function BurnCalculatorInner() {
       : null;
   const fa_hasWakeError = fa_standoffError !== null;
 
-  const faPlan =
-    appMode === 'approach'
-      ? fa_standoffError === 'invalid-standoff'
-        ? { error: 'INVALID STAND-OFF DISTANCE', detail: 'Enter a positive distance in km.' }
-        : fa_standoffError === 'within-standoff'
-          ? noWakeEnabled
-            ? {
-                error: 'DESTINATION IS WITHIN THE 300 KM NO-WAKE ZONE',
-                detail: 'You are already inside the no-wake boundary.',
-              }
-            : {
-                error: `DESTINATION IS WITHIN THE STAND-OFF ZONE (${standoffKm} KM)`,
-                detail: 'Increase total range or reduce the stand-off distance.',
-              }
-          : computeFinalApproach({
-              distance_m: fa_brake_distance_m,
-              v0_mps: fa_v0_mps,
-              a_mps2: fa_a_mps2,
-              v_arrival_mps: fa_v_arrival_mps,
-            })
-      : null;
-  const faPlanOk = faPlan !== null && faPlan.error === null && !faPlan.overshoot;
+  const faInputError = 
+      faMissingFields.length > 0 ? badInputError :
+      faTargetAccelTooSmall ? targetAccelTooSmallError :
+      fa_hasWakeError ? getStandOffError({standoffError : fa_standoffError, noWakeEnabled, standoffKm}) :
+      null
+  
+  const faPlanAccel = faTargetAccelValid ? 
+    computeFinalApproach_givenAccel({
+      distance_m: fa_brake_distance_m,
+      v0_mps: fa_v0_mps,
+      a_mps2: faTargetAccel_mps2,
+      v_arrival_mps: fa_v_arrival_mps,
+    }) : null;
+  const faPlanIgnoreInputErrors = faPlanAccel ?? faConstantBurnPlan
+  const faPlanRaw = faInputError ?? faPlanIgnoreInputErrors
+  const faPlanCanCheck = faPlanRaw.error === null && !faPlanRaw.overshoot;
+  const faPlanErrors = !faPlanCanCheck ? null :
+    faPlanRaw.a_mps2 < 0.01 * G ? finalApproach_computedDecelTooFast
+    : null;
+  const faPlan = faPlanErrors ?? faPlanRaw;
+  const faPlanOk = faPlan.error === null && !faPlan.overshoot;
 
   // Reactant sufficiency for FA at operating acceleration (full thrust or computed)
-  const fa_reactant_ok =
-    fa_budget_s !== null && faPlanOk
+  const fa_reactant_ok = !Number.isNaN(fa_budget_s) && faPlanOk
       ? fa_budget_s >= faPlan.t_brake
       : null; // null = no budget entered, don't show
 
   // Throttled-G reactant check: when player has an available accel AND required_a < fa_a_mps2,
   // show a second line for what happens if they throttle down to required_a.
-  // Not shown in constant-burn mode (faAccelBlank) since there's only one accel in play.
+  // Not shown in constant-burn mode (!faTargetAccelAttempted) since there's only one accel in play.
   const fa_throttled_brake_s =
-    !faAccelBlank &&
+    !!faTargetAccelAttempted &&
     fa_budget_s !== null &&
     faPlanOk &&
-    isFinite(faPlan.required_a) &&
+    isFinite(fa_required_a_mps2) &&
     isFinite(fa_a_mps2) &&
-    faPlan.required_a < fa_a_mps2 - 1e-6
-      ? (fa_v0_mps - fa_v_arrival_mps) / faPlan.required_a
+    fa_required_a_mps2 < fa_a_mps2 - 1e-6
+      ? (fa_v0_mps - fa_v_arrival_mps) / fa_required_a_mps2
       : null;
   const fa_throttled_ok =
     fa_throttled_brake_s !== null && fa_budget_s !== null ? fa_budget_s >= fa_throttled_brake_s : null;
@@ -602,20 +582,20 @@ function BurnCalculatorInner() {
   // Flicker effect: trigger when plan output changes
   useEffect(() => {
     const key = JSON.stringify({
-      required_a: faPlanOk ? faPlan.required_a : null,
+      a_mps2: faPlanOk ? faPlan.a_mps2 : null,
       t_accel: faPlanOk ? faPlan.t_brake : null,
       t_total: faPlanOk ? faPlan.t_total : null,
-      error: faPlan ? faPlan.error: null,
+      error: faPlan.error,
     });
     if (prevPlanRef.current !== null && prevPlanRef.current !== key) {
       setFlickerKey((k) => k + 1);
     }
     prevPlanRef.current = key;
   }, [
-        faPlanOk ? faPlan.required_a : null,
+        faPlanOk ? faPlan.a_mps2 : null,
         faPlanOk ? faPlan.t_brake : null,
         faPlanOk ? faPlan.t_total : null,
-        faPlan ? faPlan.error: null
+        faPlan.error
       ]);
 
   // Game time parsing
@@ -828,7 +808,7 @@ function BurnCalculatorInner() {
                     onChange={setFaAccel}
                     units={[]}
                     placeholder="e.g. 1.95g"
-                    invalid={!faAccelBlank && (!isFinite(fa_a_mps2) || fa_a_mps2 < 0.01 * G)}
+                    invalid={!!faTargetAccelAttempted && (!isFinite(fa_a_mps2) || fa_a_mps2 < 0.01 * G)}
                     tooltip={{
                       desc: 'Enter your desired sustained acceleration for this burn. Leave blank for constant-burn mode - required G computed automatically.',
                       img: TOOLTIP_IMG_ACCELERATION,
@@ -919,46 +899,7 @@ function BurnCalculatorInner() {
                     )}
                   </div>
 
-                  {/* -- FA pre-flight missing field check -- */}
-                  {faMissingFields.length > 0 && (
-                    <div className="bc-warning" role="alert">
-                      <AlertTriangle size={14} color="var(--red)" />
-                      <div className="bc-warning-text">
-                        <strong>MISSING OR INVALID INPUT</strong>
-                        <br />
-                        One or more fields are empty or non-numeric.
-                      </div>
-                    </div>
-                  )}
-
-                  {/* FA below-minimum entered acceleration */}
-                  {!faAccelBlank &&
-                    isFinite(parseGValue(faAccel)) &&
-                    parseGValue(faAccel) < 0.01 * G && (
-                      <div className="bc-warning" role="alert">
-                        <AlertTriangle size={14} color="var(--red)" />
-                        <div className="bc-warning-text">
-                          <strong>ACCELERATION BELOW MINIMUM THRUST (0.01 G)</strong>
-                          <br />
-                          Enter a value of 0.01 G or higher.
-                        </div>
-                      </div>
-                    )}
-
-                  {/* FA constant-burn below-minimum computed acceleration */}
-                  {faAccelBlank && fa_required_a_belowMin && (
-                    <div className="bc-warning" role="alert">
-                      <AlertTriangle size={14} color="var(--red)" />
-                      <div className="bc-warning-text">
-                        <strong>
-                          REQUIRED DECELERATION BELOW MINIMUM THRUST (0.01 G) - CHECK UNITS OR
-                          INCREASE RANGE
-                        </strong>
-                      </div>
-                    </div>
-                  )}
-
-                  {faPlan && faPlan.error && !faMissingFields.length && (
+                  {faPlan && faPlan.error && (
                     <div className="bc-warning" role="alert">
                       <AlertTriangle size={14} color="var(--red)" />
                       <div className="bc-warning-text">
@@ -1018,8 +959,8 @@ function BurnCalculatorInner() {
                     <>
                       {/* Required G vs available G - or constant-burn mode */}
                       {(() => {
-                        const req_g = faPlan.required_a / G;
-                        if (faAccelBlank) {
+                        const req_g = fa_required_a_mps2 / G;
+                        if (!faTargetAccelAttempted) {
                           return (
                             <div className="bc-fa-ok">
                               {`● CONSTANT BURN - REQUIRED: ${req_g.toFixed(2)} G`}
@@ -1050,8 +991,8 @@ function BurnCalculatorInner() {
                       {fa_throttled_brake_s !== null && (
                         <div className={fa_throttled_ok ? 'bc-fa-ok' : 'bc-advisory'}>
                           {fa_throttled_ok
-                            ? `● IF THROTTLED TO ${(faPlan.required_a / G).toFixed(2)} G - BRAKE REQUIRES ${formatTargetDuration(Math.floor(fa_throttled_brake_s))}, BUDGET SUFFICIENT`
-                            : `NOTE: THROTTLING DOWN TO ${(faPlan.required_a / G).toFixed(2)} G WOULD EXTEND BRAKING BURN TO ${formatTargetDuration(Math.floor(fa_throttled_brake_s))} - REACTANT BUDGET INSUFFICIENT FOR MINIMUM ACCELERATION BURN BASED ON CURRENT SETTINGS.`}
+                            ? `● IF THROTTLED TO ${(fa_required_a_mps2 / G).toFixed(2)} G - BRAKE REQUIRES ${formatTargetDuration(Math.floor(fa_throttled_brake_s))}, BUDGET SUFFICIENT`
+                            : `NOTE: THROTTLING DOWN TO ${(fa_required_a_mps2 / G).toFixed(2)} G WOULD EXTEND BRAKING BURN TO ${formatTargetDuration(Math.floor(fa_throttled_brake_s))} - REACTANT BUDGET INSUFFICIENT FOR MINIMUM ACCELERATION BURN BASED ON CURRENT SETTINGS.`}
                         </div>
                       )}
                       {fa_budget_floor_g !== null && (
@@ -1128,7 +1069,7 @@ function BurnCalculatorInner() {
                     </>
                   )}
 
-                  {!faPlan && (
+                  {!faPlan && ( //TODO: Properly use this as an element for empty stuff
                     <div
                       style={{
                         fontSize: 11,

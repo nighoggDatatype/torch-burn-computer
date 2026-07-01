@@ -3,12 +3,7 @@ import InputRow from "../components/InputRow.js";
 import StandoffControl from "../components/StandoffControl.js";
 import { formatTargetDuration } from "../utils/formatters.js";
 import InputNote from "../components/InputNote.js";
-
-const TOOLTIP_IMG_DISTANCE = `${import.meta.env.BASE_URL}tooltips/distance.jpg`;
-const TOOLTIP_IMG_CURRENTVEL = `${import.meta.env.BASE_URL}tooltips/current-vel.jpg`;
-const TOOLTIP_IMG_VCRS = `${import.meta.env.BASE_URL}tooltips/vcrs.jpg`;
-const TOOLTIP_IMG_REACTANTBUDGET = `${import.meta.env.BASE_URL}tooltips/reactantbudget.jpg`;
-const TOOLTIP_IMG_ACCELERATION = `${import.meta.env.BASE_URL}tooltips/acceleration.jpg`;
+import { TOOLTIP_IMG_ACCELERATION, TOOLTIP_IMG_CURRENTVEL, TOOLTIP_IMG_DISTANCE, TOOLTIP_IMG_REACTANTBUDGET, TOOLTIP_IMG_VCRS } from "../utils/constants.js";
 
 type stringSetter = React.Dispatch<React.SetStateAction<string>>
 type booleanSetter = React.Dispatch<React.SetStateAction<boolean>>

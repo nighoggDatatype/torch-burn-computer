@@ -9,18 +9,18 @@ type stringSetter = React.Dispatch<React.SetStateAction<string>>
 type booleanSetter = React.Dispatch<React.SetStateAction<boolean>>
 
 type BurnInputArgs = {
-        distance : string, setDistance : stringSetter, distanceUnit : string, setDistanceUnit : stringSetter, 
-        vrel : string, setVrel : stringSetter, vrelUnit : string, setVrelUnit : stringSetter,
-        v0Direction : string, setV0Direction : stringSetter,
-        vcrs : string, setVcrs : stringSetter, vcrsUnit : string, setVcrsUnit : stringSetter,
-        vArrival : string, setVArrival : stringSetter, vArrivalUnit : string, setVArrivalUnit : stringSetter,
-        noWakeEnabled : boolean, setNoWakeEnabled : booleanSetter, standoffKm : string, setStandoffKm : stringSetter, standoffError : string | null,
-        accel : string, setAccel : stringSetter, targetAccelError : boolean,
-        targetDuration : string, setTargetDuration : stringSetter, targetDurationError : boolean, targetDuration_s : number | null,
-        reactantBudget : string, setReactantBudget : stringSetter, targetBudgetError : boolean, targetBudget_s : number | null,
-        flipTime : string, setFlipTime : stringSetter, flipTimeError : boolean,
-        gameStartTime : string, setGameStartTime : stringSetter, gameTimeError : boolean, gameTimeValid : boolean,
-        isDriftMode : boolean, anyConstraintAttempted : boolean
+    distance : string, setDistance : stringSetter, distanceUnit : string, setDistanceUnit : stringSetter, 
+    vrel : string, setVrel : stringSetter, vrelUnit : string, setVrelUnit : stringSetter,
+    v0Direction : string, setV0Direction : stringSetter,
+    vcrs : string, setVcrs : stringSetter, vcrsUnit : string, setVcrsUnit : stringSetter,
+    vArrival : string, setVArrival : stringSetter, vArrivalUnit : string, setVArrivalUnit : stringSetter,
+    noWakeEnabled : boolean, setNoWakeEnabled : booleanSetter, standoffKm : string, setStandoffKm : stringSetter, standoffError : string | null,
+    accel : string, setAccel : stringSetter, targetAccelError : boolean,
+    targetDuration : string, setTargetDuration : stringSetter, targetDurationError : boolean, targetDuration_s : number | null,
+    reactantBudget : string, setReactantBudget : stringSetter, targetBudgetError : boolean, targetBudget_s : number | null,
+    flipTime : string, setFlipTime : stringSetter, flipTimeError : boolean,
+    gameStartTime : string, setGameStartTime : stringSetter, gameTimeError : boolean, gameTimeValid : boolean,
+    isDriftMode : boolean, anyConstraintAttempted : boolean
 }
 
 function BurnInput({args} : {args : BurnInputArgs}) {
@@ -38,7 +38,6 @@ function BurnInput({args} : {args : BurnInputArgs}) {
         gameStartTime, setGameStartTime, gameTimeError, gameTimeValid,
         isDriftMode, anyConstraintAttempted
     } = args;
-    const hasWakeError = standoffError !== null;
     return (<>
         {/* -- Current State -- */}
         <div className="bc-panel-header">◇ Current State</div>

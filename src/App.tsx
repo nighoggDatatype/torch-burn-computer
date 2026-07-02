@@ -35,6 +35,7 @@ import { badInputError, finalApproach_computedDecelTooFast, getStandOffError, ge
 import { accelOnlySolver, budgetOnlySolver, durationOnlySolver, optimalAccelSolver, optimalBudgetSolver, optimalDurationSolver } from './solvers/burnSolvers.js';
 import BurnInput from './ui/BurnInput.js';
 import { computeFinalApproach_constantBurn, computeFinalApproach_givenAccel } from './solvers/approachSolvers.js';
+import ApproachInput from './ui/ApproachInput.js';
 
 const APP_VERSION = 'v0.6.4';
 
@@ -93,7 +94,7 @@ function BurnCalculatorInner() {
   const [faBudget, setFaBudget] = useState(() => _urlParams('fab') ?? '');
   const [faVArrival, setFaVArrival] = useState(() => _urlParams('fava') ?? '0');
   const [faVArrivalUnit, setFaVArrivalUnit] = useState(() => _urlParams_localStorage('fvau', 'pa_fvau', 'm/s'));
-  const [faGameStart, setFaGameStart] = useState(() => _urlParams('fgt') ?? '');
+  const [faGameStartTime, setFaGameStartTime] = useState(() => _urlParams('fgt') ?? '');
 
   // Burn Plan state - per-burn fields from URL only, vessel/prefs from URL→LS
   const [distance, setDistance] = useState(() => _urlParams('d') ?? '');
@@ -149,7 +150,7 @@ function BurnCalculatorInner() {
     if (faBudget) p.set('fab', faBudget);
     if (faVArrival !== '0') p.set('fava', faVArrival);
     if (faVArrivalUnit !== 'm/s') p.set('fvau', faVArrivalUnit);
-    if (faGameStart) p.set('fgt', faGameStart);
+    if (faGameStartTime) p.set('fgt', faGameStartTime);
     const qs = p.toString();
     try {
       history.replaceState(
@@ -162,7 +163,7 @@ function BurnCalculatorInner() {
     distance, distanceUnit, vrel, vrelUnit, v0Direction, accel, flipTime, reactantBudget,
     vArrival, vArrivalUnit, vcrs, vcrsUnit, noWakeEnabled, standoffKm, targetDuration,
     gameStartTime, faDistance, faDistanceUnit, faVrel, faVrelUnit,
-    faAccel, faBudget, faVArrival, faVArrivalUnit, faGameStart, appMode,
+    faAccel, faBudget, faVArrival, faVArrivalUnit, faGameStartTime, appMode,
   ]);
 
   // -- localStorage sync - vessel params and preferences only ---------------
@@ -306,10 +307,10 @@ function BurnCalculatorInner() {
         ? `Acceleration: ${(fa_required_a_mps2 / G).toFixed(2)} G (computed)`
         : `Acceleration: ${faAccel} G`
     );
-    if (faGameStart.trim() !== '') {
+    if (faGameStartTime.trim() !== '') {
       lines.push('');
       lines.push('-- GAME CLOCK --');
-      lines.push(`Current Time: ${faGameStart}`);
+      lines.push(`Current Time: ${faGameStartTime}`);
     }
     lines.push('');
     lines.push('-- APPROACH SOLUTION --');
@@ -491,10 +492,10 @@ function BurnCalculatorInner() {
       : faTargetAccel_mps2
 
   // FA budget conversion - parsed same as Desired Travel Time (bare number = seconds)
-  const faBudgetAttempted = faBudget.trim() !== null
-  const fa_budget_s = parseTargetDuration(faBudget);
-  const faBudgetValid = fa_budget_s !== null && fa_budget_s > 0; //TODO: Peel positive check out
-  const faBudgetError = faBudgetAttempted && !faBudgetValid
+  const faTargetBudgetAttempted = faBudget.trim() !== ''
+  const faTargetBudget_s = parseTargetDuration(faBudget);
+  const faTargetBudgetValid = faTargetBudget_s !== null && faTargetBudget_s > 0; //TODO: Peel positive check out
+  const faTargetBudgetError = faTargetBudgetAttempted && !faTargetBudgetValid
 
   const faMissingFields = [
     ...(!isFinite(fa_distance_m_raw) ? ['RANGE'] : []),
@@ -534,8 +535,8 @@ function BurnCalculatorInner() {
   const faPlanOk = faPlan.error === null && !faPlan.overshoot;
 
   // Reactant sufficiency for FA at operating acceleration (full thrust or computed)
-  const fa_reactant_ok = faBudgetValid && faPlanOk
-      ? fa_budget_s >= faPlan.t_brake
+  const fa_reactant_ok = faTargetBudgetValid && faPlanOk
+      ? faTargetBudget_s >= faPlan.t_brake
       : null; // null = no budget entered, don't show
 
   // Throttled-G reactant check: when player has an available accel AND required_a < fa_a_mps2,
@@ -548,18 +549,18 @@ function BurnCalculatorInner() {
       ? faConstantBurnPlan.t_brake
       : null;
   const fa_throttled_ok =
-    fa_throttled_brake_s !== null && fa_budget_s !== null ? fa_budget_s >= fa_throttled_brake_s : null;
+    fa_throttled_brake_s !== null && faTargetBudget_s !== null ? faTargetBudget_s >= fa_throttled_brake_s : null;
   // Budget-floor G: lowest throttle that still completes the brake within the current budget.
   // Only shown alongside the throttle-down caution when full-thrust reactant is sufficient.
   const fa_budget_floor_g =
-    fa_throttled_ok === false && fa_reactant_ok === true && fa_budget_s !== null && fa_budget_s > 0
-      ? (fa_v0_mps - fa_v_arrival_mps) / fa_budget_s / G
+    fa_throttled_ok === false && fa_reactant_ok === true && faTargetBudget_s !== null && faTargetBudget_s > 0
+      ? (fa_v0_mps - fa_v_arrival_mps) / faTargetBudget_s / G
       : null;
 
-  // FA game clock
-  const faParsedGameTime = parseGameTime(faGameStart);
+  // FA game clock (TODO: Consider just using one game time globally)
+  const faParsedGameTime = parseGameTime(faGameStartTime);
   const faGameTimeValid = faParsedGameTime !== null;
-  const faGameTimeAttempted = faGameStart.trim() !== '';
+  const faGameTimeAttempted = faGameStartTime.trim() !== '';
   const faGameTimeError = faGameTimeAttempted && !faGameTimeValid;
 
   const faBrakeTarget =
@@ -642,6 +643,15 @@ function BurnCalculatorInner() {
     gameStartTime, setGameStartTime, gameTimeError, gameTimeValid,
     isDriftMode, anyConstraintAttempted
   }
+  const approachInputArgs = {
+      faDistance, setFaDistance, faDistanceUnit, setFaDistanceUnit,
+      faVrel, setFaVrel, faVrelUnit, setFaVrelUnit,
+      faVArrival, setFaVArrival, faVArrivalUnit, setFaVArrivalUnit,
+      faAccel, setFaAccel, faTargetAccelError,
+      faBudget, setFaBudget, faTargetBudgetError, faTargetBudget_s, 
+      noWakeEnabled, setNoWakeEnabled, standoffKm, setStandoffKm, standoffError,
+      faGameStartTime, setFaGameStartTime, faGameTimeError, faGameTimeValid
+  }
 
   return (
     <>
@@ -723,153 +733,7 @@ function BurnCalculatorInner() {
               )}
 
               {appMode === 'approach' && (
-                <>
-                  {/* -- Current State -- */}
-                  <div className="bc-panel-header">◇ Current State</div>
-                  <div className="bc-fa-notice">
-                    VCRS SHOULD BE 0.00 M/S BEFORE FINAL APPROACH - NULL CROSS-TRACK VELOCITY BEFORE
-                    PROCEEDING
-                  </div>
-                  <InputRow
-                    label="Current RNG"
-                    value={faDistance}
-                    onChange={setFaDistance}
-                    unit={faDistanceUnit}
-                    units={['km', 'gm', 'au']}
-                    onUnitChange={setFaDistanceUnit}
-                    placeholder="e.g. 18902"
-                    invalid={faDistance.trim() === ''}
-                    inputMode="decimal"
-                    tooltip={{
-                      desc: 'After selecting your target destination, input the distance to target.',
-                      img: TOOLTIP_IMG_DISTANCE,
-                    }}
-                  />
-                  {fa_hasWakeError && (
-                    <div
-                      className="bc-field-note"
-                      style={{ color: 'var(--red)', marginBottom: 10, paddingLeft: 118 }}
-                    >
-                      {fa_standoffError === 'invalid-standoff'
-                        ? '⚠ INVALID STAND-OFF DISTANCE'
-                        : noWakeEnabled
-                          ? '⚠ DESTINATION IS WITHIN THE 300 KM NO-WAKE ZONE'
-                          : `⚠ DESTINATION IS WITHIN THE STAND-OFF ZONE (${standoffKm} KM)`}
-                    </div>
-                  )}
-                  <InputRow
-                    label="Current VREL (Closing)"
-                    value={faVrel}
-                    onChange={setFaVrel}
-                    unit={faVrelUnit}
-                    units={['m/s', 'km/s']}
-                    onUnitChange={setFaVrelUnit}
-                    placeholder="e.g. 511.19"
-                    invalid={faVrel.trim() === ''}
-                    inputMode="decimal"
-                    tooltip={{
-                      desc: "Input your vessel's current velocity to the target.",
-                      img: TOOLTIP_IMG_CURRENTVEL,
-                    }}
-                  />
-
-                  {/* -- Arrival Parameters -- */}
-                  <div className="bc-panel-header" style={{ marginTop: 20 }}>
-                    ◇ Arrival Parameters
-                  </div>
-                  <InputRow
-                    label={noWakeEnabled ? 'Tgt Vel at 300km' : `Tgt Vel at ${standoffKm || '?'}km`}
-                    value={faVArrival}
-                    onChange={setFaVArrival}
-                    unit={faVArrivalUnit}
-                    units={['m/s', 'km/s']}
-                    onUnitChange={setFaVArrivalUnit}
-                    placeholder="e.g. 0"
-                    inputMode="decimal"
-                  />
-                  <StandoffControl
-                    noWakeEnabled={noWakeEnabled}
-                    setNoWakeEnabled={setNoWakeEnabled}
-                    standoffKm={standoffKm}
-                    setStandoffKm={setStandoffKm}
-                    standoffError={standoffError}
-                  />
-
-                  {/* -- Trip Parameters -- */}
-                  <div className="bc-panel-header" style={{ marginTop: 20 }}>
-                    ◇ Trip Parameters
-                  </div>
-                  <InputRow
-                    label="Acceleration"
-                    value={faAccel}
-                    onChange={setFaAccel}
-                    units={[]}
-                    placeholder="e.g. 1.95g"
-                    invalid={!!faTargetAccelAttempted && (!isFinite(fa_a_mps2) || fa_a_mps2 < 0.01 * G)}
-                    tooltip={{
-                      desc: 'Enter your desired sustained acceleration for this burn. Leave blank for constant-burn mode - required G computed automatically.',
-                      img: TOOLTIP_IMG_ACCELERATION,
-                    }}
-                  />
-                  <InputRow
-                    label="Reactant Budget"
-                    value={faBudget}
-                    onChange={setFaBudget}
-                    units={[]}
-                    placeholder="e.g. 3h 30m or 12600"
-                    tooltip={{
-                      desc: 'Enter the amount of reactant you plan to allocate to this burn. It is not recommended to commit all your available reactant.',
-                      img: TOOLTIP_IMG_REACTANTBUDGET,
-                    }}
-                  />
-                  {faBudget.trim() !== '' && (
-                    <div className="bc-field-note" style={{ marginBottom: 6, paddingLeft: 118 }}>
-                      {fa_budget_s !== null ? (
-                        <span style={{ color: 'var(--green)' }}>
-                          ● {formatTargetDuration(fa_budget_s)}
-                        </span>
-                      ) : (
-                        <span style={{ color: 'var(--red)' }}>INVALID FORMAT</span>
-                      )}
-                    </div>
-                  )}
-
-                  {/* -- Game Clock -- */}
-                  <div className="bc-panel-header" style={{ marginTop: 20 }}>
-                    ◇ Game Clock
-                  </div>
-                  <div className="bc-input-row">
-                    <div className="bc-label">
-                      <Clock
-                        size={10}
-                        style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }}
-                      />
-                      Current Time
-                    </div>
-                    <input
-                      className={`bc-input${faGameTimeError ? ' invalid' : ''}`}
-                      type="text"
-                      aria-label="Current Time"
-                      placeholder="YYYY-MM-DD HH:MM:SS or HH:MM:SS"
-                      value={faGameStart}
-                      aria-invalid={faGameTimeError ? 'true' : undefined}
-                      onChange={(e) => setFaGameStart(e.target.value)}
-                    />
-                  </div>
-                  <div className="bc-field-note" style={{ marginTop: 6, paddingLeft: 118 }}>
-                    {faGameTimeError ? (
-                      <span style={{ color: 'var(--red)' }}>
-                        INVALID FORMAT - USE YYYY-MM-DD HH:MM:SS OR HH:MM:SS
-                      </span>
-                    ) : faGameTimeValid ? (
-                      <span style={{ color: 'var(--green)' }}>
-                        ● TARGETS COMPUTED FROM GAME CLOCK
-                      </span>
-                    ) : (
-                      <span>LEAVE BLANK FOR RELATIVE (T+) TIMES - DATE OPTIONAL</span>
-                    )}
-                  </div>
-                </>
+                <ApproachInput args={approachInputArgs}/>
               )}
             </div>
 
@@ -976,11 +840,11 @@ function BurnCalculatorInner() {
                       })()}
 
                       {/* Reactant sufficiency at operating acceleration */}
-                      {faBudgetValid && (
+                      {faTargetBudgetValid && (
                         <div className={fa_reactant_ok ? 'bc-fa-ok' : 'bc-fa-warn'}>
                           {fa_reactant_ok
-                            ? `● REACTANT SUFFICIENT - BRAKE REQUIRES ${formatTargetDuration(Math.floor(faPlan.t_brake))}, BUDGET IS ${formatTargetDuration(Math.floor(fa_budget_s))}`
-                            : `⚠ REACTANT DEFICIT - BRAKE REQUIRES ${formatTargetDuration(Math.floor(faPlan.t_brake))}, BUDGET IS ONLY ${formatTargetDuration(Math.floor(fa_budget_s))}`}
+                            ? `● REACTANT SUFFICIENT - BRAKE REQUIRES ${formatTargetDuration(Math.floor(faPlan.t_brake))}, BUDGET IS ${formatTargetDuration(Math.floor(faTargetBudget_s))}`
+                            : `⚠ REACTANT DEFICIT - BRAKE REQUIRES ${formatTargetDuration(Math.floor(faPlan.t_brake))}, BUDGET IS ONLY ${formatTargetDuration(Math.floor(faTargetBudget_s))}`}
                         </div>
                       )}
 

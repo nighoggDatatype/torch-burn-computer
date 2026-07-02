@@ -1,0 +1,174 @@
+import { Clock } from "lucide-react";
+import InputRow from "../components/InputRow.js";
+import StandoffControl from "../components/StandoffControl.js";
+import { TOOLTIP_IMG_ACCELERATION, TOOLTIP_IMG_CURRENTVEL, TOOLTIP_IMG_DISTANCE, TOOLTIP_IMG_REACTANTBUDGET } from "../utils/constants.js";
+import { formatTargetDuration } from "../utils/formatters.js";
+import InputNote from "../components/InputNote.js";
+
+type stringSetter = React.Dispatch<React.SetStateAction<string>>
+type booleanSetter = React.Dispatch<React.SetStateAction<boolean>>
+
+type ApproachInputArgs = {
+    faDistance : string, setFaDistance : stringSetter, faDistanceUnit : string, setFaDistanceUnit : stringSetter, 
+    faVrel : string, setFaVrel : stringSetter, faVrelUnit : string, setFaVrelUnit : stringSetter,
+    faVArrival : string, setFaVArrival : stringSetter, faVArrivalUnit : string, setFaVArrivalUnit : stringSetter,
+    faAccel : string, setFaAccel : stringSetter, faTargetAccelError : boolean,
+    faBudget : string, setFaBudget : stringSetter, faTargetBudgetError : boolean, faTargetBudget_s : number | null,
+    noWakeEnabled : boolean, setNoWakeEnabled : booleanSetter, standoffKm : string, setStandoffKm : stringSetter, standoffError : string | null,
+    faGameStartTime : string, setFaGameStartTime : stringSetter, faGameTimeError : boolean, faGameTimeValid : boolean,
+}
+
+
+function ApproachInput({args} : {args : ApproachInputArgs})
+{
+    const {
+        faDistance, setFaDistance, faDistanceUnit, setFaDistanceUnit,
+        faVrel, setFaVrel, faVrelUnit, setFaVrelUnit,
+        faVArrival, setFaVArrival, faVArrivalUnit, setFaVArrivalUnit,
+        faAccel, setFaAccel, faTargetAccelError,
+        faBudget, setFaBudget, faTargetBudgetError, faTargetBudget_s, 
+        noWakeEnabled, setNoWakeEnabled, standoffKm, setStandoffKm, standoffError,
+        faGameStartTime, setFaGameStartTime, faGameTimeError, faGameTimeValid
+    } = args;
+    return (
+    <>
+        {/* -- Current State -- */}
+        <div className="bc-panel-header">◇ Current State</div>
+        <div className="bc-fa-notice">
+        VCRS SHOULD BE 0.00 M/S BEFORE FINAL APPROACH - NULL CROSS-TRACK VELOCITY BEFORE
+        PROCEEDING
+        </div>
+        <InputRow
+        label="Current RNG"
+        value={faDistance}
+        onChange={setFaDistance}
+        unit={faDistanceUnit}
+        units={['km', 'gm', 'au']}
+        onUnitChange={setFaDistanceUnit}
+        placeholder="e.g. 18902"
+        invalid={faDistance.trim() === ''}
+        inputMode="decimal"
+        tooltip={{
+            desc: 'After selecting your target destination, input the distance to target.',
+            img: TOOLTIP_IMG_DISTANCE,
+        }}
+        />
+        <InputNote 
+            note = {
+                standoffError === 'within-standoff' ? noWakeEnabled
+                    ? '⚠ DESTINATION IS WITHIN THE 300 KM NO-WAKE ZONE'
+                    : `⚠ DESTINATION IS WITHIN THE STAND-OFF ZONE (${standoffKm} KM)` 
+                : null
+            }
+            style = {
+                standoffError === 'within-standoff' ? { color: 'var(--red)' } : undefined
+            }
+        />
+        <InputRow
+        label="Current VREL (Closing)"
+        value={faVrel}
+        onChange={setFaVrel}
+        unit={faVrelUnit}
+        units={['m/s', 'km/s']}
+        onUnitChange={setFaVrelUnit}
+        placeholder="e.g. 511.19"
+        invalid={faVrel.trim() === ''}
+        inputMode="decimal"
+        tooltip={{
+            desc: "Input your vessel's current velocity to the target.",
+            img: TOOLTIP_IMG_CURRENTVEL,
+        }}
+        />
+
+        {/* -- Arrival Parameters -- */}
+        <div className="bc-panel-header" style={{ marginTop: 20 }}>
+        ◇ Arrival Parameters
+        </div>
+        <InputRow
+        label={noWakeEnabled ? 'Tgt Vel at 300km' : `Tgt Vel at ${standoffKm || '?'}km`}
+        value={faVArrival}
+        onChange={setFaVArrival}
+        unit={faVArrivalUnit}
+        units={['m/s', 'km/s']}
+        onUnitChange={setFaVArrivalUnit}
+        placeholder="e.g. 0"
+        inputMode="decimal"
+        />
+        <StandoffControl
+        noWakeEnabled={noWakeEnabled}
+        setNoWakeEnabled={setNoWakeEnabled}
+        standoffKm={standoffKm}
+        setStandoffKm={setStandoffKm}
+        standoffError={standoffError}
+        />
+
+        {/* -- Trip Parameters -- */}
+        <div className="bc-panel-header" style={{ marginTop: 20 }}>
+        ◇ Trip Parameters
+        </div>
+        <InputRow
+        label="Acceleration"
+        value={faAccel}
+        onChange={setFaAccel}
+        units={[]}
+        placeholder="e.g. 1.95g"
+        invalid={faTargetAccelError}
+        tooltip={{
+            desc: 'Enter your desired sustained acceleration for this burn. Leave blank for constant-burn mode - required G computed automatically.',
+            img: TOOLTIP_IMG_ACCELERATION,
+        }}
+        />
+        <InputRow
+        label="Reactant Budget"
+        value={faBudget}
+        onChange={setFaBudget}
+        units={[]}
+        placeholder="e.g. 3h 30m or 12600"
+        invalid={faTargetBudgetError}
+        tooltip={{
+            desc: 'Enter the amount of reactant you plan to allocate to this burn. It is not recommended to commit all your available reactant.',
+            img: TOOLTIP_IMG_REACTANTBUDGET,
+        }}
+        />
+        <InputNote 
+            note = {
+                faTargetBudgetError ? "INVALID FORMAT - USE 1D 1H 17M 55S OR 37.15H" :
+                faTargetBudget_s != null ? `● ${formatTargetDuration(faTargetBudget_s)}` : //TODO: Add decimal hour formatting here
+                null
+            }
+            style = {
+                faTargetBudgetError ? { color: 'var(--red)' } :
+                faTargetBudget_s != null ? { color: 'var(--green)' } : 
+                undefined
+            }
+        />
+
+        {/* -- Game Clock -- */}
+        <div className="bc-panel-header" style={{ marginTop: 20 }}>
+        ◇ Game Clock
+        </div>
+        <InputRow
+        labelIcon={(<Clock size={10} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />)}
+        label="Current Time"
+        value={faGameStartTime}
+        onChange={setFaGameStartTime}
+        units={[]}
+        placeholder="e.g. 60 or 1m 30s"
+        invalid={faGameTimeError}
+        />
+        <InputNote 
+            note = {
+                faGameTimeError ? "INVALID FORMAT - USE YYYY-MM-DD HH:MM:SS OR HH:MM:SS" :
+                faGameTimeValid ? "● TARGETS COMPUTED FROM GAME CLOCK" :
+                "LEAVE BLANK FOR RELATIVE (T+) TIMES - DATE OPTIONAL"
+            }
+            style = {
+                faGameTimeError ? { color: 'var(--red)' } :
+                faGameTimeValid ? { color: 'var(--green)' } : 
+                undefined
+            }
+        />
+    </>
+    )
+}
+export default ApproachInput;

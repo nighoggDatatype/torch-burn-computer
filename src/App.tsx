@@ -491,10 +491,10 @@ function BurnCalculatorInner() {
       : faTargetAccel_mps2
 
   // FA budget conversion - parsed same as Desired Travel Time (bare number = seconds)
-  const fa_budget_s = (() => {
-    const parsed = parseTargetDuration(faBudget);
-    return parsed !== null && parsed > 0 ? parsed : NaN;
-  })();
+  const faBudgetAttempted = faBudget.trim() !== null
+  const fa_budget_s = parseTargetDuration(faBudget);
+  const faBudgetValid = fa_budget_s !== null && fa_budget_s > 0; //TODO: Peel positive check out
+  const faBudgetError = faBudgetAttempted && !faBudgetValid
 
   const faMissingFields = [
     ...(!isFinite(fa_distance_m_raw) ? ['RANGE'] : []),
@@ -534,7 +534,7 @@ function BurnCalculatorInner() {
   const faPlanOk = faPlan.error === null && !faPlan.overshoot;
 
   // Reactant sufficiency for FA at operating acceleration (full thrust or computed)
-  const fa_reactant_ok = !Number.isNaN(fa_budget_s) && faPlanOk
+  const fa_reactant_ok = faBudgetValid && faPlanOk
       ? fa_budget_s >= faPlan.t_brake
       : null; // null = no budget entered, don't show
 
@@ -542,13 +542,10 @@ function BurnCalculatorInner() {
   // show a second line for what happens if they throttle down to required_a.
   // Not shown in constant-burn mode (!faTargetAccelAttempted) since there's only one accel in play.
   const fa_throttled_brake_s =
-    !!faTargetAccelAttempted &&
-    fa_budget_s !== null &&
-    faPlanOk &&
-    isFinite(fa_required_a_mps2) &&
-    isFinite(fa_a_mps2) &&
+    !faTargetAccelAttempted &&
+    faConstantBurnPlan.error === null &&
     fa_required_a_mps2 < fa_a_mps2 - 1e-6
-      ? (fa_v0_mps - fa_v_arrival_mps) / fa_required_a_mps2
+      ? faConstantBurnPlan.t_brake
       : null;
   const fa_throttled_ok =
     fa_throttled_brake_s !== null && fa_budget_s !== null ? fa_budget_s >= fa_throttled_brake_s : null;
@@ -960,7 +957,7 @@ function BurnCalculatorInner() {
                       {/* Required G vs available G - or constant-burn mode */}
                       {(() => {
                         const req_g = fa_required_a_mps2 / G;
-                        if (!faTargetAccelAttempted) {
+                        if (faPlan.d_coast === 0 && faPlan.t_coast === 0) {
                           return (
                             <div className="bc-fa-ok">
                               {`● CONSTANT BURN - REQUIRED: ${req_g.toFixed(2)} G`}
@@ -979,7 +976,7 @@ function BurnCalculatorInner() {
                       })()}
 
                       {/* Reactant sufficiency at operating acceleration */}
-                      {fa_reactant_ok !== null && (
+                      {faBudgetValid && (
                         <div className={fa_reactant_ok ? 'bc-fa-ok' : 'bc-fa-warn'}>
                           {fa_reactant_ok
                             ? `● REACTANT SUFFICIENT - BRAKE REQUIRES ${formatTargetDuration(Math.floor(faPlan.t_brake))}, BUDGET IS ${formatTargetDuration(Math.floor(fa_budget_s))}`
@@ -1002,34 +999,16 @@ function BurnCalculatorInner() {
                       )}
 
                       {faPlan.t_coast > 1 ? (
-                        <>
-                          <Readout
-                            label="Begin Brake"
-                            value={
-                              faGameTimeValid
-                                ? formatGameTime(faBrakeTarget)
-                                : `T+${formatTargetDuration(Math.floor(faPlan.t_coast))}`
-                            }
-                            highlight
-                            flickerKey={flickerKey}
-                          />
-                          {faBrakeTarget && (
-                            <div
-                              className="bc-field-note"
-                              style={{ textAlign: 'right', marginBottom: 4 }}
-                            >
-                              COAST {formatTime(Math.floor(faPlan.t_coast))} BEFORE IGNITION
-                            </div>
-                          )}
-                          {!faGameTimeValid && (
-                            <div
-                              className="bc-field-note"
-                              style={{ textAlign: 'right', marginBottom: 4 }}
-                            >
-                              COAST {formatTime(Math.floor(faPlan.t_coast))} BEFORE IGNITION
-                            </div>
-                          )}
-                        </>
+                        <Readout
+                          label= "End Drift / Begin Brake"
+                          value={
+                            faGameTimeValid
+                              ? formatGameTime(faBrakeTarget)
+                              : `T+${formatTargetDuration(Math.floor(faPlan.t_coast))}`
+                          }
+                          highlight
+                          flickerKey={flickerKey}
+                        />
                       ) : (
                         <div className="bc-fa-warn" style={{ marginBottom: 8 }}>
                           ⚠ BRAKE NOW - YOU ARE AT OR PAST THE BRAKE INITIATION POINT
@@ -1046,15 +1025,17 @@ function BurnCalculatorInner() {
                         highlight
                         flickerKey={flickerKey}
                       />
+                      {faPlan.t_coast > 0 && (
+                        <Readout
+                          label="Coast Duration"
+                          value={formatTargetDuration(Math.floor(faPlan.t_coast)) ?? '0S'}
+                          highlight
+                          flickerKey={flickerKey}
+                        />
+                      )}
                       <Readout
                         label="Brake Duration"
                         value={formatTargetDuration(Math.floor(faPlan.t_brake)) ?? '0S'}
-                        highlight
-                        flickerKey={flickerKey}
-                      />
-                      <Readout
-                        label="Brake Distance"
-                        value={formatDistance(faPlan.d_brake)}
                         highlight
                         flickerKey={flickerKey}
                       />
@@ -1066,6 +1047,12 @@ function BurnCalculatorInner() {
                           flickerKey={flickerKey}
                         />
                       )}
+                      <Readout
+                        label="Brake Distance"
+                        value={formatDistance(faPlan.d_brake)}
+                        highlight
+                        flickerKey={flickerKey}
+                      />
                     </>
                   )}
 

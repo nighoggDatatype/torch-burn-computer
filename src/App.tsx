@@ -156,7 +156,6 @@ function BurnCalculatorInner() {
 
   // Mode switch - copies shared fields (range, vrel) on transition
   function switchMode(newMode: React.SetStateAction<string>) {
-    //TODO, fix empty field detection to match "Attempted"
     if (newMode === 'approach' && appMode === 'burn') {
       if (faDistance.trim() === "" && isFinite(distance_m)) {
         setFaDistance(distance);

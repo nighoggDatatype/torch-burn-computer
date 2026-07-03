@@ -154,23 +154,24 @@ function BurnCalculatorInner() {
     distanceUnit, vrelUnit, vArrivalUnit, faDistanceUnit, faVrelUnit, faVArrivalUnit,
   ]);
 
-  // Mode switch - copies shared fields (range, vrel) on transition //TODO: Replace by merging the underlying fields
+  // Mode switch - copies shared fields (range, vrel) on transition
   function switchMode(newMode: React.SetStateAction<string>) {
+    //TODO, fix empty field detection to match "Attempted"
     if (newMode === 'approach' && appMode === 'burn') {
-      if (!faDistance && distance) {
+      if (faDistance.trim() === "" && isFinite(distance_m)) {
         setFaDistance(distance);
         setFaDistanceUnit(distanceUnit);
       }
-      if (!faVrel && vrel) {
+      if (faDistance.trim() === "" && isFinite(vrel_mps)) {
         setFaVrel(vrel);
         setFaVrelUnit(vrelUnit);
       }
     } else if (newMode === 'burn' && appMode === 'approach') {
-      if (!distance && faDistance) {
+      if (distance.trim() === "" && isFinite(fa_distance_m)) {
         setDistance(faDistance);
         setDistanceUnit(faDistanceUnit);
       }
-      if (!vrel && faVrel) {
+      if (vrel.trim() === "" && fa_v0_mps) {
         setVrel(faVrel);
         setVrelUnit(faVrelUnit);
       }
@@ -357,9 +358,9 @@ function BurnCalculatorInner() {
   const gameTimeError = gameTimeAttempted && !gameTimeValid;
 
   // Final Approach calculations
-  const fa_distance_m_raw =
+  const fa_distance_m =
     parseNum(faDistance) * (faDistanceUnit === 'au' ? AU : faDistanceUnit === 'gm' ? 1e9 : 1000);
-  const fa_brake_distance_m = isFinite(fa_distance_m_raw) ? fa_distance_m_raw - standoff_m : NaN;
+  const fa_brake_distance_m = isFinite(fa_distance_m) ? fa_distance_m - standoff_m : NaN;
   const fa_v0_mps = parseNum(faVrel) * (faVrelUnit === 'km/s' ? 1000 : 1);
   const fa_v_arrival_mps =
     faVArrival.trim() === '' ? 0 : parseNum(faVArrival) * (faVArrivalUnit === 'km/s' ? 1000 : 1);
@@ -399,7 +400,7 @@ function BurnCalculatorInner() {
   const faTargetBudgetError = faTargetBudgetAttempted && !faTargetBudgetValid
 
   const faMissingFields = [
-    ...(!isFinite(fa_distance_m_raw) ? ['RANGE'] : []),
+    ...(!isFinite(fa_distance_m) ? ['RANGE'] : []),
     ...(!isFinite(fa_v0_mps) ? ['CLOSING VELOCITY'] : []),
     ...((!!faTargetAccelAttempted && !isFinite(faTargetAccel_mps2)) ? ['ACCELERATION'] : []),
     ...((faVArrival.trim() !== '' && !isFinite(fa_v_arrival_mps)) ? ['CUTOFF VELOCITY'] : []),
@@ -408,7 +409,7 @@ function BurnCalculatorInner() {
   // Stand-off error for FA (mirrors burn-mode logic)
   const fa_standoffError = !standoffValid
     ? 'invalid-standoff'
-    : isFinite(fa_distance_m_raw) && fa_distance_m_raw <= standoff_m
+    : isFinite(fa_distance_m) && fa_distance_m <= standoff_m
       ? 'within-standoff'
       : null;
   const fa_hasWakeError = fa_standoffError !== null;

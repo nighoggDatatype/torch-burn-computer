@@ -5,6 +5,7 @@ import { formatDistance, formatVelocity, formatGameTime, formatTime, formatTarge
 import { GameDateTime } from "../utils/parsers.js";
 import { BurnPlanResult } from "../solvers/physics.js";
 import { useEffect, useRef, useState } from "react";
+import { BurnInputArgs, getBurnInputCopy } from "./BurnInput.js";
 
 type RequiredBurnInput = {
     vcrs_mps : number, 
@@ -15,9 +16,9 @@ type RequiredBurnInput = {
 }
 
 function BurnOutput(
-    {finalPlan, parsedGameTime, input, copied, handleCopy} : 
+    {finalPlan, parsedGameTime, input, copied, setCopied, passthroughInputArgs} : 
     {finalPlan: BurnPlanResult | null, parsedGameTime : GameDateTime | null, input : RequiredBurnInput,
-        copied : boolean, handleCopy : () => void}) {
+        copied : boolean, setCopied : React.Dispatch<React.SetStateAction<boolean>>, passthroughInputArgs: BurnInputArgs}) {
 
     const finalPlanOk = finalPlan && finalPlan.error === null && !finalPlan.overshoot;
     const isDriftMode = finalPlanOk && finalPlan.t_drift !== 0 && finalPlan.d_drift !== 0;
@@ -28,10 +29,10 @@ function BurnOutput(
     
     const gameTimeValid = parsedGameTime !== null;
 
-    const t_accel = finalPlanOk ? finalPlan.t_accel : 0;
-    const t_rot = finalPlanOk ? finalPlan.t_rotate : 0;
-    const t_drift = finalPlanOk ? finalPlan.t_drift : 0;
-    const t_total = finalPlanOk ? finalPlan.t_total : 0;
+    const t_accel = finalPlanOk ? finalPlan.t_accel : NaN;
+    const t_rot = finalPlanOk ? finalPlan.t_rotate : NaN;
+    const t_drift = finalPlanOk ? finalPlan.t_drift : NaN;
+    const t_total = finalPlanOk ? finalPlan.t_total : NaN;
     const t_flip_end = t_accel + t_rot;
     const t_brake_start = isDriftMode ? t_flip_end + t_drift : t_flip_end;
 
@@ -76,6 +77,53 @@ function BurnOutput(
         finalPlanOk ? finalPlan.t_total : null,
         finalPlan ? finalPlan.error: null
         ]);
+    
+    function handleBurnCopy() {
+        if (!finalPlan || finalPlan.error !== null || finalPlan.overshoot)
+        {
+            return;
+        }
+        const lines = getBurnInputCopy(passthroughInputArgs, inputAccel_mps)
+        lines.push('');
+        lines.push('-- BURN SOLUTION --');
+        lines.push(
+            `${isDriftMode ? 'End Accel / Begin Flip' : 'Begin Rotate'}: ${gameTimeValid ? formatGameTime(rotateTarget) : 'T+' + formatTargetDuration(Math.floor(t_accel))}`
+        );
+        if (isDriftMode) {
+            lines.push(
+            `End Drift / Begin Brake: ${gameTimeValid ? formatGameTime(driftEndTarget) : 'T+' + formatTargetDuration(Math.floor(t_brake_start))}`
+            );
+        } else {
+            lines.push(
+            `Begin Brake: ${gameTimeValid ? formatGameTime(brakeTarget) : 'T+' + formatTargetDuration(Math.floor(t_brake_start))}`
+            );
+        }
+        lines.push(
+            `Arrival: ${gameTimeValid ? formatGameTime(arriveTarget) : 'T+' + formatTargetDuration(Math.floor(t_total))}`
+        );
+        lines.push(`Accel Duration: ${formatTargetDuration(Math.floor(t_accel)) ?? '0S'}`);
+        if (isDriftMode)
+            lines.push(
+            `Drift Duration: ${formatTargetDuration(Math.floor(finalPlan.t_drift || 0)) ?? '0S'}`
+            );
+        lines.push(
+            `Brake Duration: ${formatTargetDuration(Math.floor(t_total) - Math.floor(t_brake_start)) ?? '0S'}`
+        );
+        lines.push('');
+        lines.push('-- BURN REFERENCE --');
+        lines.push(`Accel Distance: ${formatDistance(finalPlan.d_accel)}`);
+        if (isDriftMode) lines.push(`Drift Distance: ${formatDistance(finalPlan.d_drift)}`);
+        lines.push(`Brake Distance: ${formatDistance(finalPlan.d_brake)}`);
+        lines.push(`Total Distance: ${formatDistance(burn_distance_m)}`);
+        lines.push(`Peak Velocity: ${formatVelocity(finalPlan.v_max)}`);
+        lines.push(
+            `Min Reactant Budget: ${(((finalPlan.t_accel) + (finalPlan.t_brake)) / 3600).toFixed(2)}h`
+        );
+        navigator.clipboard.writeText(lines.join('\n')).then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        });
+    }
 
     return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -83,7 +131,7 @@ function BurnOutput(
         <div className="bc-panel-header bc-panel-header--actions">
         <span>◇ Burn Solution</span>
         {finalPlanOk && (
-            <button className="bc-copy-btn" onClick={handleCopy}>
+            <button className="bc-copy-btn" onClick={handleBurnCopy}>
             {copied ? 'COPIED' : 'COPY'}
             </button>
         )}
@@ -238,24 +286,21 @@ function BurnOutput(
             />
             <Readout
             label="Accel Duration"
-            value={formatTargetDuration(Math.floor(t_accel)) ?? '0S'}
+            value={formatTargetDuration(Math.floor(t_accel))}
             highlight
             flickerKey={flickerKey}
             />
             {isDriftMode && (
             <Readout
                 label="Drift Duration"
-                value={formatTargetDuration(Math.floor(finalPlan.t_drift || 0)) ?? '0S'}
+                value={formatTargetDuration(Math.floor(finalPlan.t_drift))}
                 highlight
                 flickerKey={flickerKey}
             />
             )}
             <Readout
             label="Brake Duration"
-            value={
-                formatTargetDuration(Math.floor(t_total) - Math.floor(t_brake_start)) ??
-                '0S'
-            }
+            value={formatTargetDuration(Math.floor(t_total) - Math.floor(t_brake_start))}
             highlight
             flickerKey={flickerKey}
             />
@@ -311,7 +356,7 @@ function BurnOutput(
         <Readout
             label="Min Reactant Budget" //TODO Change text depending on whether reactant was computed or provided
             value={formatTargetDuration(
-            Math.floor((finalPlan.t_accel || 0) + (finalPlan.t_brake || 0))
+            Math.floor((finalPlan.t_accel) + (finalPlan.t_brake))
             )} // TODO: Add decimal hour formatting here
             highlight
             flickerKey={flickerKey}

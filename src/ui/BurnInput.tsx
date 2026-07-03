@@ -3,12 +3,12 @@ import InputRow from "../components/InputRow.js";
 import StandoffControl from "../components/StandoffControl.js";
 import { formatTargetDuration } from "../utils/formatters.js";
 import InputNote from "../components/InputNote.js";
-import { TOOLTIP_IMG_ACCELERATION, TOOLTIP_IMG_CURRENTVEL, TOOLTIP_IMG_DISTANCE, TOOLTIP_IMG_REACTANTBUDGET, TOOLTIP_IMG_VCRS } from "../utils/constants.js";
+import { G, TOOLTIP_IMG_ACCELERATION, TOOLTIP_IMG_CURRENTVEL, TOOLTIP_IMG_DISTANCE, TOOLTIP_IMG_REACTANTBUDGET, TOOLTIP_IMG_VCRS } from "../utils/constants.js";
 
 type stringSetter = React.Dispatch<React.SetStateAction<string>>
 type booleanSetter = React.Dispatch<React.SetStateAction<boolean>>
 
-type BurnInputArgs = {
+export type BurnInputArgs = {
     distance : string, setDistance : stringSetter, distanceUnit : string, setDistanceUnit : stringSetter, 
     vrel : string, setVrel : stringSetter, vrelUnit : string, setVrelUnit : stringSetter,
     v0Direction : string, setV0Direction : stringSetter,
@@ -252,6 +252,49 @@ function BurnInput({args} : {args : BurnInputArgs}) {
             }
         />
     </>);
+}
+export function getBurnInputCopy(args : BurnInputArgs, computed_accel_mps2 : number | null) 
+{
+    const {
+        distance, distanceUnit, 
+        vrel, vrelUnit,
+        v0Direction,
+        vcrs, vcrsUnit,
+        vArrival, vArrivalUnit,
+        noWakeEnabled, standoffKm,
+        accel,
+        targetDuration,
+        reactantBudget,
+        flipTime,
+        gameStartTime
+    } = args;
+    const lines = [];
+    const distLabel =
+        distanceUnit === 'au' ? 'AU' : distanceUnit === 'gm' ? 'GM' : distanceUnit === 'km' ? 'km' : 'm';
+    lines.push('-- CURRENT STATE --');
+    lines.push(`Range: ${distance} ${distLabel}`);
+    lines.push(`VREL: ${vrel} ${vrelUnit} (${v0Direction.toUpperCase()})`);
+    if (vcrs.trim() !== '') lines.push(`VCRS: ${vcrs} ${vcrsUnit}`);
+    lines.push('');
+    lines.push('-- ARRIVAL PARAMETERS --');
+    if (vArrival.trim() !== '' && vArrival !== '0') lines.push(`TGT Vel: ${vArrival} ${vArrivalUnit}`);
+    lines.push(noWakeEnabled ? 'Stand-off: NO-WAKE ZONE (300 km)' : `Stand-off: ${standoffKm} km`);
+    if (reactantBudget.trim() !== '') lines.push(`Reactant Budget: ${reactantBudget}`);
+    lines.push('');
+    lines.push('-- VESSEL PARAMETERS --');
+    if (computed_accel_mps2 !== null) {
+        lines.push(`Acceleration: ${(computed_accel_mps2 / G).toFixed(2)} G (computed)`);
+    } else {
+        lines.push(`Acceleration: ${accel} G`);
+    }
+    lines.push(`Flip Time: ${flipTime}`);
+    if (targetDuration.trim() !== '') lines.push(`Desired Travel Time: ${targetDuration}`);
+    if (gameStartTime.trim() !== '') {
+        lines.push('');
+        lines.push('-- GAME CLOCK --');
+        lines.push(`Current Time: ${gameStartTime}`);
+    }
+    return lines;
 }
 
 export default BurnInput; 

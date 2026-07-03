@@ -85,7 +85,7 @@ function BurnCalculatorInner() {
     }
   });
 
-  // -- Final Approach state - per-burn fields from URL only, vessel/prefs from URL→LS --
+  // Final Approach state: per-burn fields from URL only, vessel/prefs from URL => LS
   const [faDistance, setFaDistance] = useState(() => _urlParams('fad') ?? '');
   const [faDistanceUnit, setFaDistanceUnit] = useState(() => _urlParams_localStorage('fadu', 'pa_fadu', 'km'));
   const [faVrel, setFaVrel] = useState(() => _urlParams('fav') ?? '');
@@ -96,7 +96,7 @@ function BurnCalculatorInner() {
   const [faVArrivalUnit, setFaVArrivalUnit] = useState(() => _urlParams_localStorage('fvau', 'pa_fvau', 'm/s'));
   const [faGameStartTime, setFaGameStartTime] = useState(() => _urlParams('fgt') ?? '');
 
-  // Burn Plan state - per-burn fields from URL only, vessel/prefs from URL→LS
+  // Burn Plan state: per-burn fields from URL only, vessel/prefs from URL => LS
   const [distance, setDistance] = useState(() => _urlParams('d') ?? '');
   const [distanceUnit, setDistanceUnit] = useState(() => _urlParams_localStorage('du', 'pa_du', 'km'));
   const [vrel, setVrel] = useState(() => _urlParams('v') ?? '');
@@ -119,11 +119,12 @@ function BurnCalculatorInner() {
   const [targetDuration, setTargetDuration] = useState(() => _urlParams('td') ?? '');
   const [gameStartTime, setGameStartTime] = useState(() => _urlParams('gt') ?? '');
 
-  // -- flicker state (feature 11) --
+  // UI polish states
+  const [copied, setCopied] = useState(false);
   const [flickerKey, setFlickerKey] = useState(0);
   const prevPlanRef: React.RefObject<string|null> = useRef(null);
 
-  // -- URL state sync - update address bar whenever any input changes ------
+  // URL state sync
   useEffect(() => {
     const p = new URLSearchParams();
     if (distance) p.set('d', distance);
@@ -166,7 +167,7 @@ function BurnCalculatorInner() {
     faAccel, faBudget, faVArrival, faVArrivalUnit, faGameStartTime, appMode,
   ]);
 
-  // -- localStorage sync - vessel params and preferences only ---------------
+  // localStorage sync (vessel params and preferences only)
   useEffect(() => {
     _save_localStorage('pa_accel', accel || null);
     _save_localStorage('pa_fa_accel', faAccel || null);
@@ -184,7 +185,7 @@ function BurnCalculatorInner() {
     distanceUnit, vrelUnit, vArrivalUnit, faDistanceUnit, faVrelUnit, faVArrivalUnit,
   ]);
 
-  // -- mode switch - copies shared fields (range, vrel) on transition --------
+  // Mode switch - copies shared fields (range, vrel) on transition //TODO: Replace by merging the underlying fields
   function switchMode(newMode: React.SetStateAction<string>) {
     if (newMode === 'approach' && appMode === 'burn') {
       if (!faDistance && distance) {
@@ -208,82 +209,7 @@ function BurnCalculatorInner() {
     setAppMode(newMode);
   }
 
-  // -- copy-to-clipboard state ----------------------------------------------
-  const [copied, setCopied] = useState(false);
-
-  function handleBurnCopy() {
-    if (!finalPlan || finalPlan.error !== null || finalPlan.overshoot)
-    {
-      return;
-    }
-    const lines = [];
-    const distLabel =
-      distanceUnit === 'au' ? 'AU' : distanceUnit === 'gm' ? 'GM' : distanceUnit === 'km' ? 'km' : 'm';
-    lines.push('-- CURRENT STATE --');
-    lines.push(`Range: ${distance} ${distLabel}`);
-    lines.push(`VREL: ${vrel} ${vrelUnit} (${v0Direction.toUpperCase()})`);
-    if (vcrs.trim() !== '') lines.push(`VCRS: ${vcrs} ${vcrsUnit}`);
-    lines.push('');
-    lines.push('-- ARRIVAL PARAMETERS --');
-    if (vArrival.trim() !== '' && vArrival !== '0') lines.push(`TGT Vel: ${vArrival} ${vArrivalUnit}`);
-    lines.push(noWakeEnabled ? 'Stand-off: NO-WAKE ZONE (300 km)' : `Stand-off: ${standoffKm} km`);
-    if (reactantBudget.trim() !== '') lines.push(`Reactant Budget: ${reactantBudget}`);
-    lines.push('');
-    lines.push('-- VESSEL PARAMETERS --');
-    if (solveForAccel && finalPlanOk) {
-      lines.push(`Acceleration: ${(finalPlan.a_mps2 / G).toFixed(2)} G (computed)`);
-    } else {
-      lines.push(`Acceleration: ${accel} G`);
-    }
-    lines.push(`Flip Time: ${flipTime}`);
-    if (targetDuration.trim() !== '') lines.push(`Desired Travel Time: ${targetDuration}`);
-    if (gameStartTime.trim() !== '') {
-      lines.push('');
-      lines.push('-- GAME CLOCK --');
-      lines.push(`Current Time: ${gameStartTime}`);
-    }
-    lines.push('');
-    lines.push('-- BURN SOLUTION --');
-    lines.push(
-      `${isDriftMode ? 'End Accel / Begin Flip' : 'Begin Rotate'}: ${gameTimeValid ? formatGameTime(rotateTarget) : 'T+' + formatTargetDuration(Math.floor(t_accel))}`
-    );
-    if (isDriftMode) {
-      lines.push(
-        `End Drift / Begin Brake: ${gameTimeValid ? formatGameTime(driftEndTarget) : 'T+' + formatTargetDuration(Math.floor(t_brake_start))}`
-      );
-    } else {
-      lines.push(
-        `Begin Brake: ${gameTimeValid ? formatGameTime(brakeTarget) : 'T+' + formatTargetDuration(Math.floor(t_brake_start))}`
-      );
-    }
-    lines.push(
-      `Arrival: ${gameTimeValid ? formatGameTime(arriveTarget) : 'T+' + formatTargetDuration(Math.floor(t_total))}`
-    );
-    lines.push(`Accel Duration: ${formatTargetDuration(Math.floor(t_accel)) ?? '0S'}`);
-    if (isDriftMode)
-      lines.push(
-        `Drift Duration: ${formatTargetDuration(Math.floor(finalPlan.t_drift || 0)) ?? '0S'}`
-      );
-    lines.push(
-      `Brake Duration: ${formatTargetDuration(Math.floor(t_total) - Math.floor(t_brake_start)) ?? '0S'}`
-    );
-    lines.push('');
-    lines.push('-- BURN REFERENCE --');
-    lines.push(`Accel Distance: ${formatDistance(finalPlan.d_accel)}`);
-    if (isDriftMode) lines.push(`Drift Distance: ${formatDistance(finalPlan.d_drift)}`);
-    lines.push(`Brake Distance: ${formatDistance(finalPlan.d_brake)}`);
-    lines.push(`Total Distance: ${formatDistance(burn_distance_m)}`);
-    lines.push(`Peak Velocity: ${formatVelocity(finalPlan.v_max)}`);
-    lines.push(
-      `Min Reactant Budget: ${(((finalPlan.t_accel || 0) + (finalPlan.t_brake || 0)) / 3600).toFixed(2)}h`
-    );
-    navigator.clipboard.writeText(lines.join('\n')).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
-  }
-
-  function handleFaCopy() {
+  function handleFaCopy() { //TODO: Also move this next to UI
     if (!faPlan || faPlan.error !== null || faPlan.overshoot)
     {
       return;
@@ -744,7 +670,8 @@ function BurnCalculatorInner() {
               parsedGameTime={parsedGameTime} 
               input={{vcrs_mps, inputAccel_mps: solveForAccel ? null : targetAccel_mps2, burn_distance_m, noWakeEnabled, standoffKm}}
               copied={copied}
-              handleCopy={handleBurnCopy}
+              setCopied={setCopied}
+              passthroughInputArgs={burnInputArgs}
             />)}
 
             {/* FINAL APPROACH results */}

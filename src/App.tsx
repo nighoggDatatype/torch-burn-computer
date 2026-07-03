@@ -1,14 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { AlertTriangle, Clock } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import './styles.css';
 import {
   G,
   AU,
   NO_WAKE_M,
-  TOOLTIP_IMG_DISTANCE,
-  TOOLTIP_IMG_ACCELERATION,
-  TOOLTIP_IMG_CURRENTVEL,
-  TOOLTIP_IMG_REACTANTBUDGET,
 } from './utils/constants.js';
 import {
   parseNum,
@@ -17,7 +13,6 @@ import {
   parseTargetDuration,
 } from './utils/parsers.js';
 import {
-  formatTime,
   formatDistance,
   formatVelocity,
   addGameTime,
@@ -59,17 +54,6 @@ function BurnCalculatorInner() {
     }
   });
 
-  // Final Approach state: per-burn fields from URL only, vessel/prefs from URL => LS
-  const [faDistance, setFaDistance] = useState(() => _urlParams('fad') ?? '');
-  const [faDistanceUnit, setFaDistanceUnit] = useState(() => _urlParams_localStorage('fadu', 'pa_fadu', 'km'));
-  const [faVrel, setFaVrel] = useState(() => _urlParams('fav') ?? '');
-  const [faVrelUnit, setFaVrelUnit] = useState(() => _urlParams_localStorage('favu', 'pa_favu', 'm/s'));
-  const [faAccel, setFaAccel] = useState(() => _urlParams_localStorage('faa', 'pa_fa_accel', ''));
-  const [faBudget, setFaBudget] = useState(() => _urlParams('fab') ?? '');
-  const [faVArrival, setFaVArrival] = useState(() => _urlParams('fava') ?? '0');
-  const [faVArrivalUnit, setFaVArrivalUnit] = useState(() => _urlParams_localStorage('fvau', 'pa_fvau', 'm/s'));
-  const [faGameStartTime, setFaGameStartTime] = useState(() => _urlParams('fgt') ?? '');
-
   // Burn Plan state: per-burn fields from URL only, vessel/prefs from URL => LS
   const [distance, setDistance] = useState(() => _urlParams('d') ?? '');
   const [distanceUnit, setDistanceUnit] = useState(() => _urlParams_localStorage('du', 'pa_du', 'km'));
@@ -92,6 +76,17 @@ function BurnCalculatorInner() {
   const [standoffKm, setStandoffKm] = useState(() => _urlParams_localStorage('sk', 'pa_standoff_km', '2.5'));
   const [targetDuration, setTargetDuration] = useState(() => _urlParams('td') ?? '');
   const [gameStartTime, setGameStartTime] = useState(() => _urlParams('gt') ?? '');
+
+  // Final Approach state: per-burn fields from URL only, vessel/prefs from URL => LS
+  const [faDistance, setFaDistance] = useState(() => _urlParams('fad') ?? '');
+  const [faDistanceUnit, setFaDistanceUnit] = useState(() => _urlParams_localStorage('fadu', 'pa_fadu', 'km'));
+  const [faVrel, setFaVrel] = useState(() => _urlParams('fav') ?? '');
+  const [faVrelUnit, setFaVrelUnit] = useState(() => _urlParams_localStorage('favu', 'pa_favu', 'm/s'));
+  const [faAccel, setFaAccel] = useState(() => _urlParams_localStorage('faa', 'pa_fa_accel', ''));
+  const [faBudget, setFaBudget] = useState(() => _urlParams('fab') ?? '');
+  const [faVArrival, setFaVArrival] = useState(() => _urlParams('fava') ?? '0');
+  const [faVArrivalUnit, setFaVArrivalUnit] = useState(() => _urlParams_localStorage('fvau', 'pa_fvau', 'm/s'));
+  const [faGameStartTime, setFaGameStartTime] = useState(() => _urlParams('fgt') ?? '');
 
   // UI polish states
   const [copied, setCopied] = useState(false);
@@ -252,21 +247,21 @@ function BurnCalculatorInner() {
   const flipTimeValid = t_rotate_s_parsed !== null;
   const flipTimeError = flipTimeAttempted && !flipTimeValid;
 
-  // -- Desired Travel Time: parse input --
+  // Desired Travel Time: parse input
   const targetDurationAttempted = targetDuration.trim() !== '';
   const targetDuration_s = parseTargetDuration(targetDuration);
   const targetDurationValid = targetDuration_s !== null;
   const targetDurationError = targetDurationAttempted && !targetDurationValid;
   const targetDurationFilled = targetDurationAttempted && targetDurationValid;
 
-  // -- Reactant budget: parse input --
+  // Reactant budget: parse input
   const budgetAttempted = reactantBudget.trim() !== '';
   const targetBudget_s = parseTargetDuration(reactantBudget)
   const targetBudgetValid = targetBudget_s !== null;
   const targetBudgetError = budgetAttempted && !targetBudgetValid;
   const targetBudgetFilled = budgetAttempted && targetBudgetValid;
   
-  // -- Acceleration: parse input --
+  // Acceleration: parse input
   const targetAccelAttempted = accel.trim() !== '';
   const targetAccel_mps2 = parseGValue(accel);
   const targetAccelTooSmall = isFinite(targetAccel_mps2) && targetAccel_mps2 < 0.01 * G;
@@ -355,7 +350,13 @@ function BurnCalculatorInner() {
   const finalPlanOk = finalPlan !== null && finalPlan.error === null && !finalPlan.overshoot;
   const isDriftMode = finalPlanOk && finalPlan.t_drift !== 0 && finalPlan.d_drift !== 0;
 
-  // -- Final Approach calculations --
+  // Game time parsing
+  const parsedGameTime = parseGameTime(gameStartTime);
+  const gameTimeValid = parsedGameTime !== null;
+  const gameTimeAttempted = gameStartTime.trim() !== '';
+  const gameTimeError = gameTimeAttempted && !gameTimeValid;
+
+  // Final Approach calculations
   const fa_distance_m_raw =
     parseNum(faDistance) * (faDistanceUnit === 'au' ? AU : faDistanceUnit === 'gm' ? 1e9 : 1000);
   const fa_brake_distance_m = isFinite(fa_distance_m_raw) ? fa_distance_m_raw - standoff_m : NaN;
@@ -468,15 +469,6 @@ function BurnCalculatorInner() {
   const faArriveTarget =
     faGameTimeValid && faPlanOk ? addGameTime(faParsedGameTime, faPlan.t_total) : null;
 
-  // Status for FA mode
-  const faStatusText = !faPlan
-    ? 'STANDBY'
-    : faPlan.error !== null
-      ? 'INVALID'
-      : faPlan.overshoot
-        ? 'OVERSHOOT'
-        : 'READY';
-
   // Flicker effect: trigger when plan output changes
   useEffect(() => {
     const key = JSON.stringify({
@@ -496,17 +488,20 @@ function BurnCalculatorInner() {
         faPlan.error
       ]);
 
-  // Game time parsing
-  const parsedGameTime = parseGameTime(gameStartTime);
-  const gameTimeValid = parsedGameTime !== null;
-  const gameTimeAttempted = gameStartTime.trim() !== '';
-  const gameTimeError = gameTimeAttempted && !gameTimeValid;
-
   const statusText = 
     finalPlan === null ? 'STANDBY' :
     finalPlan.error !== null ? 'INVALID' :
     finalPlan.overshoot ? 'OVERSHOOT' :
     'READY';
+
+  // Status for FA mode
+  const faStatusText = !faPlan
+    ? 'STANDBY'
+    : faPlan.error !== null
+      ? 'INVALID'
+      : faPlan.overshoot
+        ? 'OVERSHOOT'
+        : 'READY';
 
   // Combined status for header light - mode-aware
   const activeStatusText = appMode === 'approach' ? faStatusText : statusText;

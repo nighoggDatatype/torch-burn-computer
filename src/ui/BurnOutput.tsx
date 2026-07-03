@@ -55,7 +55,6 @@ function BurnOutput(
     const vcrsNullTarget =
         vcrsNullTime !== null && gameTimeValid ? addGameTime(parsedGameTime, vcrsNullTime) : null;
     
-    // -- flicker state (feature 11) --
     const [flickerKey, setFlickerKey] = useState(0);
     const prevPlanRef: React.RefObject<string|null> = useRef(null);
         

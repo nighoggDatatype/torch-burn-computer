@@ -166,6 +166,9 @@ function BurnCalculatorInner() {
         setFaVrel(vrel);
         setFaVrelUnit(vrelUnit);
       }
+      if (!faGameTimeAttempted && gameTimeValid) {
+        setFaGameStartTime(gameStartTime);
+      }
     } else if (newMode === 'burn' && appMode === 'approach') {
       if (distance.trim() === "" && isFinite(fa_distance_m)) {
         setDistance(faDistance);
@@ -174,6 +177,9 @@ function BurnCalculatorInner() {
       if (vrel.trim() === "" && fa_v0_mps) {
         setVrel(faVrel);
         setVrelUnit(faVrelUnit);
+      }
+      if (!gameTimeAttempted && faGameTimeValid){
+        setGameStartTime(faGameStartTime);
       }
     }
     setAppMode(newMode);

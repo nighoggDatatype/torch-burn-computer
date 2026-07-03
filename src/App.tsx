@@ -528,19 +528,6 @@ function BurnCalculatorInner() {
   const gameTimeAttempted = gameStartTime.trim() !== '';
   const gameTimeError = gameTimeAttempted && !gameTimeValid;
 
-  const t_accel = finalPlanOk ? finalPlan.t_accel : 0;
-  const t_rot = finalPlanOk ? finalPlan.t_rotate : 0;
-  const t_drift = finalPlanOk ? finalPlan.t_drift : 0;
-  const t_total = finalPlanOk ? finalPlan.t_total : 0;
-  const t_flip_end = t_accel + t_rot;
-  const t_brake_start = isDriftMode ? t_flip_end + t_drift : t_flip_end;
-
-  const rotateTarget = gameTimeValid && finalPlanOk ? addGameTime(parsedGameTime, t_accel) : null;
-  const driftEndTarget =
-    gameTimeValid && finalPlanOk && isDriftMode ? addGameTime(parsedGameTime, t_brake_start) : null;
-  const brakeTarget = gameTimeValid && finalPlanOk ? addGameTime(parsedGameTime, t_brake_start) : null;
-  const arriveTarget = gameTimeValid && finalPlanOk ? addGameTime(parsedGameTime, t_total) : null;
-
   const statusText = 
     finalPlan === null ? 'STANDBY' :
     finalPlan.error !== null ? 'INVALID' :

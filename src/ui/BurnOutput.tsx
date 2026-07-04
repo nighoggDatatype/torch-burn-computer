@@ -9,7 +9,7 @@ import { BurnInputArgs, getBurnInputCopy } from "./BurnInput.js";
 
 type RequiredBurnInput = {
     vcrs_mps : number, 
-    inputAccel_mps : number | null, 
+    inputAccel_mps2 : number | null, 
     burn_distance_m : number, 
     noWakeEnabled : boolean, 
     standoffKm : string //TODO: See about using number for standoffKm
@@ -24,8 +24,8 @@ function BurnOutput(
     const isDriftMode = finalPlanOk && finalPlan.t_drift !== 0 && finalPlan.d_drift !== 0;
     const a_mps2 = finalPlanOk ? finalPlan.a_mps2 : NaN;
 
-    const {vcrs_mps, inputAccel_mps, burn_distance_m, noWakeEnabled, standoffKm} = input;
-    const solveForAccel = inputAccel_mps === null;
+    const {vcrs_mps, inputAccel_mps2, burn_distance_m, noWakeEnabled, standoffKm} = input;
+    const solveForAccel = inputAccel_mps2 === null;
     
     const gameTimeValid = parsedGameTime !== null;
 
@@ -82,7 +82,7 @@ function BurnOutput(
         {
             return;
         }
-        const lines = getBurnInputCopy(passthroughInputArgs, inputAccel_mps)
+        const lines = getBurnInputCopy(passthroughInputArgs, inputAccel_mps2)
         lines.push('');
         lines.push('-- BURN SOLUTION --');
         lines.push(

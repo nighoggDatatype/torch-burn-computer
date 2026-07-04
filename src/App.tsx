@@ -29,9 +29,10 @@ import BurnOutput from './ui/BurnOutput.js';
 import { badInputError, finalApproach_computedDecelTooFast, getStandOffError, getV0Error, targetAccelTooSmallError } from './utils/errors.js';
 import { accelOnlySolver, budgetOnlySolver, durationOnlySolver, optimalAccelSolver, optimalBudgetSolver, optimalDurationSolver } from './solvers/burnSolvers.js';
 import BurnInput from './ui/BurnInput.js';
-import { computeFinalApproach_constantBurn, computeFinalApproach_givenAccel } from './solvers/approachSolvers.js';
+import { computeFinalApproach_constantBurn, computeFinalApproach_givenAccel, computeFinalApproach_givenBudget } from './solvers/approachSolvers.js';
 import ApproachInput from './ui/ApproachInput.js';
 import BootSplash from './ui/BootSplash.js';
+import ApproachOutput from './ui/ApproachOutput.js';
 
 const APP_VERSION = 'v0.6.4';
 
@@ -90,7 +91,6 @@ function BurnCalculatorInner() {
 
   // UI polish states
   const [copied, setCopied] = useState(false);
-  const [flickerKey, setFlickerKey] = useState(0);
   const prevPlanRef: React.RefObject<string|null> = useRef(null);
 
   // URL state sync
@@ -182,54 +182,6 @@ function BurnCalculatorInner() {
       }
     }
     setAppMode(newMode);
-  }
-
-  function handleFaCopy() { //TODO: Also move this next to UI
-    if (!faPlan || faPlan.error !== null || faPlan.overshoot)
-    {
-      return;
-    }
-    const lines = [];
-    const faDistLabel =
-      faDistanceUnit === 'au' ? 'AU' : faDistanceUnit === 'gm' ? 'GM' : 'km';
-    lines.push('-- CURRENT STATE --');
-    lines.push(`Range: ${faDistance} ${faDistLabel}`);
-    lines.push(`VREL: ${faVrel} ${faVrelUnit} (CLOSING)`);
-    lines.push('');
-    lines.push('-- ARRIVAL PARAMETERS --');
-    if (faVArrival.trim() !== '' && faVArrival !== '0')
-      lines.push(`TGT Vel: ${faVArrival} ${faVArrivalUnit}`);
-    lines.push(noWakeEnabled ? 'Stand-off: NO-WAKE ZONE (300 km)' : `Stand-off: ${standoffKm} km`);
-    if (faBudget.trim() !== '') lines.push(`Reactant Budget: ${faBudget}`);
-    lines.push('');
-    lines.push('-- VESSEL PARAMETERS --');
-    lines.push(
-      !faTargetAccelAttempted
-        ? `Acceleration: ${(fa_required_a_mps2 / G).toFixed(2)} G (computed)`
-        : `Acceleration: ${faAccel} G`
-    );
-    if (faGameStartTime.trim() !== '') {
-      lines.push('');
-      lines.push('-- GAME CLOCK --');
-      lines.push(`Current Time: ${faGameStartTime}`);
-    }
-    lines.push('');
-    lines.push('-- APPROACH SOLUTION --');
-    if (faPlan.t_coast > 1) {
-      lines.push(
-        `Begin Brake: ${faGameTimeValid ? formatGameTime(faBrakeTarget) : 'T+' + formatTargetDuration(Math.floor(faPlan.t_coast))}`
-      );
-    }
-    lines.push(
-      `Arrival: ${faGameTimeValid ? formatGameTime(faArriveTarget) : 'T+' + formatTargetDuration(Math.floor(faPlan.t_total))}`
-    );
-    lines.push(`Brake Duration: ${formatTargetDuration(Math.floor(faPlan.t_brake)) ?? '0S'}`);
-    lines.push(`Brake Distance: ${formatDistance(faPlan.d_brake)}`);
-    if (faPlan.d_coast > 0) lines.push(`Coast Distance: ${formatDistance(faPlan.d_coast)}`);
-    navigator.clipboard.writeText(lines.join('\n')).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
   }
 
   // Required Fields
@@ -376,28 +328,6 @@ function BurnCalculatorInner() {
   const faTargetAccelValid = isFinite(faTargetAccel_mps2) && !faTargetAccelTooSmall
   const faTargetAccelError = faTargetAccelAttempted && !faTargetAccelValid
 
-  const faConstantBurnPlan = computeFinalApproach_constantBurn({ 
-    distance_m: fa_brake_distance_m, 
-    v0_mps : fa_v0_mps, 
-    v_arrival_mps : fa_v_arrival_mps 
-  });
-
-  const fa_required_a_mps2 = 
-    faConstantBurnPlan && faConstantBurnPlan.error === null
-      ? faConstantBurnPlan.a_mps2
-      : NaN;
-  // Reject computed acceleration below minimum viable thrust (0.01 G)
-  const fa_required_a_belowMin =
-    isFinite(fa_required_a_mps2) && fa_required_a_mps2 < 0.01 * G;
-  // Operating acceleration: computed required_a when blank (and above floor), otherwise player input
-  const fa_a_mps2 = !faTargetAccelAttempted
-    ? isFinite(fa_required_a_mps2) && !fa_required_a_belowMin
-      ? fa_required_a_mps2
-      : NaN
-    : faTargetAccelTooSmall 
-      ? NaN
-      : faTargetAccel_mps2
-
   // FA budget conversion - parsed same as Desired Travel Time (bare number = seconds)
   const faTargetBudgetAttempted = faBudget.trim() !== ''
   const faTargetBudget_s = parseTargetDuration(faBudget);
@@ -424,7 +354,20 @@ function BurnCalculatorInner() {
       faTargetAccelTooSmall ? targetAccelTooSmallError :
       fa_hasWakeError ? getStandOffError({standoffError : fa_standoffError, noWakeEnabled, standoffKm}) :
       null
-  
+
+  const faConstantBurnPlan = computeFinalApproach_constantBurn({ 
+    distance_m: fa_brake_distance_m, 
+    v0_mps : fa_v0_mps, 
+    v_arrival_mps : fa_v_arrival_mps 
+  });
+  const faPlanBudget = faTargetBudgetValid ?
+    computeFinalApproach_givenBudget({
+      distance_m: fa_brake_distance_m,
+      v0_mps: fa_v0_mps,
+      budget_s: faTargetBudget_s,
+      v_arrival_mps: fa_v_arrival_mps,
+    }) : null;
+
   const faPlanAccel = faTargetAccelValid ? 
     computeFinalApproach_givenAccel({
       distance_m: fa_brake_distance_m,
@@ -432,67 +375,20 @@ function BurnCalculatorInner() {
       a_mps2: faTargetAccel_mps2,
       v_arrival_mps: fa_v_arrival_mps,
     }) : null;
-  const faPlanIgnoreInputErrors = faPlanAccel ?? faConstantBurnPlan
+
+  const faPlanIgnoreInputErrors = faPlanAccel ?? faPlanBudget ?? faConstantBurnPlan
   const faPlanRaw = faInputError ?? faPlanIgnoreInputErrors
   const faPlanCanCheck = faPlanRaw.error === null && !faPlanRaw.overshoot;
   const faPlanErrors = !faPlanCanCheck ? null :
     faPlanRaw.a_mps2 < 0.01 * G ? finalApproach_computedDecelTooFast
     : null;
   const faPlan = faPlanErrors ?? faPlanRaw;
-  const faPlanOk = faPlan.error === null && !faPlan.overshoot;
-
-  // Reactant sufficiency for FA at operating acceleration (full thrust or computed)
-  const fa_reactant_ok = faTargetBudgetValid && faPlanOk
-      ? faTargetBudget_s >= faPlan.t_brake
-      : null; // null = no budget entered, don't show
-
-  // Throttled-G reactant check: when player has an available accel AND required_a < fa_a_mps2,
-  // show a second line for what happens if they throttle down to required_a.
-  // Not shown in constant-burn mode (!faTargetAccelAttempted) since there's only one accel in play.
-  const fa_throttled_brake_s =
-    !faTargetAccelAttempted &&
-    faConstantBurnPlan.error === null &&
-    fa_required_a_mps2 < fa_a_mps2 - 1e-6
-      ? faConstantBurnPlan.t_brake
-      : null;
-  const fa_throttled_ok =
-    fa_throttled_brake_s !== null && faTargetBudget_s !== null ? faTargetBudget_s >= fa_throttled_brake_s : null;
-  // Budget-floor G: lowest throttle that still completes the brake within the current budget.
-  // Only shown alongside the throttle-down caution when full-thrust reactant is sufficient.
-  const fa_budget_floor_g =
-    fa_throttled_ok === false && fa_reactant_ok === true && faTargetBudget_s !== null && faTargetBudget_s > 0
-      ? (fa_v0_mps - fa_v_arrival_mps) / faTargetBudget_s / G
-      : null;
 
   // FA game clock (TODO: Consider just using one game time globally)
   const faParsedGameTime = parseGameTime(faGameStartTime);
   const faGameTimeValid = faParsedGameTime !== null;
   const faGameTimeAttempted = faGameStartTime.trim() !== '';
   const faGameTimeError = faGameTimeAttempted && !faGameTimeValid;
-
-  const faBrakeTarget =
-    faGameTimeValid && faPlanOk ? addGameTime(faParsedGameTime, faPlan.t_coast) : null;
-  const faArriveTarget =
-    faGameTimeValid && faPlanOk ? addGameTime(faParsedGameTime, faPlan.t_total) : null;
-
-  // Flicker effect: trigger when plan output changes
-  useEffect(() => {
-    const key = JSON.stringify({
-      a_mps2: faPlanOk ? faPlan.a_mps2 : null,
-      t_accel: faPlanOk ? faPlan.t_brake : null,
-      t_total: faPlanOk ? faPlan.t_total : null,
-      error: faPlan.error,
-    });
-    if (prevPlanRef.current !== null && prevPlanRef.current !== key) {
-      setFlickerKey((k) => k + 1);
-    }
-    prevPlanRef.current = key;
-  }, [
-        faPlanOk ? faPlan.a_mps2 : null,
-        faPlanOk ? faPlan.t_brake : null,
-        faPlanOk ? faPlan.t_total : null,
-        faPlan.error
-      ]);
 
   const statusText = 
     finalPlan === null ? 'STANDBY' :
@@ -605,7 +501,7 @@ function BurnCalculatorInner() {
               <BurnOutput 
               finalPlan={finalPlan} 
               parsedGameTime={parsedGameTime} 
-              input={{vcrs_mps, inputAccel_mps: solveForAccel ? null : targetAccel_mps2, burn_distance_m, noWakeEnabled, standoffKm}}
+              input={{vcrs_mps, inputAccel_mps2: solveForAccel ? null : targetAccel_mps2, burn_distance_m, noWakeEnabled, standoffKm}}
               copied={copied}
               setCopied={setCopied}
               passthroughInputArgs={burnInputArgs}
@@ -613,192 +509,14 @@ function BurnCalculatorInner() {
 
             {/* FINAL APPROACH results */}
             {appMode === 'approach' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <div className="bc-panel scratch-b" aria-live="polite" aria-atomic="false">
-                  <div className="bc-panel-header bc-panel-header--actions">
-                    <span>◇ Approach Solution</span>
-                    {faPlanOk && (
-                      <button className="bc-copy-btn" onClick={handleFaCopy}>
-                        {copied ? 'COPIED' : 'COPY'}
-                      </button>
-                    )}
-                  </div>
-
-                  {faPlan && faPlan.error && (
-                    <div className="bc-warning" role="alert">
-                      <AlertTriangle size={14} color="var(--red)" />
-                      <div className="bc-warning-text">
-                        <strong>{faPlan.error}</strong>
-                        {faPlan.detail && (
-                          <>
-                            <br />
-                            {faPlan.detail}
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {faPlan && faPlan.error === null && faPlan.overshoot && (
-                    <div className="bc-warning" role="alert">
-                      <AlertTriangle size={14} color="var(--red)" />
-                      <div className="bc-warning-text">
-                        <strong>CANNOT BRAKE IN TIME - OVERSHOOT IMMINENT</strong>
-                        <br />
-                        At {formatVelocity(fa_v0_mps)} closing, you cannot stop before the{' '}
-                        {noWakeEnabled
-                          ? 'no-wake boundary'
-                          : `stand-off boundary (${standoffKm} km)`}{' '}
-                        at{' '}
-                        {formatDistance(
-                          fa_a_mps2 > 0
-                            ? (fa_v0_mps * fa_v0_mps -
-                                (isFinite(fa_v_arrival_mps)
-                                  ? fa_v_arrival_mps * fa_v_arrival_mps
-                                  : 0)) /
-                                (2 * fa_a_mps2)
-                            : 0
-                        )}{' '}
-                        brake distance needed.
-                        <br />
-                        Shortfall:{' '}
-                        <strong>
-                          {isFinite(faPlan.shortfall) ? formatDistance(faPlan.shortfall) : '-'}
-                        </strong>
-                        <br />
-                        Required deceleration:{' '}
-                        <strong>
-                          {isFinite(faPlan.required_a)
-                            ? (faPlan.required_a / G).toFixed(2) + ' G'
-                            : '-'}
-                        </strong>{' '}
-                        - exceeds available{' '}
-                        {isFinite(fa_a_mps2) ? (fa_a_mps2 / G).toFixed(2) + ' G' : '-'}.<br />
-                        The solver cannot recover this approach. Reduce closing velocity immediately
-                        if possible.
-                      </div>
-                    </div>
-                  )}
-
-                  {faPlanOk && (
-                    <>
-                      {/* Required G vs available G - or constant-burn mode */}
-                      {(() => {
-                        const req_g = fa_required_a_mps2 / G;
-                        if (faPlan.d_coast === 0 && faPlan.t_coast === 0) {
-                          return (
-                            <div className="bc-fa-ok">
-                              {`● CONSTANT BURN - REQUIRED: ${req_g.toFixed(2)} G`}
-                            </div>
-                          );
-                        }
-                        const avail_g = fa_a_mps2 / G;
-                        const gOk = isFinite(req_g) && isFinite(avail_g) && req_g <= avail_g;
-                        return (
-                          <div className={gOk ? 'bc-fa-ok' : 'bc-fa-warn'}>
-                            {gOk
-                              ? `● DECELERATION OK - REQUIRED: ${req_g.toFixed(2)} G / AVAILABLE: ${avail_g.toFixed(2)} G`
-                              : `⚠ DECELERATION MARGINAL - REQUIRED: ${req_g.toFixed(2)} G / AVAILABLE: ${avail_g.toFixed(2)} G - EXCEEDING RATED THRUST IS RISKY`}
-                          </div>
-                        );
-                      })()}
-
-                      {/* Reactant sufficiency at operating acceleration */}
-                      {faTargetBudgetValid && (
-                        <div className={fa_reactant_ok ? 'bc-fa-ok' : 'bc-fa-warn'}>
-                          {fa_reactant_ok
-                            ? `● REACTANT SUFFICIENT - BRAKE REQUIRES ${formatTargetDuration(Math.floor(faPlan.t_brake))}, BUDGET IS ${formatTargetDuration(Math.floor(faTargetBudget_s))}`
-                            : `⚠ REACTANT DEFICIT - BRAKE REQUIRES ${formatTargetDuration(Math.floor(faPlan.t_brake))}, BUDGET IS ONLY ${formatTargetDuration(Math.floor(faTargetBudget_s))}`}
-                        </div>
-                      )}
-
-                      {/* Throttled-G reactant line - only when accel entered and required_a < fa_a_mps2 */}
-                      {fa_throttled_brake_s !== null && (
-                        <div className={fa_throttled_ok ? 'bc-fa-ok' : 'bc-advisory'}>
-                          {fa_throttled_ok
-                            ? `● IF THROTTLED TO ${(fa_required_a_mps2 / G).toFixed(2)} G - BRAKE REQUIRES ${formatTargetDuration(Math.floor(fa_throttled_brake_s))}, BUDGET SUFFICIENT`
-                            : `NOTE: THROTTLING DOWN TO ${(fa_required_a_mps2 / G).toFixed(2)} G WOULD EXTEND BRAKING BURN TO ${formatTargetDuration(Math.floor(fa_throttled_brake_s))} - REACTANT BUDGET INSUFFICIENT FOR MINIMUM ACCELERATION BURN BASED ON CURRENT SETTINGS.`}
-                        </div>
-                      )}
-                      {fa_budget_floor_g !== null && (
-                        <div className="bc-fa-ok">
-                          {`● AT CURRENT BUDGET - MINIMUM THROTTLE IS ${fa_budget_floor_g.toFixed(2)} G`}
-                        </div>
-                      )}
-
-                      {faPlan.t_coast > 1 ? (
-                        <Readout
-                          label= "End Drift / Begin Brake"
-                          value={
-                            faGameTimeValid
-                              ? formatGameTime(faBrakeTarget)
-                              : `T+${formatTargetDuration(Math.floor(faPlan.t_coast))}`
-                          }
-                          highlight
-                          flickerKey={flickerKey}
-                        />
-                      ) : (
-                        <div className="bc-fa-warn" style={{ marginBottom: 8 }}>
-                          ⚠ BRAKE NOW - YOU ARE AT OR PAST THE BRAKE INITIATION POINT
-                        </div>
-                      )}
-
-                      <Readout
-                        label="Arrival"
-                        value={
-                          faGameTimeValid
-                            ? formatGameTime(faArriveTarget)
-                            : `T+${formatTargetDuration(Math.floor(faPlan.t_total))}`
-                        }
-                        highlight
-                        flickerKey={flickerKey}
-                      />
-                      {faPlan.t_coast > 0 && (
-                        <Readout
-                          label="Coast Duration"
-                          value={formatTargetDuration(Math.floor(faPlan.t_coast)) ?? '0S'}
-                          highlight
-                          flickerKey={flickerKey}
-                        />
-                      )}
-                      <Readout
-                        label="Brake Duration"
-                        value={formatTargetDuration(Math.floor(faPlan.t_brake)) ?? '0S'}
-                        highlight
-                        flickerKey={flickerKey}
-                      />
-                      {faPlan.d_coast > 0 && (
-                        <Readout
-                          label="Coast Distance"
-                          value={formatDistance(faPlan.d_coast)}
-                          highlight
-                          flickerKey={flickerKey}
-                        />
-                      )}
-                      <Readout
-                        label="Brake Distance"
-                        value={formatDistance(faPlan.d_brake)}
-                        highlight
-                        flickerKey={flickerKey}
-                      />
-                    </>
-                  )}
-
-                  {!faPlan && ( //TODO: Properly use this as an element for empty stuff
-                    <div
-                      style={{
-                        fontSize: 11,
-                        color: 'var(--text-dim)',
-                        letterSpacing: '0.08em',
-                        padding: '12px 0',
-                      }}
-                    >
-                      ENTER APPROACH PARAMETERS TO COMPUTE SOLUTION
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
+              <ApproachOutput 
+              faPlan={faPlan} 
+              faParsedGameTime={faParsedGameTime} 
+              input={{faTargetBudget_s, inputAccel_mps2: faTargetAccelAttempted ? faTargetAccel_mps2 : null, noWakeEnabled, standoffKm}}
+              copied={copied}
+              setCopied={setCopied}
+              passthroughInputArgs={approachInputArgs}
+            />)}
           </div>
 
           {/* TIMELINE + GAME-TIME TARGETS - burn mode only */}

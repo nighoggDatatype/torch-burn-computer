@@ -1,14 +1,14 @@
 import { Clock } from "lucide-react";
 import InputRow from "../components/InputRow.js";
 import StandoffControl from "../components/StandoffControl.js";
-import { TOOLTIP_IMG_ACCELERATION, TOOLTIP_IMG_CURRENTVEL, TOOLTIP_IMG_DISTANCE, TOOLTIP_IMG_REACTANTBUDGET } from "../utils/constants.js";
+import { G, TOOLTIP_IMG_ACCELERATION, TOOLTIP_IMG_CURRENTVEL, TOOLTIP_IMG_DISTANCE, TOOLTIP_IMG_REACTANTBUDGET } from "../utils/constants.js";
 import { formatTargetDuration } from "../utils/formatters.js";
 import InputNote from "../components/InputNote.js";
 
 type stringSetter = React.Dispatch<React.SetStateAction<string>>
 type booleanSetter = React.Dispatch<React.SetStateAction<boolean>>
 
-type ApproachInputArgs = {
+export type ApproachInputArgs = {
     faDistance : string, setFaDistance : stringSetter, faDistanceUnit : string, setFaDistanceUnit : stringSetter, 
     faVrel : string, setFaVrel : stringSetter, faVrelUnit : string, setFaVrelUnit : stringSetter,
     faVArrival : string, setFaVArrival : stringSetter, faVArrivalUnit : string, setFaVArrivalUnit : stringSetter,
@@ -170,5 +170,42 @@ function ApproachInput({args} : {args : ApproachInputArgs})
         />
     </>
     )
+}
+export function getApproachInputCopy(args : ApproachInputArgs, computed_accel_mps2 : number | null)
+{
+    const {
+        faDistance, faDistanceUnit,
+        faVrel, faVrelUnit,
+        faVArrival, faVArrivalUnit,
+        faAccel,
+        faBudget,
+        noWakeEnabled, standoffKm,
+        faGameStartTime,
+    } = args;
+    const lines = [];
+    const faDistLabel =
+    faDistanceUnit === 'au' ? 'AU' : faDistanceUnit === 'gm' ? 'GM' : 'km';
+    lines.push('-- CURRENT STATE --');
+    lines.push(`Range: ${faDistance} ${faDistLabel}`);
+    lines.push(`VREL: ${faVrel} ${faVrelUnit} (CLOSING)`);
+    lines.push('');
+    lines.push('-- ARRIVAL PARAMETERS --');
+    if (faVArrival.trim() !== '' && faVArrival !== '0')
+    lines.push(`TGT Vel: ${faVArrival} ${faVArrivalUnit}`);
+    lines.push(noWakeEnabled ? 'Stand-off: NO-WAKE ZONE (300 km)' : `Stand-off: ${standoffKm} km`);
+    if (faBudget.trim() !== '') lines.push(`Reactant Budget: ${faBudget}`);
+    lines.push('');
+    lines.push('-- VESSEL PARAMETERS --');
+    if (computed_accel_mps2 !== null) {
+        lines.push(`Acceleration: ${(computed_accel_mps2 / G).toFixed(2)} G (computed)`);
+    } else {
+        lines.push(`Acceleration: ${faAccel} G`);
+    }
+    if (faGameStartTime.trim() !== '') {
+    lines.push('');
+    lines.push('-- GAME CLOCK --');
+    lines.push(`Current Time: ${faGameStartTime}`);
+    }
+    return lines;
 }
 export default ApproachInput;

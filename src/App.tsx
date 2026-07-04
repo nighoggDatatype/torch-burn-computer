@@ -251,7 +251,7 @@ function BurnCalculatorInner() {
   // v0 error checking
   const v0_squared = vrel_mps * vrel_mps - vcrs_mps - vcrs_mps;
   const hasV0Error = !isFinite(v0_squared) || v0_squared < 0;
-  const v0_mps = hasV0Error ? NaN : Math.sqrt(v0_squared);
+  const v0_mps = hasV0Error ? NaN : Math.sqrt(v0_squared) * (v0Direction === 'receding' ? -1 : 1);
 
   const inputError = 
       burnMissingFields.length > 0 ? badInputError :

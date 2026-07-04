@@ -19,7 +19,7 @@ export type BurnInputArgs = {
     accel : string, setAccel : stringSetter, targetAccelError : boolean,
     targetDuration : string, setTargetDuration : stringSetter, targetDurationError : boolean, targetDuration_s : number | null,
     reactantBudget : string, setReactantBudget : stringSetter, targetBudgetError : boolean, targetBudget_s : number | null,
-    flipTime : string, setFlipTime : stringSetter, flipTimeError : boolean,
+    flipTime : string, setFlipTime : stringSetter, flipTimeValid : boolean, flipTimeError : boolean,
     gameStartTime : string, setGameStartTime : stringSetter, gameTimeError : boolean, gameTimeValid : boolean,
     isDriftMode : boolean, anyConstraintAttempted : boolean
 }
@@ -36,7 +36,7 @@ function BurnInput({args} : {args : BurnInputArgs}) {
         accel, setAccel, targetAccelError,
         targetDuration, setTargetDuration, targetDurationError, targetDuration_s,
         reactantBudget, setReactantBudget, targetBudgetError, targetBudget_s,
-        flipTime, setFlipTime, flipTimeError,
+        flipTime, setFlipTime, flipTimeValid, flipTimeError, 
         gameStartTime, setGameStartTime, gameTimeError, gameTimeValid,
         isDriftMode, anyConstraintAttempted
     } = args;
@@ -216,7 +216,7 @@ function BurnInput({args} : {args : BurnInputArgs}) {
         onChange={setFlipTime}
         units={[]}
         placeholder="e.g. 60 or 1m 30s"
-        invalid={flipTimeError}
+        invalid={!flipTimeValid}
         />
         <InputNote 
             note = {

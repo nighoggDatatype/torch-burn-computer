@@ -187,11 +187,9 @@ function BurnCalculatorInner() {
   const vcrs_mps = vcrs.trim() !== '' ? parseNum(vcrs) * (vcrsUnit === 'km/s' ? 1000 : 1) : 0;
   const v_arrival_mps = vArrival.trim() !== '' ? parseNum(vArrival) * (vArrivalUnit === 'km/s' ? 1000 : 1) : 0;
   
-  const t_rotate_s_parsed = parseTargetDuration(flipTime);
-  const t_rotate_s = t_rotate_s_parsed !== null ? t_rotate_s_parsed : parseNum(flipTime) || 0;
- 
   const flipTimeAttempted = flipTime.trim() !== '';
-  const flipTimeValid = t_rotate_s_parsed !== null;
+  const t_rotate_s = parseTargetDuration(flipTime) ?? NaN;
+  const flipTimeValid = isFinite(t_rotate_s);
   const flipTimeError = flipTimeAttempted && !flipTimeValid;
 
   // Desired Travel Time: parse input
@@ -430,7 +428,7 @@ function BurnCalculatorInner() {
     accel, setAccel, targetAccelError,
     targetDuration, setTargetDuration, targetDurationError, targetDuration_s,
     reactantBudget, setReactantBudget, targetBudgetError, targetBudget_s,
-    flipTime, setFlipTime, flipTimeError,
+    flipTime, setFlipTime, flipTimeValid, flipTimeError,
     gameStartTime, setGameStartTime, gameTimeError, gameTimeValid,
     isDriftMode, anyConstraintAttempted
   }

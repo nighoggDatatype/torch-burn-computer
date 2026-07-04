@@ -25,7 +25,7 @@ function BurnOutput(
     const a_mps2 = finalPlanOk ? finalPlan.a_mps2 : NaN;
 
     const {vcrs_mps, inputAccel_mps2, burn_distance_m, noWakeEnabled, standoffKm} = input;
-    const solveForAccel = inputAccel_mps2 === null;
+    const targetAccelAttempted = inputAccel_mps2 !== null;
     
     const gameTimeValid = parsedGameTime !== null;
 
@@ -233,8 +233,8 @@ function BurnOutput(
 
         {finalPlanOk && (
         <>
-            {/* -- Computed Accel - shown when solving for acceleration -- */}
-            {solveForAccel && (
+            {/* -- Computed Accel - shown when a desired accel is not provided by the user -- */}
+            {!targetAccelAttempted && (
             <Readout
                 label="Computed Accel"
                 value={`${(finalPlan.a_mps2 / G).toFixed(2)} G`}

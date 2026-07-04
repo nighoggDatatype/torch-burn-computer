@@ -226,8 +226,6 @@ function BurnCalculatorInner() {
   const targetAccelValid = isFinite(targetAccel_mps2) && !targetAccelTooSmall;
   const targetAccelError = targetAccelAttempted && !targetAccelValid;
   const targetAccelFilled = targetAccelAttempted && targetAccelValid;
-  
-  const solveForAccel = !targetAccelAttempted && (targetDurationFilled || targetBudgetFilled);
 
   // Double plan switches
   const optimizeAccel = targetBudgetFilled && targetDurationFilled;
@@ -501,7 +499,7 @@ function BurnCalculatorInner() {
               <BurnOutput 
               finalPlan={finalPlan} 
               parsedGameTime={parsedGameTime} 
-              input={{vcrs_mps, inputAccel_mps2: solveForAccel ? null : targetAccel_mps2, burn_distance_m, noWakeEnabled, standoffKm}}
+              input={{vcrs_mps, inputAccel_mps2: targetAccelAttempted ? targetAccel_mps2 : null, burn_distance_m, noWakeEnabled, standoffKm}}
               copied={copied}
               setCopied={setCopied}
               passthroughInputArgs={burnInputArgs}

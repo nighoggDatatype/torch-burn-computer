@@ -25,7 +25,7 @@ function ApproachOutput(
 
     const {faTargetBudget_s, inputAccel_mps2, noWakeEnabled, standoffKm} = input;
     const faTargetBudgetValid = faTargetBudget_s !== null;
-    const solveForAccel = inputAccel_mps2 === null;
+    const targetAccelAttempted = inputAccel_mps2 !== null;
 
     const faGameTimeValid = faParsedGameTime !== null;
     const faBrakeTarget =
@@ -119,7 +119,7 @@ function ApproachOutput(
                 <br />
                 Shortfall: <strong>{formatDistance(faPlan.shortfall)}</strong>
                 <br />
-                {!solveForAccel && (
+                {targetAccelAttempted && (
                 <>
                     Required deceleration: <strong> {(faPlan.required_a / G).toFixed(2) + ' G'}</strong>
                     <br />
@@ -148,7 +148,7 @@ function ApproachOutput(
                     </div>
                 )}
 
-                {solveForAccel && (
+                {!targetAccelAttempted && (
                 <Readout
                     label="Computed Accel"
                     value={`${(faPlan.a_mps2 / G).toFixed(2)} G`}

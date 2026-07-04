@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { AlertTriangle } from 'lucide-react';
 import './styles.css';
 import {
   G,
@@ -12,18 +11,8 @@ import {
   parseGameTime,
   parseTargetDuration,
 } from './utils/parsers.js';
-import {
-  formatDistance,
-  formatVelocity,
-  addGameTime,
-  formatGameTime,
-  formatTargetDuration,
-} from './utils/formatters.js';
 import ErrorBoundary from './components/ErrorBoundary.js';
-import Readout from './components/Readout.js';
-import InputRow from './components/InputRow.js';
 import { _urlParams, _urlParams_localStorage, _localStorage, _save_localStorage } from './utils/persistence.js';
-import StandoffControl from './components/StandoffControl.js';
 import Timeline from './ui/Timeline.js';
 import BurnOutput from './ui/BurnOutput.js';
 import { badInputError, computedAccelTooFast as computedAccelTooSlow, finalApproach_computedDecelTooFast as finalApproach_computedDecelTooSlow, getStandOffError, getV0Error, internalSolverError, targetAccelTooSmallError } from './utils/errors.js';
@@ -416,13 +405,11 @@ function BurnCalculatorInner() {
     'READY';
 
   // Status for FA mode
-  const faStatusText = !faPlan
-    ? 'STANDBY'
-    : faPlan.error !== null
-      ? 'INVALID'
-      : faPlan.overshoot
-        ? 'OVERSHOOT'
-        : 'READY';
+  const faStatusText = 
+    faPlan === null ? 'STANDBY' :
+    faPlan.error !== null ? 'INVALID' : 
+    faPlan.overshoot ? 'OVERSHOOT' : 
+    'READY';
 
   // Combined status for header light - mode-aware
   const activeStatusText = appMode === 'approach' ? faStatusText : statusText;

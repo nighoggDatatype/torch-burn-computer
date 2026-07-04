@@ -2,7 +2,6 @@ import { Clock } from "lucide-react";
 import InputRow from "../components/InputRow.js";
 import StandoffControl from "../components/StandoffControl.js";
 import { G, TOOLTIP_IMG_ACCELERATION, TOOLTIP_IMG_CURRENTVEL, TOOLTIP_IMG_DISTANCE, TOOLTIP_IMG_REACTANTBUDGET } from "../utils/constants.js";
-import { formatTargetDuration } from "../utils/formatters.js";
 import InputNote from "../components/InputNote.js";
 
 type stringSetter = React.Dispatch<React.SetStateAction<string>>

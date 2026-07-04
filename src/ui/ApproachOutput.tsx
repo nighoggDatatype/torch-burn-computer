@@ -136,14 +136,16 @@ function ApproachOutput(
             <>
                 {/* Constant burn aleart */}
                 {(faPlan.d_coast === 0 && faPlan.t_coast === 0) && (
-                    <div className="bc-fa-ok">● CONSTANT BURN ENABLED: IMMEDIATE BRAKING REQUIRED</div> //TODO: Make amber, not red or green
+                    <div className="bc-fa-advisory">● CONSTANT BURN ENABLED: IMMEDIATE BRAKING REQUIRED</div> //TODO: Make amber, not red or green
                 )}
 
                 {/* Reactant sufficiency warning */}
-                {faTargetBudgetValid && faTargetBudget_s < faPlan.t_brake && (
-                <div className={'bc-fa-warn'}>
-                    ⚠ REACTANT DEFICIT - BRAKE REQUIRES ${formatTargetDuration(Math.floor(faPlan.t_brake))}, BUDGET IS ONLY ${formatTargetDuration(Math.floor(faTargetBudget_s))}
-                </div>
+                {faTargetBudgetValid && (
+                    <div className={faTargetBudget_s >= faPlan.t_brake ? 'bc-fa-ok' : 'bc-fa-warn'}>
+                        {faTargetBudget_s >= faPlan.t_brake
+                        ? `● REACTANT SUFFICIENT - BRAKE REQUIRES ${formatTargetDuration(Math.floor(faPlan.t_brake))}, BUDGET IS ${formatTargetDuration(Math.floor(faTargetBudget_s))}`
+                        : `⚠ REACTANT DEFICIT - BRAKE REQUIRES ${formatTargetDuration(Math.floor(faPlan.t_brake))}, BUDGET IS ONLY ${formatTargetDuration(Math.floor(faTargetBudget_s))}`}
+                    </div>
                 )}
 
                 {solveForAccel && (

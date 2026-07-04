@@ -64,7 +64,7 @@ function BurnOutput(
         v_max: finalPlanOk ? finalPlan.v_max : null,
         t_accel: finalPlanOk ? finalPlan.t_accel : null,
         t_total: finalPlanOk ? finalPlan.t_total : null,
-        error: finalPlan ? finalPlan.error: null,
+        error: finalPlan !== null  ? finalPlan.error: null,
     });
     if (prevPlanRef.current !== null && prevPlanRef.current !== key) {
         setFlickerKey((k) => k + 1);
@@ -74,7 +74,7 @@ function BurnOutput(
         finalPlanOk ? finalPlan.v_max : null,
         finalPlanOk ? finalPlan.t_accel : null,
         finalPlanOk ? finalPlan.t_total : null,
-        finalPlan ? finalPlan.error: null
+        finalPlan !== null ? finalPlan.error: null
         ]);
     
     function handleBurnCopy() {
@@ -137,7 +137,7 @@ function BurnOutput(
         </div>
 
         {/* finalPlan.error - suppressed when pre-flight fires or when accel-solve already showed an error */}
-        {finalPlan && finalPlan.error !== null && (
+        {finalPlan !== null && finalPlan.error !== null && (
             <div className="bc-warning" role="alert">
             <AlertTriangle size={14} color="var(--red)" />
             <div className="bc-warning-text">
@@ -152,7 +152,7 @@ function BurnOutput(
             </div>
         )}
 
-        {finalPlan && finalPlan.error === null && finalPlan.overshoot && (
+        {finalPlan !== null && finalPlan.error === null && finalPlan.overshoot && (
         <div className="bc-warning" role="alert">
             <AlertTriangle size={14} color="var(--red)" />
             <div className="bc-warning-text">
@@ -313,6 +313,18 @@ function BurnOutput(
             </div>
             )}
         </>
+        )}
+        {finalPlan === null && (
+        <div
+            style={{
+            fontSize: 11,
+            color: 'var(--text-dim)',
+            letterSpacing: '0.08em',
+            padding: '12px 0',
+            }}
+        >
+            ENTER BURN PARAMETERS TO COMPUTE SOLUTION
+        </div>
         )}
     </div>
 

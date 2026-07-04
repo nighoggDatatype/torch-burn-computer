@@ -77,6 +77,11 @@ export function getStandOffError
 
 //Burn solver errors
 
+export const internalSolverError = {
+    error : `SOLVER HAS EXPERIENCED AN INTERNAL FAULT`,
+    detail : `Please report to the developer`
+}
+
 export function impossibleBudgetOptimizeError
 (
     {targetDuration_s, requiredDuration_s} : {targetDuration_s : number, requiredDuration_s : number}
@@ -98,6 +103,11 @@ export function impossibleDurationOptimizeError
         error : "REACTANT BUDGET INSUFFICIENT", 
         detail : `This burn requires at least ${requiredBudget} of reactant; current budget is ${targetBudget}.`
     }
+}
+
+export const computedAccelTooFast = {
+    error : 'REQUIRED ACCELERATION BELOW MINIMUM THRUST (0.01 G)',
+    detail : 'Check input units or allow for decreased range'
 }
 
 //Final approach specific errors

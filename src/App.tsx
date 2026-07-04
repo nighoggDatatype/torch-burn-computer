@@ -26,7 +26,7 @@ import { _urlParams, _urlParams_localStorage, _localStorage, _save_localStorage 
 import StandoffControl from './components/StandoffControl.js';
 import Timeline from './ui/Timeline.js';
 import BurnOutput from './ui/BurnOutput.js';
-import { badInputError, finalApproach_computedDecelTooFast, getStandOffError, getV0Error, targetAccelTooSmallError } from './utils/errors.js';
+import { badInputError, computedAccelTooFast as computedAccelTooSlow, finalApproach_computedDecelTooFast as finalApproach_computedDecelTooSlow, getStandOffError, getV0Error, internalSolverError, targetAccelTooSmallError } from './utils/errors.js';
 import { accelOnlySolver, budgetOnlySolver, durationOnlySolver, optimalAccelSolver, optimalBudgetSolver, optimalDurationSolver } from './solvers/burnSolvers.js';
 import BurnInput from './ui/BurnInput.js';
 import { computeFinalApproach_constantBurn, computeFinalApproach_givenAccel, computeFinalApproach_givenBudget } from './solvers/approachSolvers.js';
@@ -64,7 +64,7 @@ function BurnCalculatorInner() {
   const [accel, setAccel] = useState(() => _urlParams_localStorage('a', 'pa_accel', ''));
   const [flipTime, setFlipTime] = useState(() => _urlParams_localStorage('f', 'pa_flip_time', '60'));
   const [reactantBudget, setReactantBudget] = useState(() => _urlParams('b') ?? '');
-  const [vArrival, setVArrival] = useState(() => _urlParams('va') ?? '0');
+  const [vArrival, setVArrival] = useState(() => _urlParams('va') ?? '');
   const [vArrivalUnit, setVArrivalUnit] = useState(() => _urlParams_localStorage('vau', 'pa_vau', 'm/s'));
   const [vcrs, setVcrs] = useState(() => _urlParams('cx') ?? '');
   const [vcrsUnit, setVcrsUnit] = useState(() => _urlParams('cu') ?? 'm/s');
@@ -85,7 +85,7 @@ function BurnCalculatorInner() {
   const [faVrelUnit, setFaVrelUnit] = useState(() => _urlParams_localStorage('favu', 'pa_favu', 'm/s'));
   const [faAccel, setFaAccel] = useState(() => _urlParams_localStorage('faa', 'pa_fa_accel', ''));
   const [faBudget, setFaBudget] = useState(() => _urlParams('fab') ?? '');
-  const [faVArrival, setFaVArrival] = useState(() => _urlParams('fava') ?? '0');
+  const [faVArrival, setFaVArrival] = useState(() => _urlParams('fava') ?? '');
   const [faVArrivalUnit, setFaVArrivalUnit] = useState(() => _urlParams_localStorage('fvau', 'pa_fvau', 'm/s'));
   const [faGameStartTime, setFaGameStartTime] = useState(() => _urlParams('fgt') ?? '');
 
@@ -104,7 +104,7 @@ function BurnCalculatorInner() {
     if (accel) p.set('a', accel);
     if (flipTime !== '60') p.set('f', flipTime);
     if (reactantBudget) p.set('b', reactantBudget);
-    if (vArrival !== '0') p.set('va', vArrival);
+    if (vArrival) p.set('va', vArrival);
     if (vArrivalUnit !== 'm/s') p.set('vau', vArrivalUnit);
     if (vcrs) p.set('cx', vcrs);
     if (vcrsUnit !== 'm/s') p.set('cu', vcrsUnit);
@@ -196,7 +196,7 @@ function BurnCalculatorInner() {
   const vrel_mps =
     parseNum(vrel) * (vrelUnit === 'km/s' ? 1000 : 1) * (v0Direction === 'receding' ? -1 : 1); 
   const vcrs_mps = vcrs.trim() !== '' ? parseNum(vcrs) * (vcrsUnit === 'km/s' ? 1000 : 1) : 0;
-  const v_arrival_mps = vArrival.trim() === '' ? 0 : parseNum(vArrival) * (vArrivalUnit === 'km/s' ? 1000 : 1);
+  const v_arrival_mps = vArrival.trim() !== '' ? parseNum(vArrival) * (vArrivalUnit === 'km/s' ? 1000 : 1) : 0;
   
   const t_rotate_s_parsed = parseTargetDuration(flipTime);
   const t_rotate_s = t_rotate_s_parsed !== null ? t_rotate_s_parsed : parseNum(flipTime) || 0;
@@ -236,6 +236,11 @@ function BurnCalculatorInner() {
   const tripleConstraintSolving = targetBudgetFilled && targetDurationFilled && targetAccelFilled;
   const doubleConstraintSolving = optimizeAccel || optimizeBudget || optimizeDuration;
   const anyConstraintAttempted = targetDurationAttempted || budgetAttempted || targetAccelAttempted
+
+  const noInputProvided = 
+    !anyConstraintAttempted && 
+    distance.trim() === "" && vrel.trim() === "" && vcrs.trim() === "" && vArrival.trim() === "" &&
+    (noWakeEnabled || standoffKm.trim() === '2.5') && (flipTime.trim() == '60');
 
   const burnMissingFields = [
     ...(!isFinite(distance_m) ? ['CURRENT RNG'] : []),
@@ -302,7 +307,16 @@ function BurnCalculatorInner() {
   const doublePlan = optimalBudgetPlan ?? optimalDurationPlan ?? optimalAccelPlan;
   const singlePlan = accelOnlyConstantBurnPlan ?? budgetOnlyConstantBurnPlan ?? durationOnlyConstantBurnPlan;
   const finalPlanIgnoreInputErrors = doubleConstraintSolving ? doublePlan : singlePlan;
-  const finalPlan = inputError ?? finalPlanIgnoreInputErrors
+  const finalPlanRaw = inputError ?? finalPlanIgnoreInputErrors;
+  const finalPlanCanCheck = finalPlanRaw !== null && finalPlanRaw.error === null && !finalPlanRaw.overshoot;
+  const finalPlanErrors = 
+    finalPlanRaw === null ? internalSolverError :
+    !finalPlanCanCheck ? null :
+    finalPlanRaw.a_mps2 < 0.01 * G ? computedAccelTooSlow
+    : null;
+  const finalPlan = noInputProvided 
+    ? null 
+    : (finalPlanErrors ?? finalPlanRaw);
   const finalPlanOk = finalPlan !== null && finalPlan.error === null && !finalPlan.overshoot;
   const isDriftMode = finalPlanOk && finalPlan.t_drift !== 0 && finalPlan.d_drift !== 0;
 
@@ -331,6 +345,11 @@ function BurnCalculatorInner() {
   const faTargetBudget_s = parseTargetDuration(faBudget);
   const faTargetBudgetValid = faTargetBudget_s !== null;
   const faTargetBudgetError = faTargetBudgetAttempted && !faTargetBudgetValid
+
+  const faNoInputProvided = 
+    !faTargetAccelAttempted && !faTargetBudgetAttempted &&
+    faDistance.trim() === '' && faVrel === '' && faVArrival.trim() === "" &&
+    (noWakeEnabled || standoffKm.trim() === '2.5');
 
   const faMissingFields = [
     ...(!isFinite(fa_distance_m) ? ['RANGE'] : []),
@@ -378,9 +397,11 @@ function BurnCalculatorInner() {
   const faPlanRaw = faInputError ?? faPlanIgnoreInputErrors
   const faPlanCanCheck = faPlanRaw.error === null && !faPlanRaw.overshoot;
   const faPlanErrors = !faPlanCanCheck ? null :
-    faPlanRaw.a_mps2 < 0.01 * G ? finalApproach_computedDecelTooFast
+    faPlanRaw.a_mps2 < 0.01 * G ? finalApproach_computedDecelTooSlow
     : null;
-  const faPlan = faPlanErrors ?? faPlanRaw;
+  const faPlan = faNoInputProvided
+    ? null
+    : (faPlanErrors ?? faPlanRaw);
 
   // FA game clock
   const faParsedGameTime = parseGameTime(faGameStartTime);

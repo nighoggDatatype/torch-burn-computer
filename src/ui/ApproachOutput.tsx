@@ -17,11 +17,11 @@ type RequiredApproachInput = {
 function ApproachOutput(
     {faPlan, faParsedGameTime, input, copied, setCopied, passthroughInputArgs} : 
     {
-        faPlan: FinalApproachResult, faParsedGameTime : GameDateTime | null, input : RequiredApproachInput,
+        faPlan: FinalApproachResult | null, faParsedGameTime : GameDateTime | null, input : RequiredApproachInput,
         copied : boolean, setCopied : React.Dispatch<React.SetStateAction<boolean>>, passthroughInputArgs: ApproachInputArgs
     }) {
 
-    const faPlanOk = faPlan.error === null && !faPlan.overshoot;
+    const faPlanOk = faPlan !== null && faPlan.error === null && !faPlan.overshoot;
 
     const {faTargetBudget_s, inputAccel_mps2, noWakeEnabled, standoffKm} = input;
     const faTargetBudgetValid = faTargetBudget_s !== null;
@@ -41,7 +41,7 @@ function ApproachOutput(
         a_mps2: faPlanOk ? faPlan.a_mps2 : null,
         t_accel: faPlanOk ? faPlan.t_brake : null,
         t_total: faPlanOk ? faPlan.t_total : null,
-        error: faPlan.error,
+        error: faPlan !== null ? faPlan.error : null,
         });
         if (prevPlanRef.current !== null && prevPlanRef.current !== key) {
         setFlickerKey((k) => k + 1);
@@ -51,7 +51,7 @@ function ApproachOutput(
             faPlanOk ? faPlan.a_mps2 : null,
             faPlanOk ? faPlan.t_brake : null,
             faPlanOk ? faPlan.t_total : null,
-            faPlan.error
+            faPlan !== null ? faPlan.error : null
         ]);
         
     function handleFaCopy() { //TODO: Double check all copy text is valid
@@ -90,7 +90,7 @@ function ApproachOutput(
             )}
             </div>
 
-            {faPlan && faPlan.error && (
+            {faPlan !== null && faPlan.error !== null && (
             <div className="bc-warning" role="alert">
                 <AlertTriangle size={14} color="var(--red)" />
                 <div className="bc-warning-text">
@@ -105,7 +105,7 @@ function ApproachOutput(
             </div>
             )}
 
-            {faPlan && faPlan.error === null && faPlan.overshoot && (
+            {faPlan !== null  && faPlan.error === null && faPlan.overshoot && (
             <div className="bc-warning" role="alert">
                 <AlertTriangle size={14} color="var(--red)" />
                 <div className="bc-warning-text">
@@ -196,7 +196,7 @@ function ApproachOutput(
             </>
             )}
 
-            {!faPlan && ( //TODO: Properly use this as an element for empty stuff
+            {faPlan === null  && (
             <div
                 style={{
                 fontSize: 11,

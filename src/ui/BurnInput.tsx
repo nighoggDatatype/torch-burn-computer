@@ -14,7 +14,8 @@ export type BurnInputArgs = {
     v0Direction : string, setV0Direction : stringSetter,
     vcrs : string, setVcrs : stringSetter, vcrsUnit : string, setVcrsUnit : stringSetter,
     vArrival : string, setVArrival : stringSetter, vArrivalUnit : string, setVArrivalUnit : stringSetter,
-    noWakeEnabled : boolean, setNoWakeEnabled : booleanSetter, standoffKm : string, setStandoffKm : stringSetter, standoffError : string | null,
+    noWakeEnabled : boolean, setNoWakeEnabled : booleanSetter,
+    standoffKm : string, setStandoffKm : stringSetter, standoff_m : number, standoffError : string | null,
     accel : string, setAccel : stringSetter, targetAccelError : boolean,
     targetDuration : string, setTargetDuration : stringSetter, targetDurationError : boolean, targetDuration_s : number | null,
     reactantBudget : string, setReactantBudget : stringSetter, targetBudgetError : boolean, targetBudget_s : number | null,
@@ -30,7 +31,8 @@ function BurnInput({args} : {args : BurnInputArgs}) {
         v0Direction, setV0Direction,
         vcrs, setVcrs, vcrsUnit, setVcrsUnit,
         vArrival, setVArrival, vArrivalUnit, setVArrivalUnit,
-        noWakeEnabled, setNoWakeEnabled, standoffKm, setStandoffKm, standoffError,
+        noWakeEnabled, setNoWakeEnabled,
+        standoffKm, setStandoffKm, standoff_m, standoffError,
         accel, setAccel, targetAccelError,
         targetDuration, setTargetDuration, targetDurationError, targetDuration_s,
         reactantBudget, setReactantBudget, targetBudgetError, targetBudget_s,
@@ -120,7 +122,7 @@ function BurnInput({args} : {args : BurnInputArgs}) {
         ◇ Arrival Parameters
         </div>
         <InputRow
-        label={noWakeEnabled ? 'Tgt Vel at 300km' : `Tgt Vel at ${standoffKm || '?'}km`}
+        label={noWakeEnabled ? 'Tgt Vel at 300km' : `Tgt Vel at ${standoffError !== 'invalid-standoff' ? (Math.round(standoff_m)/1000): '?'}km`}
         value={vArrival}
         onChange={setVArrival}
         unit={vArrivalUnit}

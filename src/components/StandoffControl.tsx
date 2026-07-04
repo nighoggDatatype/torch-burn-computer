@@ -1,4 +1,5 @@
 import InputNote from "./InputNote.js";
+import InputRow from "./InputRow.js";
 
 function NoWakeToggle({ noWakeEnabled, setNoWakeEnabled } : { noWakeEnabled: boolean, setNoWakeEnabled: React.Dispatch<React.SetStateAction<boolean>> }) {
   return (
@@ -41,18 +42,16 @@ function StandoffControl(
   return (
     <>
       {/* STAND-OFF DISTANCE - locked at 300km when NO-WAKE ZONE, editable in OPEN SPACE */}
-      <div className="bc-input-row">
-        <div className="bc-label">Stand-off</div>
-        <input
-          className="bc-input"
-          type="text"
-          inputMode="decimal"
-          value={noWakeEnabled ? '300km' : standoffKm}
-          placeholder="e.g. 2.5km"
-          disabled={noWakeEnabled}
-          onChange={(e) => !noWakeEnabled && setStandoffKm(e.target.value)}
-        />
-      </div>
+      <InputRow
+      label="Stand-off"
+      value={noWakeEnabled ? '300km' : standoffKm}
+      onChange={noWakeEnabled ? () => {} : setStandoffKm}
+      units={[]}
+      placeholder="e.g. 2.5km"
+      invalid={standoffError === 'invalid-standoff'}
+      disabled={noWakeEnabled}
+      inputMode="decimal"
+      />
       <InputNote 
           note = {
               standoffError === 'invalid-standoff' ? "INVALID STAND-OFF DISTANCE" : null

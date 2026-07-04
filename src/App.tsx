@@ -185,7 +185,7 @@ function BurnCalculatorInner() {
   }
 
   // Required Fields
-  const standoff_m = noWakeEnabled ? NO_WAKE_M : parseNum(standoffKm) * 1000 || 0;
+  const standoff_m = noWakeEnabled ? NO_WAKE_M : parseNum(standoffKm) * 1000;
   const standoffValid =
     noWakeEnabled || (isFinite(parseNum(standoffKm)) && parseNum(standoffKm) > 0);
   
@@ -438,7 +438,8 @@ function BurnCalculatorInner() {
     v0Direction, setV0Direction,
     vcrs, setVcrs, vcrsUnit, setVcrsUnit,
     vArrival, setVArrival, vArrivalUnit, setVArrivalUnit,
-    noWakeEnabled, setNoWakeEnabled, standoffKm, setStandoffKm, standoffError,
+    noWakeEnabled, setNoWakeEnabled, 
+    standoffKm, setStandoffKm, standoff_m, standoffError,
     accel, setAccel, targetAccelError,
     targetDuration, setTargetDuration, targetDurationError, targetDuration_s,
     reactantBudget, setReactantBudget, targetBudgetError, targetBudget_s,
@@ -452,7 +453,8 @@ function BurnCalculatorInner() {
       faVArrival, setFaVArrival, faVArrivalUnit, setFaVArrivalUnit,
       faAccel, setFaAccel, faTargetAccelError,
       faBudget, setFaBudget, faTargetBudgetError, faTargetBudget_s, 
-      noWakeEnabled, setNoWakeEnabled, standoffKm, setStandoffKm, standoffError,
+      noWakeEnabled, setNoWakeEnabled, 
+      standoffKm, setStandoffKm, standoff_m, standoffError,
       faGameStartTime, setFaGameStartTime, faGameTimeError, faGameTimeValid
   }
 

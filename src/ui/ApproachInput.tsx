@@ -14,7 +14,8 @@ export type ApproachInputArgs = {
     faVArrival : string, setFaVArrival : stringSetter, faVArrivalUnit : string, setFaVArrivalUnit : stringSetter,
     faAccel : string, setFaAccel : stringSetter, faTargetAccelError : boolean,
     faBudget : string, setFaBudget : stringSetter, faTargetBudgetError : boolean, faTargetBudget_s : number | null,
-    noWakeEnabled : boolean, setNoWakeEnabled : booleanSetter, standoffKm : string, setStandoffKm : stringSetter, standoffError : string | null,
+    noWakeEnabled : boolean, setNoWakeEnabled : booleanSetter,
+    standoffKm : string,setStandoffKm : stringSetter, standoff_m : number,  standoffError : string | null,
     faGameStartTime : string, setFaGameStartTime : stringSetter, faGameTimeError : boolean, faGameTimeValid : boolean,
 }
 
@@ -27,7 +28,8 @@ function ApproachInput({args} : {args : ApproachInputArgs})
         faVArrival, setFaVArrival, faVArrivalUnit, setFaVArrivalUnit,
         faAccel, setFaAccel, faTargetAccelError,
         faBudget, setFaBudget, faTargetBudgetError, faTargetBudget_s, 
-        noWakeEnabled, setNoWakeEnabled, standoffKm, setStandoffKm, standoffError,
+        noWakeEnabled, setNoWakeEnabled, 
+        standoffKm, setStandoffKm, standoff_m, standoffError,
         faGameStartTime, setFaGameStartTime, faGameTimeError, faGameTimeValid
     } = args;
     return (
@@ -85,7 +87,7 @@ function ApproachInput({args} : {args : ApproachInputArgs})
         ◇ Arrival Parameters
         </div>
         <InputRow
-        label={noWakeEnabled ? 'Tgt Vel at 300km' : `Tgt Vel at ${standoffKm || '?'}km`}
+        label={noWakeEnabled ? 'Tgt Vel at 300km' : `Tgt Vel at ${standoffError !== 'invalid-standoff' ? (Math.round(standoff_m)/1000): '?'}km`}
         value={faVArrival}
         onChange={setFaVArrival}
         unit={faVArrivalUnit}

@@ -11,6 +11,7 @@ function InputRow({
   tooltip,
   placeholder = "",
   invalid = false,
+  disabled = false,
   inputMode = 'text',
 } : {
   labelIcon? : React.JSX.Element,
@@ -23,6 +24,7 @@ function InputRow({
   tooltip? : {desc: string, img: string},
   placeholder?: string,
   invalid? : boolean,
+  disabled? : boolean,
   inputMode? : "text" | "decimal"
 }) {
   const id = React.useId();
@@ -103,6 +105,7 @@ function InputRow({
         value={value}
         placeholder={placeholder || ''}
         aria-invalid={invalid ? 'true' : undefined}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
       />
       {units && units.length > 0 && (

@@ -1,6 +1,6 @@
 import React from "react";
 
-function InputRow({ //TODO: add bottom text note feature here
+function InputRow({
   labelIcon,
   label,
   value,

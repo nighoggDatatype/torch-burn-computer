@@ -133,7 +133,7 @@ function ApproachInput({args} : {args : ApproachInputArgs})
         <InputNote 
             note = {
                 faTargetBudgetError ? "INVALID FORMAT - USE 1D 1H 17M 55S OR 37.15H" :
-                faTargetBudget_s != null ? `● ${formatTargetDuration(faTargetBudget_s)}` : //TODO: Add decimal hour formatting here
+                faTargetBudget_s != null ? `● ${(faTargetBudget_s / 3600).toFixed(2)}h` :
                 null
             }
             style = {

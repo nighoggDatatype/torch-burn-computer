@@ -24,7 +24,7 @@ function ApproachOutput(
     const faPlanOk = faPlan.error === null && !faPlan.overshoot;
 
     const {faTargetBudget_s, inputAccel_mps2, noWakeEnabled, standoffKm} = input;
-    const faTargetBudgetValid = faTargetBudget_s !== null && faTargetBudget_s > 0; //TODO: Peel positive check out
+    const faTargetBudgetValid = faTargetBudget_s !== null;
     const solveForAccel = inputAccel_mps2 === null;
 
     const faGameTimeValid = faParsedGameTime !== null;
@@ -136,7 +136,7 @@ function ApproachOutput(
             <>
                 {/* Constant burn aleart */}
                 {(faPlan.d_coast === 0 && faPlan.t_coast === 0) && (
-                    <div className="bc-fa-advisory">● CONSTANT BURN ENABLED: IMMEDIATE BRAKING REQUIRED</div> //TODO: Make amber, not red or green
+                    <div className="bc-fa-advisory">● CONSTANT BURN ENABLED: IMMEDIATE BRAKING REQUIRED</div> 
                 )}
 
                 {/* Reactant sufficiency warning */}
@@ -182,28 +182,14 @@ function ApproachOutput(
                 {faPlan.t_coast > 0 && (
                 <Readout
                     label="Coast Duration"
-                    value={formatTargetDuration(Math.floor(faPlan.t_coast)) ?? '0S'}
+                    value={formatTargetDuration(Math.floor(faPlan.t_coast))}
                     highlight
                     flickerKey={flickerKey}
                 />
                 )}
                 <Readout
                 label="Brake Duration"
-                value={formatTargetDuration(Math.floor(faPlan.t_brake)) ?? '0S'}
-                highlight
-                flickerKey={flickerKey}
-                />
-                {faPlan.d_coast > 0 && (
-                <Readout
-                    label="Coast Distance"
-                    value={formatDistance(faPlan.d_coast)}
-                    highlight
-                    flickerKey={flickerKey}
-                />
-                )}
-                <Readout
-                label="Brake Distance"
-                value={formatDistance(faPlan.d_brake)}
+                value={formatTargetDuration(Math.floor(faPlan.t_brake))}
                 highlight
                 flickerKey={flickerKey}
                 />
@@ -223,6 +209,34 @@ function ApproachOutput(
             </div>
             )}
         </div>
+        
+
+        {/* APPROACH REFERENCE - right column, below Approach Solution */}
+        {faPlanOk && (
+            <div className="bc-panel scratch-b">
+            <div className="bc-panel-header">◇ Approach Reference</div>
+            {faPlan.d_coast > 0 && (
+            <Readout
+                label="Coast Distance"
+                value={formatDistance(faPlan.d_coast)}
+                highlight
+                flickerKey={flickerKey}
+            />
+            )}
+            <Readout
+            label="Brake Distance"
+            value={formatDistance(faPlan.d_brake)}
+            highlight
+            flickerKey={flickerKey}
+            />
+            <Readout
+            label="Reactant Budget Used"
+            value={`${Math.floor(faPlan.t_brake / 3600)}h`}
+            highlight
+            flickerKey={flickerKey}
+            />
+            </div>
+        )}
         </div>
     )
 }

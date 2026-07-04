@@ -194,7 +194,7 @@ function BurnCalculatorInner() {
     (distanceUnit === 'au' ? AU : distanceUnit === 'gm' ? 1e9 : distanceUnit === 'km' ? 1000 : 1);
  
   const vrel_mps =
-    parseNum(vrel) * (vrelUnit === 'km/s' ? 1000 : 1) * (v0Direction === 'receding' ? -1 : 1); //TODO: Make changes here to account for the fact this includes vcrs, and may be angled
+    parseNum(vrel) * (vrelUnit === 'km/s' ? 1000 : 1) * (v0Direction === 'receding' ? -1 : 1); 
   const vcrs_mps = vcrs.trim() !== '' ? parseNum(vcrs) * (vcrsUnit === 'km/s' ? 1000 : 1) : 0;
   const v_arrival_mps = vArrival.trim() === '' ? 0 : parseNum(vArrival) * (vArrivalUnit === 'km/s' ? 1000 : 1);
   
@@ -331,7 +331,7 @@ function BurnCalculatorInner() {
   // FA budget conversion - parsed same as Desired Travel Time (bare number = seconds)
   const faTargetBudgetAttempted = faBudget.trim() !== ''
   const faTargetBudget_s = parseTargetDuration(faBudget);
-  const faTargetBudgetValid = faTargetBudget_s !== null && faTargetBudget_s > 0; //TODO: Peel positive check out
+  const faTargetBudgetValid = faTargetBudget_s !== null;
   const faTargetBudgetError = faTargetBudgetAttempted && !faTargetBudgetValid
 
   const faMissingFields = [
@@ -384,7 +384,7 @@ function BurnCalculatorInner() {
     : null;
   const faPlan = faPlanErrors ?? faPlanRaw;
 
-  // FA game clock (TODO: Consider just using one game time globally)
+  // FA game clock
   const faParsedGameTime = parseGameTime(faGameStartTime);
   const faGameTimeValid = faParsedGameTime !== null;
   const faGameTimeAttempted = faGameStartTime.trim() !== '';

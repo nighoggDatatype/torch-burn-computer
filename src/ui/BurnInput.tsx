@@ -188,7 +188,7 @@ function BurnInput({args} : {args : BurnInputArgs}) {
         <InputNote 
             note = {
                 targetBudgetError ? "INVALID FORMAT - USE 1D 1H 17M 55S OR 37.15H" :
-                targetBudget_s != null ? `● ${formatTargetDuration(targetBudget_s)}` : //TODO: Add decimal hour formatting here
+                targetBudget_s != null ? `● ${(targetBudget_s / 3600).toFixed(2)}h` : 
                 null
             }
             style = {

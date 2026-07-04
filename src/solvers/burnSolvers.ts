@@ -1,4 +1,4 @@
-import { impossibleBudgetOptimizeError, impossibleDurationOptimizeError } from "../utils/errors.js";
+import { impossibleBudgetOptimizeError, impossibleDurationOptimizeError, nonPositiveAccelError } from "../utils/errors.js";
 import { buildDriftPlan, BurnPlanResult, computeConstantBurnPlan, solveAcceleration } from "./physics.js";
 
 export function accelOnlySolver( 
@@ -56,9 +56,13 @@ export function optimalBudgetSolver(
         return accelOnlyConstantBurnPlan;
     }
     const a_mps2 = targetAccel_mps2;
-    if (!isFinite(a_mps2) || a_mps2 <= 0)
+    if (!isFinite(a_mps2))
     {
-        return null; //TODO: Replace with targetAccel_mps2 parsing error
+        return null; //Caught at an earlier stage, supressing this plan
+    }
+    if (a_mps2 <= 0)
+    {
+        return nonPositiveAccelError;
     }
     const constantBurn_v_max = accelOnlyConstantBurnPlan.v_max;
     if(durationOnlyConstantBurnPlan === null)
@@ -85,7 +89,7 @@ export function optimalBudgetSolver(
             return plan;
         }
         }
-        const v_max_large_root = (P + Math.sqrt(disc)) / 2; // try larger root next (TODO: Check if this gives sensible solutions, not sure what this means physically)
+        const v_max_large_root = (P + Math.sqrt(disc)) / 2; // try larger root next (Note: Not sure about what this means physically, just hope this is sensible)
         if (v_max_large_root > v0_mps && v_max_large_root > v_arrival_mps && v_max_large_root < constantBurn_v_max) {
         return buildDriftPlan({ distance_m: burn_distance_m, v0_mps, a_mps2, v_arrival_mps, t_rotate_s, v_max: v_max_large_root });
         }

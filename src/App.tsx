@@ -79,11 +79,10 @@ function BurnCalculatorInner() {
   const [faGameStartTime, setFaGameStartTime] = useState(() => _urlParams('fgt') ?? '');
 
   // UI polish states
-  const [copied, setCopied] = useState(false);
-  const prevPlanRef: React.RefObject<string|null> = useRef(null);
+  const [copied, setCopied] = useState(false); //TODO: split between burn and approach
 
   // URL state sync
-  useEffect(() => {
+  useEffect(() => { //TODO: do trimming of check and url assignment 
     const p = new URLSearchParams();
     if (distance) p.set('d', distance);
     if (distanceUnit !== 'km') p.set('du', distanceUnit);
@@ -410,7 +409,7 @@ function BurnCalculatorInner() {
     'READY';
 
   // Combined status for header light - mode-aware
-  const activeStatusText = appMode === 'approach' ? faStatusText : statusText;
+  const activeStatusText = appMode === 'approach' ? faStatusText : statusText; //TODO: Extract all this into its own component
   const activeHasError =
     appMode === 'approach'
       ? faPlan && (faPlan.error || fa_hasWakeError)

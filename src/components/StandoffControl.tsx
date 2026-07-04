@@ -1,3 +1,4 @@
+import ButtonArray from "./ButtonArray.js";
 import InputNote from "./InputNote.js";
 import InputRow from "./InputRow.js";
 
@@ -60,7 +61,18 @@ function StandoffControl(
               standoffError === 'invalid-standoff' ? { color: 'var(--red)' } : undefined
           }
       />
-      <NoWakeToggle noWakeEnabled={noWakeEnabled} setNoWakeEnabled={setNoWakeEnabled} />
+      <ButtonArray
+        value={noWakeEnabled}
+        setValue={setNoWakeEnabled}
+        buttonList={[
+          { value: false, label: "OPEN SPACE", style: {}},
+          { value: true,  label: "NO-WAKE ZONE", style: {
+              color: 'var(--cyan)',
+              borderColor: 'var(--cyan)',
+              background: 'rgba(77,208,255,0.12)',
+          }}
+        ]}
+        />
     </>
   );
 }

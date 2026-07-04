@@ -4,6 +4,7 @@ import StandoffControl from "../components/StandoffControl.js";
 import { formatTargetDuration } from "../utils/formatters.js";
 import InputNote from "../components/InputNote.js";
 import { G, TOOLTIP_IMG_ACCELERATION, TOOLTIP_IMG_CURRENTVEL, TOOLTIP_IMG_DISTANCE, TOOLTIP_IMG_REACTANTBUDGET, TOOLTIP_IMG_VCRS } from "../utils/constants.js";
+import ButtonArray from "../components/ButtonArray.js";
 
 type stringSetter = React.Dispatch<React.SetStateAction<string>>
 type booleanSetter = React.Dispatch<React.SetStateAction<boolean>>
@@ -84,25 +85,18 @@ function BurnInput({args} : {args : BurnInputArgs}) {
             img: TOOLTIP_IMG_CURRENTVEL,
         }}
         />
-        <div style={{ display: 'flex', gap: 4, marginLeft: 118, marginBottom: 8 }}>
-        <button
-            className={`bc-unit-btn${v0Direction === 'closing' ? ' active' : ''}`}
-            onClick={() => setV0Direction('closing')}
-        >
-            CLOSING
-        </button>
-        <button
-            className={`bc-unit-btn${v0Direction === 'receding' ? ' active' : ''}`}
-            onClick={() => setV0Direction('receding')}
-            style={{
-            color: v0Direction === 'receding' ? 'var(--red)' : undefined,
-            borderColor: v0Direction === 'receding' ? 'var(--red)' : undefined,
-            background: v0Direction === 'receding' ? 'rgba(255,93,93,0.15)' : undefined,
-            }}
-        >
-            RECEDING
-        </button>
-        </div>
+        <ButtonArray
+            value={v0Direction}
+            setValue={setV0Direction}
+            buttonList={[
+                { value: 'closing', label: "CLOSING", style: {}},
+                { value: 'receding',  label: "RECEDING", style: {
+                    color: 'var(--red)',
+                    borderColor: 'var(--red)',
+                    background: 'rgba(255,93,93,0.15)',
+                }}
+            ]}
+        />
         <InputRow
         label="Current VCRS"
         value={vcrs}

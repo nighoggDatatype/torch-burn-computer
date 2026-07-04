@@ -2,7 +2,7 @@ import { AlertTriangle } from "lucide-react";
 import Readout from "../components/Readout.js";
 import { FinalApproachResult } from "../solvers/approachSolvers.js";
 import { G } from "../utils/constants.js";
-import { addGameTime, formatVelocity, formatDistance, formatTargetDuration, formatGameTime } from "../utils/formatters.js";
+import { addGameTime, formatDistance, formatTargetDuration, formatGameTime } from "../utils/formatters.js";
 import { GameDateTime } from "../utils/parsers.js";
 import { ApproachInputArgs, getApproachInputCopy } from "./ApproachInput.js";
 import { useEffect, useRef, useState } from "react";

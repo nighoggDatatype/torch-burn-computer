@@ -2,7 +2,7 @@ import { FinalApproachResult } from "../solvers/approachSolvers.js";
 import { BurnPlanResult } from "../solvers/physics.js";
 import { APP_VERSION } from "../utils/constants.js";
 
-function AppHeader //TODO: Consider returning the status lights
+function AppHeader //TODO: Consider returning the blinking status lights
 (
     {appMode, finalPlan, faPlan}:
     {appMode: string, finalPlan: BurnPlanResult | null, faPlan: FinalApproachResult | null}

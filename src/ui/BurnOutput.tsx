@@ -16,9 +16,8 @@ type RequiredBurnInput = {
 }
 
 function BurnOutput(
-    {finalPlan, parsedGameTime, input, copied, setCopied, passthroughInputArgs} : 
-    {finalPlan: BurnPlanResult | null, parsedGameTime : GameDateTime | null, input : RequiredBurnInput,
-        copied : boolean, setCopied : React.Dispatch<React.SetStateAction<boolean>>, passthroughInputArgs: BurnInputArgs}) {
+    {finalPlan, parsedGameTime, input, passthroughInputArgs} : 
+    {finalPlan: BurnPlanResult | null, parsedGameTime : GameDateTime | null, input : RequiredBurnInput, passthroughInputArgs: BurnInputArgs}) {
 
     const finalPlanOk = finalPlan && finalPlan.error === null && !finalPlan.overshoot;
     const isDriftMode = finalPlanOk && finalPlan.t_drift !== 0 && finalPlan.d_drift !== 0;
@@ -55,6 +54,7 @@ function BurnOutput(
     const vcrsNullTarget =
         vcrsNullTime !== null && gameTimeValid ? addGameTime(parsedGameTime, vcrsNullTime) : null;
     
+    const [copied, setCopied] = useState(false);
     const [flickerKey, setFlickerKey] = useState(0);
     const prevPlanRef: React.RefObject<string|null> = useRef(null);
         

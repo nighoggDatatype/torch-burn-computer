@@ -78,9 +78,6 @@ function BurnCalculatorInner() {
   const [faVArrivalUnit, setFaVArrivalUnit] = useState(() => _urlParams_localStorage('fvau', 'pa_fvau', 'm/s'));
   const [faGameStartTime, setFaGameStartTime] = useState(() => _urlParams('fgt') ?? '');
 
-  // UI polish states
-  const [copied, setCopied] = useState(false); //TODO: split between burn and approach
-
   // URL state sync
   useEffect(() => { //TODO: do trimming of check and url assignment 
     const p = new URLSearchParams();
@@ -507,8 +504,6 @@ function BurnCalculatorInner() {
               finalPlan={finalPlan} 
               parsedGameTime={parsedGameTime} 
               input={{vcrs_mps, inputAccel_mps2: targetAccelAttempted ? targetAccel_mps2 : null, burn_distance_m, noWakeEnabled, standoffKm}}
-              copied={copied}
-              setCopied={setCopied}
               passthroughInputArgs={burnInputArgs}
             />)}
 
@@ -518,8 +513,6 @@ function BurnCalculatorInner() {
               faPlan={faPlan} 
               faParsedGameTime={faParsedGameTime} 
               input={{faTargetBudget_s, inputAccel_mps2: faTargetAccelAttempted ? faTargetAccel_mps2 : null, noWakeEnabled, standoffKm}}
-              copied={copied}
-              setCopied={setCopied}
               passthroughInputArgs={approachInputArgs}
             />)}
           </div>

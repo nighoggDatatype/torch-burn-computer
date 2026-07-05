@@ -15,10 +15,9 @@ type RequiredApproachInput = {
 }
 
 function ApproachOutput(
-    {faPlan, faParsedGameTime, input, copied, setCopied, passthroughInputArgs} : 
+    {faPlan, faParsedGameTime, input, passthroughInputArgs} : 
     {
-        faPlan: FinalApproachResult | null, faParsedGameTime : GameDateTime | null, input : RequiredApproachInput,
-        copied : boolean, setCopied : React.Dispatch<React.SetStateAction<boolean>>, passthroughInputArgs: ApproachInputArgs
+        faPlan: FinalApproachResult | null, faParsedGameTime : GameDateTime | null, input : RequiredApproachInput, passthroughInputArgs: ApproachInputArgs
     }) {
 
     const faPlanOk = faPlan !== null && faPlan.error === null && !faPlan.overshoot;
@@ -33,7 +32,7 @@ function ApproachOutput(
     const faArriveTarget =
     faGameTimeValid && faPlanOk ? addGameTime(faParsedGameTime, faPlan.t_total) : null;
     
-    // Flicker effect: trigger when plan output changes
+    const [copied, setCopied] = useState(false);
     const [flickerKey, setFlickerKey] = useState(0);
       const prevPlanRef: React.RefObject<string|null> = useRef(null);
     useEffect(() => {

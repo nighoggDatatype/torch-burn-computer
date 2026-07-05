@@ -1,4 +1,3 @@
-import React, { useState, useEffect, useRef } from 'react';
 import './styles.css';
 import {
   G,
@@ -22,8 +21,7 @@ import { computeFinalApproach_constantBurn, computeFinalApproach_givenAccel, com
 import ApproachInput from './ui/ApproachInput.js';
 import BootSplash from './ui/BootSplash.js';
 import ApproachOutput from './ui/ApproachOutput.js';
-
-const APP_VERSION = 'v0.6.4';
+import AppHeader from './ui/AppHeader.js';
 
 export default function BurnCalculator() {
   return (
@@ -320,27 +318,6 @@ function BurnCalculatorInner() {
   const faGameTimeAttempted = faGameStartTime.trim() !== '';
   const faGameTimeError = faGameTimeAttempted && !faGameTimeValid;
 
-  const statusText = 
-    finalPlan === null ? 'STANDBY' :
-    finalPlan.error !== null ? 'INVALID' :
-    finalPlan.overshoot ? 'OVERSHOOT' :
-    'READY';
-
-  // Status for FA mode
-  const faStatusText = 
-    faPlan === null ? 'STANDBY' :
-    faPlan.error !== null ? 'INVALID' : 
-    faPlan.overshoot ? 'OVERSHOOT' : 
-    'READY';
-
-  // Combined status for header light - mode-aware
-  const activeStatusText = appMode === 'approach' ? faStatusText : statusText; //TODO: Extract all this into its own component
-  const activeHasError =
-    appMode === 'approach'
-      ? faPlan && (faPlan.error || fa_hasWakeError)
-      : (finalPlan && finalPlan.error !== null);
-  const activeIsOvershoot = appMode === 'approach' ? faPlan && faPlan.error === null && faPlan.overshoot : finalPlan && finalPlan.error === null && finalPlan.overshoot;
-
   const burnInputArgs = {
     distance, setDistance, distanceUnit, setDistanceUnit, 
     vrel, setVrel, vrelUnit, setVrelUnit,
@@ -373,30 +350,7 @@ function BurnCalculatorInner() {
       <div className="bc-root">
         <div className="bc-container">
           {/* HEADER */}
-          <div className="bc-header">
-            <div>
-              <div className="bc-brand">◈ Polaris Astronautics</div>
-              <div className="bc-title">Manual Torch Burn Guidance Computer</div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-              <span
-                style={{
-                  fontFamily: "'IBM Plex Mono', monospace",
-                  fontSize: 10,
-                  color: 'var(--text-dim)',
-                  letterSpacing: '0.12em',
-                }}
-              >
-                {APP_VERSION}
-              </span>
-              <span className="bc-status-wrap">
-                <span
-                  className={`bc-status-light ${activeHasError ? 'invalid' : activeIsOvershoot ? 'overshoot' : 'ready'}`}
-                ></span>
-              </span>
-              <span className="bc-status-text" role="status" aria-live="polite">{activeStatusText}</span>
-            </div>
-          </div>
+          <AppHeader appMode={appMode} finalPlan={finalPlan} faPlan={faPlan}/>
 
           <div className="bc-grid">
             {/* INPUTS */}

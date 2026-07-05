@@ -1,3 +1,5 @@
+export const APP_VERSION = 'v0.6.4';
+
 export const G = 9.80665; // standard gravity, m/s²
 export const AU = 149_597_870_700; // meters per astronomical unit
 // Game day: standard 24h clock + "untime" (24:00:00 → 24:20:58),

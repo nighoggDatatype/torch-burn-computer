@@ -19,7 +19,7 @@ function BurnOutput(
     {finalPlan, parsedGameTime, input, passthroughInputArgs} : 
     {finalPlan: BurnPlanResult | null, parsedGameTime : GameDateTime | null, input : RequiredBurnInput, passthroughInputArgs: BurnInputArgs}) {
 
-    const finalPlanOk = finalPlan && finalPlan.error === null && !finalPlan.overshoot;
+    const finalPlanOk = finalPlan !== null && finalPlan.error === null && !finalPlan.overshoot;
     const isDriftMode = finalPlanOk && finalPlan.t_drift !== 0 && finalPlan.d_drift !== 0;
     const a_mps2 = finalPlanOk ? finalPlan.a_mps2 : NaN;
 

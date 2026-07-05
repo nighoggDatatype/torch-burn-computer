@@ -431,7 +431,7 @@ function BurnCalculatorInner() {
               <BurnOutput 
               finalPlan={finalPlan} 
               parsedGameTime={parsedGameTime} 
-              input={{vcrs_mps, inputAccel_mps2: targetAccelAttempted ? targetAccel_mps2 : null, burn_distance_m, noWakeEnabled, standoffKm}}
+              input={{vcrs_mps, inputAccel_mps2: targetAccelAttempted ? targetAccel_mps2 : null, burn_distance_m, noWakeEnabled, standoff_m}}
               passthroughInputArgs={burnInputArgs}
             />)}
 
@@ -440,7 +440,7 @@ function BurnCalculatorInner() {
               <ApproachOutput 
               faPlan={faPlan} 
               faParsedGameTime={faParsedGameTime} 
-              input={{faTargetBudget_s, inputAccel_mps2: faTargetAccelAttempted ? faTargetAccel_mps2 : null, noWakeEnabled, standoffKm}}
+              input={{faTargetBudget_s, inputAccel_mps2: faTargetAccelAttempted ? faTargetAccel_mps2 : null, noWakeEnabled, standoff_m}}
               passthroughInputArgs={approachInputArgs}
             />)}
           </div>

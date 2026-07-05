@@ -11,7 +11,7 @@ type RequiredApproachInput = {
     faTargetBudget_s : number | null,
     inputAccel_mps2 : number | null,
     noWakeEnabled : string, 
-    standoffKm : string //TODO: See about using number for standoffKm
+    standoff_m : number 
 }
 
 function ApproachOutput(
@@ -22,7 +22,7 @@ function ApproachOutput(
 
     const faPlanOk = faPlan !== null && faPlan.error === null && !faPlan.overshoot;
 
-    const {faTargetBudget_s, inputAccel_mps2, noWakeEnabled, standoffKm} = input;
+    const {faTargetBudget_s, inputAccel_mps2, noWakeEnabled, standoff_m} = input;
     const faTargetBudgetValid = faTargetBudget_s !== null;
     const targetAccelAttempted = inputAccel_mps2 !== null;
 
@@ -112,7 +112,7 @@ function ApproachOutput(
                 <br />
                 {noWakeEnabled === 'enabled'
                     ? 'Ship is moving too fast to stop before the no-wake boundary.'
-                    : `Ship is moving too fast to stop before the stand-off boundary (${standoffKm} km).`}
+                    : `Ship is moving too fast to stop before the stand-off boundary (${Math.round(standoff_m)/1000} km).`}
                 <br />
                 Minimum brake distance needed: <strong>{formatDistance(faPlan.d_brake_needed)}</strong>
                 <br />

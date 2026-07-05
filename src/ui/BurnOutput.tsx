@@ -12,7 +12,7 @@ type RequiredBurnInput = {
     inputAccel_mps2 : number | null, 
     burn_distance_m : number, 
     noWakeEnabled : string, 
-    standoffKm : string //TODO: See about using number for standoffKm
+    standoff_m : number 
 }
 
 function BurnOutput(
@@ -23,7 +23,7 @@ function BurnOutput(
     const isDriftMode = finalPlanOk && finalPlan.t_drift !== 0 && finalPlan.d_drift !== 0;
     const a_mps2 = finalPlanOk ? finalPlan.a_mps2 : NaN;
 
-    const {vcrs_mps, inputAccel_mps2, burn_distance_m, noWakeEnabled, standoffKm} = input;
+    const {vcrs_mps, inputAccel_mps2, burn_distance_m, noWakeEnabled, standoff_m} = input;
     const targetAccelAttempted = inputAccel_mps2 !== null;
     
     const gameTimeValid = parsedGameTime !== null;
@@ -100,7 +100,7 @@ function BurnOutput(
         lines.push(
             `Arrival: ${gameTimeValid ? formatGameTime(arriveTarget) : 'T+' + formatTargetDuration(Math.floor(t_total))}`
         );
-        lines.push(`Accel Duration: ${formatTargetDuration(Math.floor(t_accel)) ?? '0S'}`);
+        lines.push(`Accel Duration: ${formatTargetDuration(Math.round(t_accel)) ?? '0S'}`);
         if (isDriftMode)
             lines.push(
             `Drift Duration: ${formatTargetDuration(Math.floor(finalPlan.t_drift || 0)) ?? '0S'}`
@@ -160,7 +160,7 @@ function BurnOutput(
             <br />
             {noWakeEnabled === 'enabled'
                 ? 'Ship is moving too fast to stop before the no-wake boundary.'
-                : `Ship is moving too fast to stop before the stand-off boundary (${standoffKm} km).`}
+                : `Ship is moving too fast to stop before the stand-off boundary (${Math.floor(standoff_m)/1000} km).`}
             <br />
             Minimum brake distance needed:{' '}
             <strong>{formatDistance(finalPlan.brake_only_dist)}</strong>

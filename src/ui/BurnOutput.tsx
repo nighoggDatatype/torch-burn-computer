@@ -11,7 +11,7 @@ type RequiredBurnInput = {
     vcrs_mps : number, 
     inputAccel_mps2 : number | null, 
     burn_distance_m : number, 
-    noWakeEnabled : boolean, 
+    noWakeEnabled : string, 
     standoffKm : string //TODO: See about using number for standoffKm
 }
 
@@ -158,7 +158,7 @@ function BurnOutput(
             <div className="bc-warning-text">
             <strong>CANNOT BRAKE IN TIME</strong>
             <br />
-            {noWakeEnabled
+            {noWakeEnabled === 'enabled'
                 ? 'Ship is moving too fast to stop before the no-wake boundary.'
                 : `Ship is moving too fast to stop before the stand-off boundary (${standoffKm} km).`}
             <br />

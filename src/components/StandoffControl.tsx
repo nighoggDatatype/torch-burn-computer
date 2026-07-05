@@ -2,7 +2,7 @@ import ButtonArray from "./ButtonArray.js";
 import InputNote from "./InputNote.js";
 import InputRow from "./InputRow.js";
 
-function NoWakeToggle({ noWakeEnabled, setNoWakeEnabled } : { noWakeEnabled: boolean, setNoWakeEnabled: React.Dispatch<React.SetStateAction<boolean>> }) {
+function NoWakeToggle({ noWakeEnabled, setNoWakeEnabled } : { noWakeEnabled: string, setNoWakeEnabled: (value: boolean) => void }) {
   return (
     <div
       style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 118, marginBottom: 8 }}
@@ -34,10 +34,10 @@ function NoWakeToggle({ noWakeEnabled, setNoWakeEnabled } : { noWakeEnabled: boo
 
 function StandoffControl(
   { noWakeEnabled, setNoWakeEnabled, standoffKm, setStandoffKm, standoffError } : 
-  { noWakeEnabled: boolean, 
-    setNoWakeEnabled : React.Dispatch<React.SetStateAction<boolean>>, 
+  { noWakeEnabled: string, 
+    setNoWakeEnabled : (value: string) => void, 
     standoffKm: string, 
-    setStandoffKm: React.Dispatch<React.SetStateAction<string>>,
+    setStandoffKm: (value: string) => void,
     standoffError: string | null }
 ) {
   return (
@@ -45,12 +45,12 @@ function StandoffControl(
       {/* STAND-OFF DISTANCE - locked at 300km when NO-WAKE ZONE, editable in OPEN SPACE */}
       <InputRow
       label="Stand-off"
-      value={noWakeEnabled ? '300km' : standoffKm}
-      onChange={noWakeEnabled ? () => {} : setStandoffKm}
+      value={noWakeEnabled === 'enabled' ? '300km' : standoffKm}
+      onChange={noWakeEnabled === 'enabled' ? () => {} : setStandoffKm}
       units={[]}
       placeholder="e.g. 2.5km"
       invalid={standoffError === 'invalid-standoff'}
-      disabled={noWakeEnabled}
+      disabled={noWakeEnabled === 'enabled'}
       inputMode="decimal"
       />
       <InputNote 
@@ -65,8 +65,8 @@ function StandoffControl(
         value={noWakeEnabled}
         setValue={setNoWakeEnabled}
         buttonList={[
-          { value: false, label: "OPEN SPACE", style: {}},
-          { value: true,  label: "NO-WAKE ZONE", style: {
+          { value: 'disabled', label: "OPEN SPACE", style: {}},
+          { value: 'enabled',  label: "NO-WAKE ZONE", style: {
               color: 'var(--cyan)',
               borderColor: 'var(--cyan)',
               background: 'rgba(77,208,255,0.12)',

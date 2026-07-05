@@ -4,8 +4,7 @@ import StandoffControl from "../components/StandoffControl.js";
 import { G, TOOLTIP_IMG_ACCELERATION, TOOLTIP_IMG_CURRENTVEL, TOOLTIP_IMG_DISTANCE, TOOLTIP_IMG_REACTANTBUDGET } from "../utils/constants.js";
 import InputNote from "../components/InputNote.js";
 
-type stringSetter = React.Dispatch<React.SetStateAction<string>>
-type booleanSetter = React.Dispatch<React.SetStateAction<boolean>>
+type stringSetter = (value: string) => void
 
 export type ApproachInputArgs = {
     faDistance : string, setFaDistance : stringSetter, faDistanceUnit : string, setFaDistanceUnit : stringSetter, 
@@ -13,7 +12,7 @@ export type ApproachInputArgs = {
     faVArrival : string, setFaVArrival : stringSetter, faVArrivalUnit : string, setFaVArrivalUnit : stringSetter,
     faAccel : string, setFaAccel : stringSetter, faTargetAccelError : boolean,
     faBudget : string, setFaBudget : stringSetter, faTargetBudgetError : boolean, faTargetBudget_s : number | null,
-    noWakeEnabled : boolean, setNoWakeEnabled : booleanSetter,
+    noWakeEnabled : string, setNoWakeEnabled : stringSetter,
     standoffKm : string,setStandoffKm : stringSetter, standoff_m : number,  standoffError : string | null,
     faGameStartTime : string, setFaGameStartTime : stringSetter, faGameTimeError : boolean, faGameTimeValid : boolean,
 }
@@ -56,7 +55,7 @@ function ApproachInput({args} : {args : ApproachInputArgs})
         />
         <InputNote 
             note = {
-                standoffError === 'within-standoff' ? noWakeEnabled
+                standoffError === 'within-standoff' ? noWakeEnabled === 'enabled'
                     ? '⚠ DESTINATION IS WITHIN THE 300 KM NO-WAKE ZONE'
                     : `⚠ DESTINATION IS WITHIN THE STAND-OFF ZONE (${standoffKm} KM)` 
                 : null
@@ -86,7 +85,7 @@ function ApproachInput({args} : {args : ApproachInputArgs})
         ◇ Arrival Parameters
         </div>
         <InputRow
-        label={noWakeEnabled ? 'Tgt Vel at 300km' : `Tgt Vel at ${standoffError !== 'invalid-standoff' ? (Math.round(standoff_m)/1000): '?'}km`}
+        label={noWakeEnabled === 'enabled' ? 'Tgt Vel at 300km' : `Tgt Vel at ${standoffError !== 'invalid-standoff' ? (Math.round(standoff_m)/1000): '?'}km`}
         value={faVArrival}
         onChange={setFaVArrival}
         unit={faVArrivalUnit}
@@ -193,7 +192,7 @@ export function getApproachInputCopy(args : ApproachInputArgs, computed_accel_mp
     lines.push('-- ARRIVAL PARAMETERS --');
     if (faVArrival.trim() !== '' && faVArrival !== '0')
     lines.push(`TGT Vel: ${faVArrival} ${faVArrivalUnit}`);
-    lines.push(noWakeEnabled ? 'Stand-off: NO-WAKE ZONE (300 km)' : `Stand-off: ${standoffKm} km`);
+    lines.push(noWakeEnabled === 'enabled' ? 'Stand-off: NO-WAKE ZONE (300 km)' : `Stand-off: ${standoffKm} km`);
     if (faBudget.trim() !== '') lines.push(`Reactant Budget: ${faBudget}`);
     lines.push('');
     lines.push('-- VESSEL PARAMETERS --');

@@ -1,7 +1,7 @@
 
 
-type ButtonConfig<T> = {
-    value : T,
+type ButtonConfig = {
+    value : string,
     label : string,
     style : {
         color: string
@@ -10,9 +10,9 @@ type ButtonConfig<T> = {
     } | {}
 }
 
-function ButtonArray<T>(
+function ButtonArray(
     { value, setValue, buttonList } : 
-    { value: T, setValue: React.Dispatch<React.SetStateAction<T>>, buttonList: ButtonConfig<T>[] }) {
+    { value: string, setValue: (value: string) => void, buttonList: ButtonConfig[] }) {
   return (
     <div
       style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 118, marginBottom: 8 }}

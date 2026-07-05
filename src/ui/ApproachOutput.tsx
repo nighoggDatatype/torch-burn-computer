@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from "react";
 type RequiredApproachInput = {
     faTargetBudget_s : number | null,
     inputAccel_mps2 : number | null,
-    noWakeEnabled : boolean, 
+    noWakeEnabled : string, 
     standoffKm : string //TODO: See about using number for standoffKm
 }
 
@@ -110,7 +110,7 @@ function ApproachOutput(
                 <div className="bc-warning-text">
                 <strong>CANNOT BRAKE IN TIME - OVERSHOOT IMMINENT</strong>
                 <br />
-                {noWakeEnabled
+                {noWakeEnabled === 'enabled'
                     ? 'Ship is moving too fast to stop before the no-wake boundary.'
                     : `Ship is moving too fast to stop before the stand-off boundary (${standoffKm} km).`}
                 <br />

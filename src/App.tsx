@@ -12,7 +12,7 @@ import {
   parseTargetDuration,
 } from './utils/parsers.js';
 import ErrorBoundary from './components/ErrorBoundary.js';
-import { _urlParams, _urlParams_localStorage, _localStorage, _save_localStorage } from './utils/persistence.js';
+import useUrlOrLocalState from './utils/persistence.js';
 import Timeline from './ui/Timeline.js';
 import BurnOutput from './ui/BurnOutput.js';
 import { badInputError, computedAccelTooFast as computedAccelTooSlow, finalApproach_computedDecelTooFast as finalApproach_computedDecelTooSlow, getStandOffError, getV0Error, internalSolverError, targetAccelTooSmallError } from './utils/errors.js';
@@ -36,111 +36,39 @@ export default function BurnCalculator() {
 function BurnCalculatorInner() {
 
   // appMode: read from URL hash (#burn / #approach)
-  const [appMode, setAppMode] = useState(() => {
-    try {
-      return window.location.hash.replace('#', '') === 'approach' ? 'approach' : 'burn';
-    } catch {
-      return 'burn';
-    }
-  });
+  const [appMode, setAppMode] = useUrlOrLocalState({urlKey: null, defaultValue: 'burn', validValues: ['approach', 'burn']})
 
   // Burn Plan state: per-burn fields from URL only, vessel/prefs from URL => LS
-  const [distance, setDistance] = useState(() => _urlParams('d') ?? '');
-  const [distanceUnit, setDistanceUnit] = useState(() => _urlParams_localStorage('du', 'pa_du', 'km'));
-  const [vrel, setVrel] = useState(() => _urlParams('v') ?? '');
-  const [vrelUnit, setVrelUnit] = useState(() => _urlParams_localStorage('vu', 'pa_vu', 'm/s'));
-  const [v0Direction, setV0Direction] = useState(() => _urlParams('vd') ?? 'closing');
-  const [accel, setAccel] = useState(() => _urlParams_localStorage('a', 'pa_accel', ''));
-  const [flipTime, setFlipTime] = useState(() => _urlParams_localStorage('f', 'pa_flip_time', '60'));
-  const [reactantBudget, setReactantBudget] = useState(() => _urlParams('b') ?? '');
-  const [vArrival, setVArrival] = useState(() => _urlParams('va') ?? '');
-  const [vArrivalUnit, setVArrivalUnit] = useState(() => _urlParams_localStorage('vau', 'pa_vau', 'm/s'));
-  const [vcrs, setVcrs] = useState(() => _urlParams('cx') ?? '');
-  const [vcrsUnit, setVcrsUnit] = useState(() => _urlParams('cu') ?? 'm/s');
-  const [noWakeEnabled, setNoWakeEnabled] = useState(() => {
-    const u = _urlParams('nw');
-    if (u !== null) return u !== '0';
-    const l = _localStorage('pa_no_wake');
-    return l !== null ? l !== '0' : true;
-  });
-  const [standoffKm, setStandoffKm] = useState(() => _urlParams_localStorage('sk', 'pa_standoff_km', '2.5'));
-  const [targetDuration, setTargetDuration] = useState(() => _urlParams('td') ?? '');
-  const [gameStartTime, setGameStartTime] = useState(() => _urlParams('gt') ?? '');
+  const [distance, setDistance] = useUrlOrLocalState({urlKey: 'd', defaultValue: ''})
+  const [distanceUnit, setDistanceUnit] = useUrlOrLocalState({urlKey: 'd', localKey: 'pa_du', defaultValue: 'km', validValues: ['km', 'gm', 'au']})
+  const [vrel, setVrel] = useUrlOrLocalState({urlKey: 'v', defaultValue: ''})
+  const [vrelUnit, setVrelUnit] = useUrlOrLocalState({urlKey: 'vu', localKey: 'pa_vu', defaultValue: "m/s", validValues: ['m/s', 'km/s']})
+  const [v0Direction, setV0Direction] = useUrlOrLocalState({urlKey: 'vd', defaultValue: 'closing', validValues: ['closing', 'receding']})
+  const [accel, setAccel] = useUrlOrLocalState({urlKey: 'a',localKey: 'pa_accel', defaultValue: ''})
+  const [flipTime, setFlipTime] = useUrlOrLocalState({urlKey: 'f',localKey: 'pa_flip_time', defaultValue: '60'})
+  const [reactantBudget, setReactantBudget] = useUrlOrLocalState({urlKey: 'b', defaultValue: ''})
+  const [vArrival, setVArrival] = useUrlOrLocalState({urlKey: 'va', defaultValue: ''})
+  const [vArrivalUnit, setVArrivalUnit] = useUrlOrLocalState({urlKey: 'vau', localKey: 'pa_vau', defaultValue: 'm/s', validValues: ['m/s', 'km/s']})
+  const [vcrs, setVcrs] = useUrlOrLocalState({urlKey: 'cx', defaultValue: ''})
+  const [vcrsUnit, setVcrsUnit] = useUrlOrLocalState({urlKey: 'cu', defaultValue: 'm/s', validValues: ['m/s', 'km/s']})
+  const [noWakeEnabled, setNoWakeEnabled] = useUrlOrLocalState({urlKey: 'nw', localKey: 'pa_no_wake', defaultValue: 'disabled', validValues: ['enabled', 'disabled']})
+  const [standoffKm, setStandoffKm] = useUrlOrLocalState({urlKey: 'sk', localKey: 'pa_standoff_km', defaultValue: '2.5'})
+  const [targetDuration, setTargetDuration] = useUrlOrLocalState({urlKey: 'td', defaultValue: ''})
+  const [gameStartTime, setGameStartTime] = useUrlOrLocalState({urlKey: 'gt', defaultValue: ''})
 
   // Final Approach state: per-burn fields from URL only, vessel/prefs from URL => LS
-  const [faDistance, setFaDistance] = useState(() => _urlParams('fad') ?? '');
-  const [faDistanceUnit, setFaDistanceUnit] = useState(() => _urlParams_localStorage('fadu', 'pa_fadu', 'km'));
-  const [faVrel, setFaVrel] = useState(() => _urlParams('fav') ?? '');
-  const [faVrelUnit, setFaVrelUnit] = useState(() => _urlParams_localStorage('favu', 'pa_favu', 'm/s'));
-  const [faAccel, setFaAccel] = useState(() => _urlParams_localStorage('faa', 'pa_fa_accel', ''));
-  const [faBudget, setFaBudget] = useState(() => _urlParams('fab') ?? '');
-  const [faVArrival, setFaVArrival] = useState(() => _urlParams('fava') ?? '');
-  const [faVArrivalUnit, setFaVArrivalUnit] = useState(() => _urlParams_localStorage('fvau', 'pa_fvau', 'm/s'));
-  const [faGameStartTime, setFaGameStartTime] = useState(() => _urlParams('fgt') ?? '');
+  const [faDistance, setFaDistance] = useUrlOrLocalState({urlKey: 'fad', defaultValue: ''})
+  const [faDistanceUnit, setFaDistanceUnit] = useUrlOrLocalState({urlKey: 'fadu', localKey: 'pa_fadu', defaultValue: 'km', validValues: ['km', 'gm', 'au']})
+  const [faVrel, setFaVrel] = useUrlOrLocalState({urlKey: 'fav', defaultValue: ''})
+  const [faVrelUnit, setFaVrelUnit] = useUrlOrLocalState({urlKey: 'favu', localKey: 'pa_favu', defaultValue: "m/s", validValues: ['m/s', 'km/s']})
+  const [faAccel, setFaAccel] = useUrlOrLocalState({urlKey: 'faa',localKey: 'pa_fa_accel', defaultValue: ''})
+  const [faBudget, setFaBudget] = useUrlOrLocalState({urlKey: 'fab', defaultValue: ''})
+  const [faVArrival, setFaVArrival] = useUrlOrLocalState({urlKey: 'fava', defaultValue: ''})
+  const [faVArrivalUnit, setFaVArrivalUnit] = useUrlOrLocalState({urlKey: 'fvau', localKey: 'pa_fvau', defaultValue: 'm/s', validValues: ['m/s', 'km/s']})
+  const [faGameStartTime, setFaGameStartTime] = useUrlOrLocalState({urlKey: 'fgt', defaultValue: ''})
 
-  // URL state sync
-  useEffect(() => { //TODO: do trimming of check and url assignment 
-    const p = new URLSearchParams();
-    if (distance) p.set('d', distance);
-    if (distanceUnit !== 'km') p.set('du', distanceUnit);
-    if (vrel) p.set('v', vrel);
-    if (vrelUnit !== 'm/s') p.set('vu', vrelUnit);
-    if (v0Direction !== 'closing') p.set('vd', v0Direction);
-    if (accel) p.set('a', accel);
-    if (flipTime !== '60') p.set('f', flipTime);
-    if (reactantBudget) p.set('b', reactantBudget);
-    if (vArrival) p.set('va', vArrival);
-    if (vArrivalUnit !== 'm/s') p.set('vau', vArrivalUnit);
-    if (vcrs) p.set('cx', vcrs);
-    if (vcrsUnit !== 'm/s') p.set('cu', vcrsUnit);
-    p.set('nw', noWakeEnabled ? '1' : '0');
-    if (standoffKm !== '2.5') p.set('sk', standoffKm);
-    if (targetDuration) p.set('td', targetDuration);
-    if (gameStartTime) p.set('gt', gameStartTime);
-    if (faDistance) p.set('fad', faDistance);
-    if (faDistanceUnit !== 'km') p.set('fadu', faDistanceUnit);
-    if (faVrel) p.set('fav', faVrel);
-    if (faVrelUnit !== 'm/s') p.set('favu', faVrelUnit);
-    if (faAccel) p.set('faa', faAccel);
-    if (faBudget) p.set('fab', faBudget);
-    if (faVArrival !== '0') p.set('fava', faVArrival);
-    if (faVArrivalUnit !== 'm/s') p.set('fvau', faVArrivalUnit);
-    if (faGameStartTime) p.set('fgt', faGameStartTime);
-    const qs = p.toString();
-    try {
-      history.replaceState(
-        null,
-        '',
-        `${window.location.pathname}${qs ? '?' + qs : ''}#${appMode}`
-      );
-    } catch {}
-  }, [
-    distance, distanceUnit, vrel, vrelUnit, v0Direction, accel, flipTime, reactantBudget,
-    vArrival, vArrivalUnit, vcrs, vcrsUnit, noWakeEnabled, standoffKm, targetDuration,
-    gameStartTime, faDistance, faDistanceUnit, faVrel, faVrelUnit,
-    faAccel, faBudget, faVArrival, faVArrivalUnit, faGameStartTime, appMode,
-  ]);
-
-  // localStorage sync (vessel params and preferences only)
-  useEffect(() => {
-    _save_localStorage('pa_accel', accel || null);
-    _save_localStorage('pa_fa_accel', faAccel || null);
-    _save_localStorage('pa_flip_time', flipTime !== '60' ? flipTime : null);
-    _save_localStorage('pa_no_wake', noWakeEnabled ? '1' : '0');
-    _save_localStorage('pa_standoff_km', standoffKm !== '2.5' ? standoffKm : null);
-    _save_localStorage('pa_du', distanceUnit !== 'km' ? distanceUnit : null);
-    _save_localStorage('pa_vu', vrelUnit !== 'm/s' ? vrelUnit : null);
-    _save_localStorage('pa_vau', vArrivalUnit !== 'm/s' ? vArrivalUnit : null);
-    _save_localStorage('pa_fadu', faDistanceUnit !== 'km' ? faDistanceUnit : null);
-    _save_localStorage('pa_favu', faVrelUnit !== 'm/s' ? faVrelUnit : null);
-    _save_localStorage('pa_fvau', faVArrivalUnit !== 'm/s' ? faVArrivalUnit : null);
-  }, [
-    accel, faAccel, flipTime, noWakeEnabled, standoffKm,
-    distanceUnit, vrelUnit, vArrivalUnit, faDistanceUnit, faVrelUnit, faVArrivalUnit,
-  ]);
-
-  // Mode switch - copies shared fields (range, vrel) on transition
-  function switchMode(newMode: React.SetStateAction<string>) {
+  // Mode switch - copies valid shared fields (range, vrel) on transition
+  function switchMode(newMode: string) {
     if (newMode === 'approach' && appMode === 'burn') {
       if (faDistance.trim() === "" && isFinite(distance_m)) {
         setFaDistance(distance);

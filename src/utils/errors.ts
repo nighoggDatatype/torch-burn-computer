@@ -60,11 +60,11 @@ export function getV0Error
 }
 export function getStandOffError
 (
-    {standoffError, noWakeEnabled, standoffKm} : {standoffError : string | null, noWakeEnabled : boolean, standoffKm : string}
+    {standoffError, noWakeEnabled, standoffKm} : {standoffError : string | null, noWakeEnabled : string, standoffKm : string}
 ) : ErrorResult {
     return standoffError === 'invalid-standoff'
         ? { error: 'INVALID STAND-OFF DISTANCE', detail: 'Enter a positive distance in km.' }
-        : noWakeEnabled
+        : noWakeEnabled === 'enabled'
             ? {
                 error: 'DESTINATION IS WITHIN THE 300 KM NO-WAKE ZONE',
                 detail: 'You are already inside the no-wake boundary.',

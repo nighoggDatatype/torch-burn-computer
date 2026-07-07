@@ -231,7 +231,7 @@ function ApproachOutput(
             />
             <Readout
             label="Reactant Budget Used"
-            value={`${Math.floor(faPlan.t_brake / 3600)}h`}
+            value={`${(faPlan.t_brake/3600.0).toFixed(2)}h`}
             highlight
             flickerKey={flickerKey}
             />

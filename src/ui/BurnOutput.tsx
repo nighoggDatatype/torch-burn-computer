@@ -366,7 +366,7 @@ function BurnOutput(
         />
         <Readout
             label="Reactant Budget Used"
-            value={`${Math.floor((finalPlan.t_accel + finalPlan.t_brake) / 3600)}h`}
+            value={`${((finalPlan.t_accel + finalPlan.t_brake)/3600.0).toFixed(2)}h`}
             highlight
             flickerKey={flickerKey}
         />

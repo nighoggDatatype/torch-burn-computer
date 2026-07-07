@@ -36,33 +36,36 @@ function BurnCalculatorInner() {
   // appMode: read from URL hash (#burn / #approach)
   const [appMode, setAppMode] = useUrlOrLocalState({urlKey: null, defaultValue: 'burn', validValues: ['approach', 'burn']})
 
-  // Burn Plan state: per-burn fields from URL only, vessel/prefs from URL => LS
+  // Shared settings: stand-off is pref so gets local storage, wake/nowake represents target type category
+  // TODO: Consider whether to split between burn and approach, rather than share 
+  const [standoffKm, setStandoffKm] = useUrlOrLocalState({urlKey: 'sk', localKey: 'pa_standoff_km', defaultValue: '2.5'})
+  const [noWakeEnabled, setNoWakeEnabled] = useUrlOrLocalState({urlKey: 'nw', localKey: 'pa_no_wake', defaultValue: 'disabled', validValues: ['enabled', 'disabled']})
+
+  // Burn Plan settings: per-burn fields from URL only, vessel/prefs also has local storage
   const [distance, setDistance] = useUrlOrLocalState({urlKey: 'd', defaultValue: ''})
   const [distanceUnit, setDistanceUnit] = useUrlOrLocalState({urlKey: 'd', localKey: 'pa_du', defaultValue: 'km', validValues: ['km', 'gm', 'au']})
   const [vrel, setVrel] = useUrlOrLocalState({urlKey: 'v', defaultValue: ''})
   const [vrelUnit, setVrelUnit] = useUrlOrLocalState({urlKey: 'vu', localKey: 'pa_vu', defaultValue: "m/s", validValues: ['m/s', 'km/s']})
   const [v0Direction, setV0Direction] = useUrlOrLocalState({urlKey: 'vd', defaultValue: 'closing', validValues: ['closing', 'receding']})
-  const [accel, setAccel] = useUrlOrLocalState({urlKey: 'a',localKey: 'pa_accel', defaultValue: ''})
-  const [flipTime, setFlipTime] = useUrlOrLocalState({urlKey: 'f',localKey: 'pa_flip_time', defaultValue: '60'})
-  const [reactantBudget, setReactantBudget] = useUrlOrLocalState({urlKey: 'b', defaultValue: ''})
-  const [vArrival, setVArrival] = useUrlOrLocalState({urlKey: 'va', defaultValue: ''})
-  const [vArrivalUnit, setVArrivalUnit] = useUrlOrLocalState({urlKey: 'vau', localKey: 'pa_vau', defaultValue: 'm/s', validValues: ['m/s', 'km/s']})
   const [vcrs, setVcrs] = useUrlOrLocalState({urlKey: 'cx', defaultValue: ''})
   const [vcrsUnit, setVcrsUnit] = useUrlOrLocalState({urlKey: 'cu', defaultValue: 'm/s', validValues: ['m/s', 'km/s']})
-  const [noWakeEnabled, setNoWakeEnabled] = useUrlOrLocalState({urlKey: 'nw', localKey: 'pa_no_wake', defaultValue: 'disabled', validValues: ['enabled', 'disabled']})
-  const [standoffKm, setStandoffKm] = useUrlOrLocalState({urlKey: 'sk', localKey: 'pa_standoff_km', defaultValue: '2.5'})
+  const [vArrival, setVArrival] = useUrlOrLocalState({urlKey: 'va', defaultValue: ''})
+  const [vArrivalUnit, setVArrivalUnit] = useUrlOrLocalState({urlKey: 'vau', localKey: 'pa_vau', defaultValue: 'm/s', validValues: ['m/s', 'km/s']})
+  const [accel, setAccel] = useUrlOrLocalState({urlKey: 'a',localKey: 'pa_accel', defaultValue: ''})
   const [targetDuration, setTargetDuration] = useUrlOrLocalState({urlKey: 'td', defaultValue: ''})
+  const [reactantBudget, setReactantBudget] = useUrlOrLocalState({urlKey: 'b', defaultValue: ''})
+  const [flipTime, setFlipTime] = useUrlOrLocalState({urlKey: 'f',localKey: 'pa_flip_time', defaultValue: '60'})
   const [gameStartTime, setGameStartTime] = useUrlOrLocalState({urlKey: 'gt', defaultValue: ''})
 
-  // Final Approach state: per-burn fields from URL only, vessel/prefs from URL => LS
+  // Final Approach settings: per-burn fields from URL only, vessel/prefs also has local storage
   const [faDistance, setFaDistance] = useUrlOrLocalState({urlKey: 'fad', defaultValue: ''})
   const [faDistanceUnit, setFaDistanceUnit] = useUrlOrLocalState({urlKey: 'fadu', localKey: 'pa_fadu', defaultValue: 'km', validValues: ['km', 'gm', 'au']})
   const [faVrel, setFaVrel] = useUrlOrLocalState({urlKey: 'fav', defaultValue: ''})
   const [faVrelUnit, setFaVrelUnit] = useUrlOrLocalState({urlKey: 'favu', localKey: 'pa_favu', defaultValue: "m/s", validValues: ['m/s', 'km/s']})
-  const [faAccel, setFaAccel] = useUrlOrLocalState({urlKey: 'faa',localKey: 'pa_fa_accel', defaultValue: ''})
-  const [faBudget, setFaBudget] = useUrlOrLocalState({urlKey: 'fab', defaultValue: ''})
   const [faVArrival, setFaVArrival] = useUrlOrLocalState({urlKey: 'fava', defaultValue: ''})
   const [faVArrivalUnit, setFaVArrivalUnit] = useUrlOrLocalState({urlKey: 'fvau', localKey: 'pa_fvau', defaultValue: 'm/s', validValues: ['m/s', 'km/s']})
+  const [faAccel, setFaAccel] = useUrlOrLocalState({urlKey: 'faa',localKey: 'pa_fa_accel', defaultValue: ''})
+  const [faBudget, setFaBudget] = useUrlOrLocalState({urlKey: 'fab', defaultValue: ''})
   const [faGameStartTime, setFaGameStartTime] = useUrlOrLocalState({urlKey: 'fgt', defaultValue: ''})
 
   // Mode switch - copies valid shared fields (range, vrel) on transition

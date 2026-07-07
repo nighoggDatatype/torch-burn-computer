@@ -20,7 +20,7 @@ function ApproachOutput(
         faPlan: FinalApproachResult | null, faParsedGameTime : GameDateTime | null, input : RequiredApproachInput, passthroughInputArgs: ApproachInputArgs
     }) {
 
-    const faPlanOk = faPlan !== null && faPlan.error === null && !faPlan.overshoot;
+    const faPlanOk = IsPlanValid(faPlan) 
 
     const {faTargetBudget_s, inputAccel_mps2, noWakeEnabled, standoff_m} = input;
     const faTargetBudgetValid = faTargetBudget_s !== null;

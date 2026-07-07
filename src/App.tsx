@@ -22,6 +22,7 @@ import ApproachInput from './ui/ApproachInput.js';
 import BootSplash from './ui/BootSplash.js';
 import ApproachOutput from './ui/ApproachOutput.js';
 import AppHeader from './ui/AppHeader.js';
+import { IsPlanValid } from './solvers/physics.js';
 
 export default function BurnCalculator() {
   return (
@@ -217,10 +218,12 @@ function BurnCalculatorInner() {
   }) : null
 
   const doublePlan = optimalBudgetPlan ?? optimalDurationPlan ?? optimalAccelPlan;
+      }[planType] ?? internalSolverError : null
+  const doublePlan = doubleConstraintSolving ?
   const singlePlan = accelOnlyConstantBurnPlan ?? budgetOnlyConstantBurnPlan ?? durationOnlyConstantBurnPlan;
   const finalPlanIgnoreInputErrors = doubleConstraintSolving ? doublePlan : singlePlan;
   const finalPlanRaw = inputError ?? finalPlanIgnoreInputErrors;
-  const finalPlanCanCheck = finalPlanRaw !== null && finalPlanRaw.error === null && !finalPlanRaw.overshoot;
+  const finalPlanCanCheck = IsPlanValid(finalPlanRaw)
   const finalPlanErrors = 
     finalPlanRaw === null ? internalSolverError :
     !finalPlanCanCheck ? null :
@@ -229,7 +232,7 @@ function BurnCalculatorInner() {
   const finalPlan = noInputProvided 
     ? null 
     : (finalPlanErrors ?? finalPlanRaw);
-  const finalPlanOk = finalPlan !== null && finalPlan.error === null && !finalPlan.overshoot;
+  const finalPlanOk = IsPlanValid(finalPlan);
   const isDriftMode = finalPlanOk && finalPlan.t_drift !== 0 && finalPlan.d_drift !== 0;
 
   // Game time parsing

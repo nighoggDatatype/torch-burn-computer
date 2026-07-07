@@ -3,7 +3,7 @@ import Readout from "../components/Readout.js";
 import { G } from "../utils/constants.js";
 import { formatDistance, formatVelocity, formatGameTime, formatTime, formatTargetDuration, addGameTime } from "../utils/formatters.js";
 import { GameDateTime } from "../utils/parsers.js";
-import { BurnPlanResult } from "../solvers/physics.js";
+import { BurnPlanResult, IsPlanValid } from "../solvers/physics.js";
 import { useEffect, useRef, useState } from "react";
 import { BurnInputArgs, getBurnInputCopy } from "./BurnInput.js";
 
@@ -19,7 +19,7 @@ function BurnOutput(
     {finalPlan, parsedGameTime, input, passthroughInputArgs} : 
     {finalPlan: BurnPlanResult | null, parsedGameTime : GameDateTime | null, input : RequiredBurnInput, passthroughInputArgs: BurnInputArgs}) {
 
-    const finalPlanOk = finalPlan !== null && finalPlan.error === null && !finalPlan.overshoot;
+    const finalPlanOk = IsPlanValid(finalPlan)
     const isDriftMode = finalPlanOk && finalPlan.t_drift !== 0 && finalPlan.d_drift !== 0;
     const a_mps2 = finalPlanOk ? finalPlan.a_mps2 : NaN;
 

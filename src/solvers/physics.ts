@@ -192,3 +192,10 @@ export function buildDriftPlan(
     d_brake: d_decel,
   };
 }
+
+export function IsPlanValid(
+  plan : null | {error : string} | {error : null, overshoot : true} | {error : null, overshoot : false}
+)
+{
+  return plan !== null && plan.error === null && !plan.overshoot
+}

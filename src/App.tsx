@@ -44,7 +44,7 @@ function BurnCalculatorInner() {
 
   // Burn Plan settings: per-burn fields from URL only, vessel/prefs also has local storage
   const [distance, setDistance] = useUrlOrLocalState({urlKey: 'd', defaultValue: ''})
-  const [distanceUnit, setDistanceUnit] = useUrlOrLocalState({urlKey: 'd', localKey: 'pa_du', defaultValue: 'km', validValues: ['km', 'gm', 'au']})
+  const [distanceUnit, setDistanceUnit] = useUrlOrLocalState({urlKey: 'du', localKey: 'pa_du', defaultValue: 'km', validValues: ['km', 'gm', 'au']})
   const [vrel, setVrel] = useUrlOrLocalState({urlKey: 'v', defaultValue: ''})
   const [vrelUnit, setVrelUnit] = useUrlOrLocalState({urlKey: 'vu', localKey: 'pa_vu', defaultValue: "m/s", validValues: ['m/s', 'km/s']})
   const [v0Direction, setV0Direction] = useUrlOrLocalState({urlKey: 'vd', defaultValue: 'closing', validValues: ['closing', 'receding']})

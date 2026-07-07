@@ -6,6 +6,7 @@ import { addGameTime, formatDistance, formatTargetDuration, formatGameTime } fro
 import { GameDateTime } from "../utils/parsers.js";
 import { ApproachInputArgs, getApproachInputCopy } from "./ApproachInput.js";
 import { useEffect, useRef, useState } from "react";
+import { IsPlanValid } from "../solvers/physics.js";
 
 type RequiredApproachInput = {
     faTargetBudget_s : number | null,

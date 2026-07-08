@@ -235,7 +235,7 @@ function BurnCalculatorInner() {
       null
   const singlePlan = accelOnlyConstantBurnPlan ?? budgetOnlyConstantBurnPlan ?? durationOnlyConstantBurnPlan;
   const accelComputed = 
-    tripleConstraintSolving ? planType === 'accel' : targetAccelAttempted;
+    tripleConstraintSolving ? planType === 'accel' : !targetAccelAttempted;
   
   const finalPlanIgnoreInputErrors = triplePlan ?? doublePlan ?? singlePlan;
   const finalPlanRaw = inputError ?? finalPlanIgnoreInputErrors;

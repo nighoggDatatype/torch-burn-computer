@@ -19,6 +19,7 @@ export type BurnInputArgs = {
     accel : string, setAccel : stringSetter, targetAccelError : boolean,
     targetDuration : string, setTargetDuration : stringSetter, targetDurationError : boolean, targetDuration_s : number | null,
     reactantBudget : string, setReactantBudget : stringSetter, targetBudgetError : boolean, targetBudget_s : number | null,
+    planType : string, setPlanType : stringSetter, tripleConstraintSolving : boolean,
     flipTime : string, setFlipTime : stringSetter, flipTimeValid : boolean, flipTimeError : boolean,
     gameStartTime : string, setGameStartTime : stringSetter, gameTimeError : boolean, gameTimeValid : boolean,
     isDriftMode : boolean, anyConstraintAttempted : boolean
@@ -36,6 +37,7 @@ function BurnInput({args} : {args : BurnInputArgs}) {
         accel, setAccel, targetAccelError,
         targetDuration, setTargetDuration, targetDurationError, targetDuration_s,
         reactantBudget, setReactantBudget, targetBudgetError, targetBudget_s,
+        planType, setPlanType , tripleConstraintSolving,
         flipTime, setFlipTime, flipTimeValid, flipTimeError, 
         gameStartTime, setGameStartTime, gameTimeError, gameTimeValid,
         isDriftMode, anyConstraintAttempted
@@ -134,7 +136,7 @@ function BurnInput({args} : {args : BurnInputArgs}) {
 
         {/* -- Trip Parameters -- */}
         <div className="bc-panel-header" style={{ marginTop: 20 }}>
-        ◇ Trip Parameters
+        ◇ Trip Parameters / Constraints
         </div>
         <InputRow
         label="Acceleration"
@@ -200,6 +202,18 @@ function BurnInput({args} : {args : BurnInputArgs}) {
                 isDriftMode ? { color: 'var(--amber)' } : undefined
             }
         />
+        {tripleConstraintSolving && (
+            <ButtonArray
+            label="Optimzation Target"
+            tooltip="Given 3 constraints, select one to optimize. The other two constraints will be maximized to minimize the selected constraint, if possilbe"
+            value={planType}
+            setValue={setPlanType}
+            buttonList={[
+                { value: 'duration', label: "DURATION", style: {}},
+                { value: 'budget', label: "BUDGET", style: {}},
+                { value: 'accel', label: "ACCELERATION", style: {}},
+            ]}
+        />)}
         <div className="bc-panel-header" style={{ marginTop: 20 }}>
         ◇ Ship Parameters
         </div>

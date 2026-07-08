@@ -1,4 +1,4 @@
-import { impossibleBudgetOptimizeError, impossibleDurationOptimizeError, nonPositiveAccelError } from "../utils/errors.js";
+import { insufficientDurationError, insufficientBudgetError, nonPositiveAccelError } from "../utils/errors.js";
 import { buildDriftPlan, BurnPlanResult, computeConstantBurnPlan, solveAcceleration } from "./physics.js";
 
 export function accelOnlySolver( 
@@ -95,7 +95,7 @@ export function optimalBudgetSolver(
         }
         return null
     }
-    return impossibleBudgetOptimizeError({targetDuration_s, requiredDuration_s : accelOnlyConstantBurnPlan.t_total})
+    return insufficientDurationError({targetDuration_s, requiredDuration_s : accelOnlyConstantBurnPlan.t_total})
 }
 export function optimalDurationSolver(
     {
@@ -136,7 +136,7 @@ export function optimalDurationSolver(
     if (v_max_budget <= v0_mps || v_max_budget <= v_arrival_mps) {
         const requiredDeltaV_mps = Math.abs(v_arrival_mps - v0_mps)
         const requiredBudget_s = requiredDeltaV_mps / a_mps2;
-        return impossibleDurationOptimizeError({requiredBudget_s, targetBudget_s})
+        return insufficientBudgetError({requiredBudget_s, targetBudget_s})
     } else {
         const driftPlan = buildDriftPlan({ distance_m: burn_distance_m, v0_mps, a_mps2, v_arrival_mps, t_rotate_s, v_max: v_max_budget });
         if (driftPlan !== null)

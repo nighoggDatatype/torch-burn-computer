@@ -14,7 +14,7 @@ import ErrorBoundary from './components/ErrorBoundary.js';
 import useUrlOrLocalState from './utils/persistence.js';
 import Timeline from './ui/Timeline.js';
 import BurnOutput from './ui/BurnOutput.js';
-import { badInputError, computedAccelTooFast as computedAccelTooSlow, finalApproach_computedDecelTooFast as finalApproach_computedDecelTooSlow, getStandOffError, getV0Error, internalSolverError, targetAccelTooSmallError } from './utils/errors.js';
+import { badInputError, computedAccelTooFast as computedAccelTooSlow, finalApproach_computedDecelTooFast as finalApproach_computedDecelTooSlow, getStandOffError, getV0Error, insufficientAccelError, insufficientBudgetError, insufficientDurationError, internalSolverError, targetAccelTooSmallError } from './utils/errors.js';
 import { accelOnlySolver, budgetOnlySolver, durationOnlySolver, optimalAccelSolver, optimalBudgetSolver, optimalDurationSolver } from './solvers/burnSolvers.js';
 import BurnInput from './ui/BurnInput.js';
 import { computeFinalApproach_constantBurn, computeFinalApproach_givenAccel, computeFinalApproach_givenBudget } from './solvers/approachSolvers.js';
@@ -55,6 +55,7 @@ function BurnCalculatorInner() {
   const [accel, setAccel] = useUrlOrLocalState({urlKey: 'a',localKey: 'pa_accel', defaultValue: ''})
   const [targetDuration, setTargetDuration] = useUrlOrLocalState({urlKey: 'td', defaultValue: ''})
   const [reactantBudget, setReactantBudget] = useUrlOrLocalState({urlKey: 'b', defaultValue: ''})
+  const [planType, setPlanType] = useUrlOrLocalState({urlKey: "pt", localKey: 'pa_pt', defaultValue: 'duration', validValues: ['duration','budget','accel']})
   const [flipTime, setFlipTime] = useUrlOrLocalState({urlKey: 'f',localKey: 'pa_flip_time', defaultValue: '60'})
   const [gameStartTime, setGameStartTime] = useUrlOrLocalState({urlKey: 'gt', defaultValue: ''})
 
@@ -217,11 +218,23 @@ function BurnCalculatorInner() {
     targetDuration_s, targetBudget_s
   }) : null
 
-  const doublePlan = optimalBudgetPlan ?? optimalDurationPlan ?? optimalAccelPlan;
+  const triplePlan = tripleConstraintSolving ?
+      { //If the plan is valid as a double plan but invalid as a triple plan, spit out a special error, else the double plan, error or not, is good enough
+        accel: IsPlanValid(optimalAccelPlan) && optimalAccelPlan.a_mps2 > targetAccel_mps2 ?
+          insufficientAccelError({requiredAccel__mps2: optimalAccelPlan.a_mps2, targetAccel_mps2}) :
+          optimalAccelPlan,
+        budget: IsPlanValid(optimalBudgetPlan) && optimalBudgetPlan.t_accel + optimalBudgetPlan.t_brake > targetBudget_s ?
+          insufficientBudgetError({requiredBudget_s: optimalBudgetPlan.t_accel + optimalBudgetPlan.t_brake, targetBudget_s}) :
+          optimalBudgetPlan,
+        duration: IsPlanValid(optimalDurationPlan) && optimalDurationPlan.t_total > targetDuration_s ?
+          insufficientDurationError({requiredDuration_s : optimalDurationPlan.t_total, targetDuration_s}) :
+          optimalDurationPlan,
       }[planType] ?? internalSolverError : null
   const doublePlan = doubleConstraintSolving ?
+      optimalBudgetPlan ?? optimalDurationPlan ?? optimalAccelPlan :
+      null
   const singlePlan = accelOnlyConstantBurnPlan ?? budgetOnlyConstantBurnPlan ?? durationOnlyConstantBurnPlan;
-  const finalPlanIgnoreInputErrors = doubleConstraintSolving ? doublePlan : singlePlan;
+  const finalPlanIgnoreInputErrors = triplePlan ?? doublePlan ?? singlePlan;
   const finalPlanRaw = inputError ?? finalPlanIgnoreInputErrors;
   const finalPlanCanCheck = IsPlanValid(finalPlanRaw)
   const finalPlanErrors = 
@@ -269,7 +282,7 @@ function BurnCalculatorInner() {
   const faMissingFields = [
     ...(!isFinite(fa_distance_m) ? ['RANGE'] : []),
     ...(!isFinite(fa_v0_mps) ? ['CLOSING VELOCITY'] : []),
-    ...((!!faTargetAccelAttempted && !isFinite(faTargetAccel_mps2)) ? ['ACCELERATION'] : []),
+    ...((faTargetAccelAttempted && !isFinite(faTargetAccel_mps2)) ? ['ACCELERATION'] : []),
     ...((faVArrival.trim() !== '' && !isFinite(fa_v_arrival_mps)) ? ['CUTOFF VELOCITY'] : []),
   ];
 
@@ -310,7 +323,7 @@ function BurnCalculatorInner() {
 
   const faPlanIgnoreInputErrors = faPlanAccel ?? faPlanBudget ?? faConstantBurnPlan
   const faPlanRaw = faInputError ?? faPlanIgnoreInputErrors
-  const faPlanCanCheck = faPlanRaw.error === null && !faPlanRaw.overshoot;
+  const faPlanCanCheck = IsPlanValid(faPlanRaw)
   const faPlanErrors = !faPlanCanCheck ? null :
     faPlanRaw.a_mps2 < 0.01 * G ? finalApproach_computedDecelTooSlow
     : null;
@@ -335,6 +348,7 @@ function BurnCalculatorInner() {
     accel, setAccel, targetAccelError,
     targetDuration, setTargetDuration, targetDurationError, targetDuration_s,
     reactantBudget, setReactantBudget, targetBudgetError, targetBudget_s,
+    planType, setPlanType, tripleConstraintSolving,
     flipTime, setFlipTime, flipTimeValid, flipTimeError,
     gameStartTime, setGameStartTime, gameTimeError, gameTimeValid,
     isDriftMode, anyConstraintAttempted

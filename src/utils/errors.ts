@@ -1,3 +1,4 @@
+import { G } from "./constants.js"
 import { formatTargetDuration } from "./formatters.js"
 
 export type ErrorResult = { error : string, detail: string | null}
@@ -77,12 +78,7 @@ export function getStandOffError
 
 //Burn solver errors
 
-export const internalSolverError = {
-    error : `SOLVER HAS EXPERIENCED AN INTERNAL FAULT`,
-    detail : `Please report to the developer`
-}
-
-export function impossibleBudgetOptimizeError
+export function insufficientDurationError
 (
     {targetDuration_s, requiredDuration_s} : {targetDuration_s : number, requiredDuration_s : number}
 ) : ErrorResult {
@@ -93,7 +89,7 @@ export function impossibleBudgetOptimizeError
         detail : `Minimum duration for this burn is ${requireDuration}; target duration is ${targetDuration}.`
     }
 }
-export function impossibleDurationOptimizeError
+export function insufficientBudgetError
 (
     {targetBudget_s, requiredBudget_s} : {targetBudget_s : number, requiredBudget_s : number}
 ) : ErrorResult {
@@ -102,6 +98,17 @@ export function impossibleDurationOptimizeError
     return {
         error : "REACTANT BUDGET INSUFFICIENT", 
         detail : `This burn requires at least ${requiredBudget} of reactant; current budget is ${targetBudget}.`
+    }
+}
+export function insufficientAccelError
+(
+    {targetAccel_mps2, requiredAccel__mps2} : {targetAccel_mps2 : number, requiredAccel__mps2 : number}
+) : ErrorResult {
+    const requiredAccel = `${(requiredAccel__mps2 / G).toFixed(2)} G`;
+    const targetAccel = `${(targetAccel_mps2 / G).toFixed(2)} G`;
+    return {
+        error : "ACCEL LIMIT INSUFFICIENT", 
+        detail : `Minimum acceleration for this burn is ${requiredAccel} of reactant; acceleration limit is ${targetAccel}.`
     }
 }
 
@@ -123,4 +130,10 @@ export const finalApproach_nonBrakingVelocityDeltaError = {
 export const finalApproach_computedDecelTooFast = {
     error : 'REQUIRED DECELERATION BELOW MINIMUM THRUST (0.01 G)',
     detail : 'Check input units or allow for decreased range'
+}
+
+//Code bug error/impossible paths
+export const internalSolverError = {
+    error : `SOLVER HAS EXPERIENCED AN INTERNAL FAULT`,
+    detail : `Please report to the developer`
 }

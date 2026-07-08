@@ -16,6 +16,7 @@ function ButtonArray(
     { label? : string | null, tooltip? : string | null, value: string, setValue: (value: string) => void, buttonList: ButtonConfig[] }) {
     const buttonArray = buttonList.map((buttonConfig, _) => {
         return <button
+        key={buttonConfig.value}
         className={`bc-unit-btn${buttonConfig.value === value ? ' active' : ''}`}
         onClick={() => setValue(buttonConfig.value)}
         style={ buttonConfig.value === value ? buttonConfig.style : {}}

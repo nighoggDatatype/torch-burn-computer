@@ -234,6 +234,9 @@ function BurnCalculatorInner() {
       optimalBudgetPlan ?? optimalDurationPlan ?? optimalAccelPlan :
       null
   const singlePlan = accelOnlyConstantBurnPlan ?? budgetOnlyConstantBurnPlan ?? durationOnlyConstantBurnPlan;
+  const accelComputed = 
+    tripleConstraintSolving ? planType === 'accel' : targetAccelAttempted;
+  
   const finalPlanIgnoreInputErrors = triplePlan ?? doublePlan ?? singlePlan;
   const finalPlanRaw = inputError ?? finalPlanIgnoreInputErrors;
   const finalPlanCanCheck = IsPlanValid(finalPlanRaw)
@@ -405,7 +408,7 @@ function BurnCalculatorInner() {
               <BurnOutput 
               finalPlan={finalPlan} 
               parsedGameTime={parsedGameTime} 
-              input={{vcrs_mps, inputAccel_mps2: targetAccelAttempted ? targetAccel_mps2 : null, burn_distance_m, noWakeEnabled, standoff_m}}
+              input={{vcrs_mps, accelComputed, burn_distance_m, noWakeEnabled, standoff_m}}
               passthroughInputArgs={burnInputArgs}
             />)}
 

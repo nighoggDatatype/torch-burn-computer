@@ -9,7 +9,7 @@ import { BurnInputArgs, getBurnInputCopy } from "./BurnInput.js";
 
 type RequiredBurnInput = {
     vcrs_mps : number, 
-    inputAccel_mps2 : number | null, 
+    accelComputed : boolean,
     burn_distance_m : number, 
     noWakeEnabled : string, 
     standoff_m : number 
@@ -23,8 +23,7 @@ function BurnOutput(
     const isDriftMode = finalPlanOk && finalPlan.t_drift !== 0 && finalPlan.d_drift !== 0;
     const a_mps2 = finalPlanOk ? finalPlan.a_mps2 : NaN;
 
-    const {vcrs_mps, inputAccel_mps2, burn_distance_m, noWakeEnabled, standoff_m} = input;
-    const targetAccelAttempted = inputAccel_mps2 !== null;
+    const {vcrs_mps, accelComputed, burn_distance_m, noWakeEnabled, standoff_m} = input;
     
     const gameTimeValid = parsedGameTime !== null;
 
@@ -82,7 +81,7 @@ function BurnOutput(
         {
             return;
         }
-        const lines = getBurnInputCopy(passthroughInputArgs, inputAccel_mps2)
+        const lines = getBurnInputCopy(passthroughInputArgs, accelComputed ? finalPlan.a_mps2 : null)
         lines.push('');
         lines.push('-- BURN SOLUTION --');
         lines.push(
@@ -234,7 +233,7 @@ function BurnOutput(
         {finalPlanOk && (
         <>
             {/* -- Computed Accel - shown when a desired accel is not provided by the user -- */}
-            {!targetAccelAttempted && (
+            {accelComputed && (
             <Readout
                 label="Computed Accel"
                 value={`${(finalPlan.a_mps2 / G).toFixed(2)} G`}

@@ -14,7 +14,7 @@ import ErrorBoundary from './components/ErrorBoundary.js';
 import useUrlOrLocalState from './utils/persistence.js';
 import Timeline from './ui/Timeline.js';
 import BurnOutput from './ui/BurnOutput.js';
-import { badInputError, computedAccelTooFast as computedAccelTooSlow, finalApproach_computedDecelTooFast as finalApproach_computedDecelTooSlow, getStandOffError, getV0Error, insufficientAccelError, insufficientBudgetError, insufficientDurationError, internalSolverError, targetAccelTooSmallError } from './utils/errors.js';
+import { badInputError, computedAccelTooFast as computedAccelTooSlow, finalApproach_computedDecelTooFast as finalApproach_computedDecelTooSlow, finalApproach_InsufficientAccelError, finalApproach_InsufficientBudgetError, getStandOffError, getV0Error, insufficientAccelError, insufficientBudgetError, insufficientDurationError, internalSolverError, targetAccelTooSmallError } from './utils/errors.js';
 import { accelOnlySolver, budgetOnlySolver, durationOnlySolver, optimalAccelSolver, optimalBudgetSolver, optimalDurationSolver } from './solvers/burnSolvers.js';
 import BurnInput from './ui/BurnInput.js';
 import { computeFinalApproach_constantBurn, computeFinalApproach_givenAccel, computeFinalApproach_givenBudget } from './solvers/approachSolvers.js';
@@ -68,6 +68,7 @@ function BurnCalculatorInner() {
   const [faVArrivalUnit, setFaVArrivalUnit] = useUrlOrLocalState({urlKey: 'fvau', localKey: 'pa_fvau', defaultValue: 'm/s', validValues: ['m/s', 'km/s']})
   const [faAccel, setFaAccel] = useUrlOrLocalState({urlKey: 'faa',localKey: 'pa_fa_accel', defaultValue: ''})
   const [faBudget, setFaBudget] = useUrlOrLocalState({urlKey: 'fab', defaultValue: ''})
+  const [faPlanType, setFaPlanType] = useUrlOrLocalState({urlKey: "apt", localKey: 'pa_fa_pt', defaultValue: 'budget', validValues: ['budget','accel']})
   const [faGameStartTime, setFaGameStartTime] = useUrlOrLocalState({urlKey: 'fgt', defaultValue: ''})
 
   // Mode switch - copies valid shared fields (range, vrel) on transition
@@ -323,8 +324,20 @@ function BurnCalculatorInner() {
       a_mps2: faTargetAccel_mps2,
       v_arrival_mps: fa_v_arrival_mps,
     }) : null;
-
-  const faPlanIgnoreInputErrors = faPlanAccel ?? faPlanBudget ?? faConstantBurnPlan
+  
+  const faHasDoublePlan = faTargetBudgetValid && faTargetAccelValid;
+  const faDoublePlan = faHasDoublePlan ?
+      { //If the plan is valid as a regular plan but invalid as a double plan, spit out a special error, else the regular plan, error or not, is good enough
+        accel: IsPlanValid(faPlanBudget) && faPlanBudget.a_mps2 > faTargetAccel_mps2 ?
+          finalApproach_InsufficientAccelError({requiredAccel__mps2: faPlanBudget.a_mps2, targetAccel_mps2: faTargetAccel_mps2}) :
+          faPlanBudget,
+        budget: IsPlanValid(faPlanAccel) && faPlanAccel.t_brake > faTargetBudget_s ?
+          finalApproach_InsufficientBudgetError({requiredBudget_s: faPlanAccel.t_brake, targetBudget_s: faTargetBudget_s}) :
+          faPlanAccel,
+      }[faPlanType] ?? internalSolverError : null;
+  const faSinglePlan = faPlanAccel ?? faPlanBudget
+  
+  const faPlanIgnoreInputErrors = faDoublePlan ?? faSinglePlan ?? faConstantBurnPlan
   const faPlanRaw = faInputError ?? faPlanIgnoreInputErrors
   const faPlanCanCheck = IsPlanValid(faPlanRaw)
   const faPlanErrors = !faPlanCanCheck ? null :
@@ -362,6 +375,7 @@ function BurnCalculatorInner() {
       faVArrival, setFaVArrival, faVArrivalUnit, setFaVArrivalUnit,
       faAccel, setFaAccel, faTargetAccelError,
       faBudget, setFaBudget, faTargetBudgetError, faTargetBudget_s, 
+      faPlanType, setFaPlanType, faHasDoublePlan,
       noWakeEnabled, setNoWakeEnabled, 
       standoffKm, setStandoffKm, standoff_m, standoffError,
       faGameStartTime, setFaGameStartTime, faGameTimeError, faGameTimeValid

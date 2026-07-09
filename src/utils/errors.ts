@@ -132,6 +132,29 @@ export const finalApproach_computedDecelTooFast = {
     detail : 'Check input units or allow for decreased range'
 }
 
+export function finalApproach_InsufficientBudgetError
+(
+    {targetBudget_s, requiredBudget_s} : {targetBudget_s : number, requiredBudget_s : number}
+) : ErrorResult {
+    const requiredBudget = formatTargetDuration(Math.floor(requiredBudget_s));
+    const targetBudget = formatTargetDuration(Math.floor(targetBudget_s));
+    return {
+        error : "REACTANT BUDGET INSUFFICIENT", 
+        detail : `This approach requires at least ${requiredBudget} of reactant; current budget is ${targetBudget}.`
+    }
+}
+export function finalApproach_InsufficientAccelError
+(
+    {targetAccel_mps2, requiredAccel__mps2} : {targetAccel_mps2 : number, requiredAccel__mps2 : number}
+) : ErrorResult {
+    const requiredAccel = `${(requiredAccel__mps2 / G).toFixed(2)} G`;
+    const targetAccel = `${(targetAccel_mps2 / G).toFixed(2)} G`;
+    return {
+        error : "ACCEL LIMIT INSUFFICIENT", 
+        detail : `Minimum acceleration for this approach is ${requiredAccel} of reactant; acceleration limit is ${targetAccel}.`
+    }
+}
+
 //Code bug error/impossible paths
 export const internalSolverError = {
     error : `SOLVER HAS EXPERIENCED AN INTERNAL FAULT`,

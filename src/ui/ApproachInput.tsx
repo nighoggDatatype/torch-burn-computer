@@ -3,6 +3,7 @@ import InputRow from "../components/InputRow.js";
 import StandoffControl from "../components/StandoffControl.js";
 import { G, TOOLTIP_IMG_ACCELERATION, TOOLTIP_IMG_CURRENTVEL, TOOLTIP_IMG_DISTANCE, TOOLTIP_IMG_REACTANTBUDGET } from "../utils/constants.js";
 import InputNote from "../components/InputNote.js";
+import ButtonArray from "../components/ButtonArray.js";
 
 type stringSetter = (value: string) => void
 
@@ -12,6 +13,7 @@ export type ApproachInputArgs = {
     faVArrival : string, setFaVArrival : stringSetter, faVArrivalUnit : string, setFaVArrivalUnit : stringSetter,
     faAccel : string, setFaAccel : stringSetter, faTargetAccelError : boolean,
     faBudget : string, setFaBudget : stringSetter, faTargetBudgetError : boolean, faTargetBudget_s : number | null,
+    faPlanType : string, setFaPlanType : stringSetter, faHasDoublePlan : boolean,
     noWakeEnabled : string, setNoWakeEnabled : stringSetter,
     standoffKm : string,setStandoffKm : stringSetter, standoff_m : number,  standoffError : string | null,
     faGameStartTime : string, setFaGameStartTime : stringSetter, faGameTimeError : boolean, faGameTimeValid : boolean,
@@ -26,6 +28,7 @@ function ApproachInput({args} : {args : ApproachInputArgs})
         faVArrival, setFaVArrival, faVArrivalUnit, setFaVArrivalUnit,
         faAccel, setFaAccel, faTargetAccelError,
         faBudget, setFaBudget, faTargetBudgetError, faTargetBudget_s, 
+        faPlanType, setFaPlanType, faHasDoublePlan,
         noWakeEnabled, setNoWakeEnabled, 
         standoffKm, setStandoffKm, standoff_m, standoffError,
         faGameStartTime, setFaGameStartTime, faGameTimeError, faGameTimeValid
@@ -142,6 +145,17 @@ function ApproachInput({args} : {args : ApproachInputArgs})
                 undefined
             }
         />
+        {faHasDoublePlan && (
+            <ButtonArray
+            label="Optimzation Target"
+            tooltip="Between travel/deceleration duration, and acceleration, select one to minimize. The other constraint will be maximized up to the limit to minimize the selected constraint, if possilbe"
+            value={faPlanType}
+            setValue={setFaPlanType}
+            buttonList={[
+                { value: 'budget', label: "DURATION / BUDGET", style: {}},
+                { value: 'accel', label: "ACCELERATION", style: {}}, //TODO: Add special styling here
+            ]}
+        />)}
 
         {/* -- Game Clock -- */}
         <div className="bc-panel-header" style={{ marginTop: 20 }}>

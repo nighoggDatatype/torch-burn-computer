@@ -10,9 +10,10 @@ import { IsPlanValid } from "../solvers/physics.js";
 
 type RequiredApproachInput = {
     faTargetBudget_s : number | null,
-    inputAccel_mps2 : number | null,
+    faTargetAccel_mps2 : number,
+    faAccelComputed : boolean,
+    standoff_m : number,
     noWakeEnabled : string, 
-    standoff_m : number 
 }
 
 function ApproachOutput(
@@ -23,9 +24,8 @@ function ApproachOutput(
 
     const faPlanOk = IsPlanValid(faPlan) 
 
-    const {faTargetBudget_s, inputAccel_mps2, noWakeEnabled, standoff_m} = input;
+    const {faTargetBudget_s, faTargetAccel_mps2, faAccelComputed, noWakeEnabled, standoff_m} = input;
     const faTargetBudgetValid = faTargetBudget_s !== null;
-    const targetAccelAttempted = inputAccel_mps2 !== null;
 
     const faGameTimeValid = faParsedGameTime !== null;
     const faBrakeTarget =
@@ -59,7 +59,7 @@ function ApproachOutput(
         {
         return;
         }
-        const lines = getApproachInputCopy(passthroughInputArgs, inputAccel_mps2)
+        const lines = getApproachInputCopy(passthroughInputArgs, faAccelComputed ? faPlan.a_mps2 : null)
         lines.push('');
         lines.push('-- APPROACH SOLUTION --');
         if (faPlan.t_coast > 1) {
@@ -119,11 +119,11 @@ function ApproachOutput(
                 <br />
                 Shortfall: <strong>{formatDistance(faPlan.shortfall)}</strong>
                 <br />
-                {targetAccelAttempted && (
+                {isFinite(faTargetAccel_mps2) && (
                 <>
                     Required deceleration: <strong> {(faPlan.required_a / G).toFixed(2) + ' G'}</strong>
                     <br />
-                    Avaliable deceleration: {(inputAccel_mps2 / G).toFixed(2) + ' G'}
+                    Avaliable deceleration: {(faTargetAccel_mps2 / G).toFixed(2) + ' G'}
                     <br />
                 </>
                 )}
@@ -148,7 +148,7 @@ function ApproachOutput(
                     </div>
                 )}
 
-                {!targetAccelAttempted && (
+                {faAccelComputed && (
                 <Readout
                     label="Computed Accel"
                     value={`${(faPlan.a_mps2 / G).toFixed(2)} G`}

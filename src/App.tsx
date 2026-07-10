@@ -336,6 +336,7 @@ function BurnCalculatorInner() {
           faPlanAccel,
       }[faPlanType] ?? internalSolverError : null;
   const faSinglePlan = faPlanAccel ?? faPlanBudget
+  const faAccelComputed = faHasDoublePlan ? faPlanType == 'accel' : !faTargetAccelAttempted;
   
   const faPlanIgnoreInputErrors = faDoublePlan ?? faSinglePlan ?? faConstantBurnPlan
   const faPlanRaw = faInputError ?? faPlanIgnoreInputErrors
@@ -431,7 +432,7 @@ function BurnCalculatorInner() {
               <ApproachOutput 
               faPlan={faPlan} 
               faParsedGameTime={faParsedGameTime} 
-              input={{faTargetBudget_s, inputAccel_mps2: faTargetAccelAttempted ? faTargetAccel_mps2 : null, noWakeEnabled, standoff_m}}
+              input={{faTargetBudget_s, faTargetAccel_mps2, faAccelComputed, noWakeEnabled, standoff_m}}
               passthroughInputArgs={approachInputArgs}
             />)}
           </div>

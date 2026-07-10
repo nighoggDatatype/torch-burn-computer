@@ -432,7 +432,7 @@ function BurnCalculatorInner() {
               <ApproachOutput 
               faPlan={faPlan} 
               faParsedGameTime={faParsedGameTime} 
-              input={{faTargetBudget_s, faTargetAccel_mps2, faAccelComputed, noWakeEnabled, standoff_m}}
+              input={{faTargetBudget_s, faTargetAccel_mps2, faAccelComputed, faPlanType: faHasDoublePlan ? faPlanType : null, noWakeEnabled, standoff_m}}
               passthroughInputArgs={approachInputArgs}
             />)}
           </div>

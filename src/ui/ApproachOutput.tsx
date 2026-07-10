@@ -12,6 +12,7 @@ type RequiredApproachInput = {
     faTargetBudget_s : number | null,
     faTargetAccel_mps2 : number,
     faAccelComputed : boolean,
+    faPlanType : string | null
     standoff_m : number,
     noWakeEnabled : string, 
 }
@@ -24,8 +25,7 @@ function ApproachOutput(
 
     const faPlanOk = IsPlanValid(faPlan) 
 
-    const {faTargetBudget_s, faTargetAccel_mps2, faAccelComputed, noWakeEnabled, standoff_m} = input;
-    const faTargetBudgetValid = faTargetBudget_s !== null;
+    const {faTargetBudget_s, faTargetAccel_mps2, faAccelComputed, faPlanType, noWakeEnabled, standoff_m} = input;
 
     const faGameTimeValid = faParsedGameTime !== null;
     const faBrakeTarget =
@@ -134,17 +134,18 @@ function ApproachOutput(
 
             {faPlanOk && (
             <>
-                {/* Constant burn aleart */}
+                {/* Misc info */}
                 {(faPlan.d_coast === 0 && faPlan.t_coast === 0) && (
                     <div className="bc-fa-advisory">● CONSTANT BURN ENABLED: IMMEDIATE BRAKING REQUIRED</div> 
                 )}
-
-                {/* Reactant sufficiency warning */}
-                {faTargetBudgetValid && (
-                    <div className={faTargetBudget_s >= faPlan.t_brake ? 'bc-fa-ok' : 'bc-fa-warn'}>
-                        {faTargetBudget_s >= faPlan.t_brake
-                        ? `● REACTANT SUFFICIENT - BRAKE REQUIRES ${formatTargetDuration(Math.floor(faPlan.t_brake))}, BUDGET IS ${formatTargetDuration(Math.floor(faTargetBudget_s))}`
-                        : `⚠ REACTANT DEFICIT - BRAKE REQUIRES ${formatTargetDuration(Math.floor(faPlan.t_brake))}, BUDGET IS ONLY ${formatTargetDuration(Math.floor(faTargetBudget_s))}`}
+                {faPlanType == 'budget' && faTargetBudget_s !== null && (
+                    <div className='bc-fa-ok'>
+                        ● REACTANT SUFFICIENT - BRAKE REQUIRES ${formatTargetDuration(Math.floor(faPlan.t_brake))}, BUDGET IS ${formatTargetDuration(Math.floor(faTargetBudget_s))}
+                    </div>
+                )}
+                {faPlanType == 'accel' && isFinite(faTargetAccel_mps2) && (
+                    <div className='bc-fa-ok'>
+                        ● ACCEL SUFFICIENT - BRAKE REQUIRES {`${(faPlan.a_mps2 / G).toFixed(2)} G`}, MAX ACCEL IS {`${(faTargetAccel_mps2 / G).toFixed(2)} G`}
                     </div>
                 )}
 

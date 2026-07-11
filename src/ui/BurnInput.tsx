@@ -90,7 +90,7 @@ function BurnInput({args} : {args : BurnInputArgs}) {
             value={v0Direction}
             setValue={setV0Direction}
             buttonList={[
-                { value: 'closing', label: "CLOSING", style: {}},
+                { value: 'closing', label: "CLOSING", style: null},
                 { value: 'receding',  label: "RECEDING", style: {
                     color: 'var(--red)',
                     borderColor: 'var(--red)',
@@ -209,9 +209,9 @@ function BurnInput({args} : {args : BurnInputArgs}) {
             value={planType}
             setValue={setPlanType}
             buttonList={[
-                { value: 'duration', label: "DURATION", style: {}},
-                { value: 'budget', label: "BUDGET", style: {}},
-                { value: 'accel', label: "ACCELERATION", style: {}},
+                { value: 'duration', label: "DURATION", style: null},
+                { value: 'budget', label: "BUDGET", style: null},
+                { value: 'accel', label: "ACCELERATION", style: null},
             ]}
         />)}
         <div className="bc-panel-header" style={{ marginTop: 20 }}>

@@ -49,7 +49,7 @@ export function formatVelocity(mps: number) {
 export function addGameTime(base: { date: { y: number; mo: number; d: number; }; seconds: number; } | { date: null; seconds: number; } | null, offsetSeconds: number) : FinalGameTime | null {
   if (base == null || !isFinite(offsetSeconds)) return null;
   let total = base.seconds + Math.floor(offsetSeconds);
-  let datePart = base.date ? { ...base.date } : null;
+  const datePart = base.date ? { ...base.date } : null;
   // Day rollover always runs, even with no calendar date, so time-only inputs
   // wrap at the DAY boundary instead of accumulating past 24h indefinitely.
   let dayOffset = 0;

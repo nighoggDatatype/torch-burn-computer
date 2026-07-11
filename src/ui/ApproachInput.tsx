@@ -152,8 +152,8 @@ function ApproachInput({args} : {args : ApproachInputArgs})
             value={faPlanType}
             setValue={setFaPlanType}
             buttonList={[
-                { value: 'budget', label: "DURATION / BUDGET", style: {}},
-                { value: 'accel', label: "ACCELERATION", style: {}}, //TODO: Add special styling here
+                { value: 'budget', label: "DURATION / BUDGET", style: null},
+                { value: 'accel', label: "ACCELERATION", style: null}, //TODO: Add special styling here, or the other one
             ]}
         />)}
 

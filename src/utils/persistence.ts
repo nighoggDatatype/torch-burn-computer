@@ -42,7 +42,7 @@ function useUrlOrLocalState(
   const setValue = useCallback((value: string) => {
     // Update URL param
     const currentHash = window.location.hash;
-    var newHash: string|null = null;
+    const newHash = "#" + value;
     const params = new URLSearchParams(window.location.search);
 
     if (urlKey !== null)
@@ -52,12 +52,10 @@ function useUrlOrLocalState(
       } else {
         params.set(urlKey, value);
       }
-    } else {
-      newHash = "#" + value;
     }
     
     const paramString = params.toString();
-    const newUrl = `${window.location.pathname}${paramString !== '' ? '?' + paramString : ''}${newHash ?? currentHash}`
+    const newUrl = `${window.location.pathname}${paramString !== '' ? '?' + paramString : ''}${urlKey === null ? newHash : currentHash}`
     window.history.replaceState(null, '', newUrl);
 
     // Update localStorage if needed

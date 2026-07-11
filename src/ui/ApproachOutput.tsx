@@ -35,7 +35,7 @@ function ApproachOutput(
     
     const [copied, setCopied] = useState(false);
     const [flickerKey, setFlickerKey] = useState(0);
-      const prevPlanRef: React.RefObject<string|null> = useRef(null);
+    const prevPlanRef: React.RefObject<string|null> = useRef(null);
     useEffect(() => {
         const key = JSON.stringify({
         a_mps2: faPlanOk ? faPlan.a_mps2 : null,
@@ -47,12 +47,7 @@ function ApproachOutput(
         setFlickerKey((k) => k + 1);
         }
         prevPlanRef.current = key;
-    }, [
-            faPlanOk ? faPlan.a_mps2 : null,
-            faPlanOk ? faPlan.t_brake : null,
-            faPlanOk ? faPlan.t_total : null,
-            faPlan !== null ? faPlan.error : null
-        ]);
+    }, [faPlanOk, faPlan]);
         
     function handleFaCopy() { //TODO: Double check all copy text is valid
         if (!faPlan || faPlan.error !== null || faPlan.overshoot)
@@ -145,7 +140,7 @@ function ApproachOutput(
                 )}
                 {faPlanType == 'accel' && isFinite(faTargetAccel_mps2) && (
                     <div className='bc-fa-ok'>
-                        ● ACCEL SUFFICIENT - BRAKE REQUIRES {`${(faPlan.a_mps2 / G).toFixed(2)} G`}, MAX ACCEL IS {`${(faTargetAccel_mps2 / G).toFixed(2)} G`}
+                        ● ACCEL SUFFICIENT - BRAKE REQUIRES {`${(faPlan.a_mps2 / G).toFixed(2)} G`}, MAX ACCEL IS ${`${(faTargetAccel_mps2 / G).toFixed(2)} G`}
                     </div>
                 )}
 

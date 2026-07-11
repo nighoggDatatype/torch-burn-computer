@@ -1,6 +1,6 @@
 import React from "react";
 
-function Readout({ label, value, highlight, flickerKey } : { label: string, value: any, highlight: any, flickerKey: number }) {
+function Readout({ label, value, highlight=false, flickerKey } : { label: string, value: string | null, highlight?: boolean, flickerKey: number }) {
   const [animClass, setAnimClass] = React.useState('');
   const isFirst = React.useRef(true);
   React.useEffect(() => {
@@ -13,6 +13,7 @@ function Readout({ label, value, highlight, flickerKey } : { label: string, valu
     return () => clearTimeout(t);
   }, [flickerKey]);
   const cls = [highlight ? 'highlight' : '', animClass].filter(Boolean).join(' ');
+  console.log(highlight)
   return (
     <div className="bc-readout">
       <div className="bc-readout-label">{label}</div>

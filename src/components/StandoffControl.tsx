@@ -2,36 +2,6 @@ import ButtonArray from "./ButtonArray.js";
 import InputNote from "./InputNote.js";
 import InputRow from "./InputRow.js";
 
-function NoWakeToggle({ noWakeEnabled, setNoWakeEnabled } : { noWakeEnabled: string, setNoWakeEnabled: (value: boolean) => void }) {
-  return (
-    <div
-      style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 118, marginBottom: 8 }}
-    >
-      <button
-        className={`bc-unit-btn${!noWakeEnabled ? ' active' : ''}`}
-        onClick={() => setNoWakeEnabled(false)}
-      >
-        OPEN SPACE
-      </button>
-      <button
-        className={`bc-unit-btn${noWakeEnabled ? ' active' : ''}`}
-        onClick={() => setNoWakeEnabled(true)}
-        style={
-          noWakeEnabled
-            ? {
-                color: 'var(--cyan)',
-                borderColor: 'var(--cyan)',
-                background: 'rgba(77,208,255,0.12)',
-              }
-            : {}
-        }
-      >
-        NO-WAKE ZONE
-      </button>
-    </div>
-  );
-}
-
 function StandoffControl(
   { noWakeEnabled, setNoWakeEnabled, standoffKm, setStandoffKm, standoffError } : 
   { noWakeEnabled: string, 
@@ -65,7 +35,7 @@ function StandoffControl(
         value={noWakeEnabled}
         setValue={setNoWakeEnabled}
         buttonList={[
-          { value: 'disabled', label: "OPEN SPACE", style: {}},
+          { value: 'disabled', label: "OPEN SPACE", style: null},
           { value: 'enabled',  label: "NO-WAKE ZONE", style: {
               color: 'var(--cyan)',
               borderColor: 'var(--cyan)',

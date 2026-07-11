@@ -69,12 +69,7 @@ function BurnOutput(
         setFlickerKey((k) => k + 1);
     }
     prevPlanRef.current = key;
-    }, [
-        finalPlanOk ? finalPlan.v_max : null,
-        finalPlanOk ? finalPlan.t_accel : null,
-        finalPlanOk ? finalPlan.t_total : null,
-        finalPlan !== null ? finalPlan.error: null
-        ]);
+    }, [finalPlanOk, finalPlan]);
     
     function handleBurnCopy() {
         if (!finalPlan || finalPlan.error !== null || finalPlan.overshoot)

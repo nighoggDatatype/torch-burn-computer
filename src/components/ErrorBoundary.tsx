@@ -5,17 +5,17 @@ interface Props {
 }
 
 interface State {
-  hasError: boolean;
+  error: Error | null;
 }
 
 class ErrorBoundary extends Component<Props, State> {
   public state: State = {
-    hasError: false
+    error: null
   };
 
-  public static getDerivedStateFromError(_: Error): State {
+  public static getDerivedStateFromError(error: Error): State {
     // Update state so the next render will show the fallback UI.
-    return { hasError: true };
+    return { error };
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
@@ -23,7 +23,8 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   public render() {
-    if (this.state.hasError) {
+    const error = this.state.error
+    if (error !== null) {
       return (
         <div
           style={{
@@ -36,6 +37,10 @@ class ErrorBoundary extends Component<Props, State> {
           }}
         >
           ⚠ GUIDANCE COMPUTER FAULT
+          <br />
+          {error.name}
+          <br />
+          {error.message}
           <br />
           Reload to restart the nav subsystem.
         </div>

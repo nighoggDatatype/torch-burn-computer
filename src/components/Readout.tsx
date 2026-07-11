@@ -13,7 +13,6 @@ function Readout({ label, value, highlight=false, flickerKey } : { label: string
     return () => clearTimeout(t);
   }, [flickerKey]);
   const cls = [highlight ? 'highlight' : '', animClass].filter(Boolean).join(' ');
-  console.log(highlight)
   return (
     <div className="bc-readout">
       <div className="bc-readout-label">{label}</div>

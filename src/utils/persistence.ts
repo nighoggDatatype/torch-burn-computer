@@ -73,9 +73,7 @@ function useUrlOrLocalState(
   }, [urlKey, localKey, defaultValue]);
 
   const subscribe = (onStoreChange: () => void) => {
-    console.log('subscribe')
     const callback = () => {
-      console.log("hi")
       onStoreChange();
     }
     window.addEventListener('popstate', callback);

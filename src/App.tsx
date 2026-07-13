@@ -245,6 +245,7 @@ function BurnCalculatorInner() {
     finalPlanRaw === null ? internalSolverError :
     !finalPlanCanCheck ? null :
     finalPlanRaw.a_mps2 < 0.01 * G ? computedAccelTooSlow
+    //TODO: Add computed accel too fast
     : null;
   const finalPlan = noInputProvided 
     ? null 

@@ -2,10 +2,9 @@ import { AlertTriangle } from "lucide-react";
 import Readout from "../components/Readout.js";
 import { G } from "../utils/constants.js";
 import { formatDistance, formatVelocity, formatGameTime, formatTime, formatTargetDuration, addGameTime } from "../utils/formatters.js";
-import { GameDateTime } from "../utils/parsers.js";
+import { GameDateTime, parseNum } from "../utils/parsers.js";
 import { BurnPlanResult, IsPlanValid } from "../solvers/physics.js";
 import { useEffect, useRef, useState } from "react";
-import { BurnInputArgs, getBurnInputCopy } from "./BurnInput.js";
 
 type RequiredBurnInput = {
     vcrs_mps : number, 
@@ -16,8 +15,8 @@ type RequiredBurnInput = {
 }
 
 function BurnOutput(
-    {finalPlan, parsedGameTime, input, passthroughInputArgs} : 
-    {finalPlan: BurnPlanResult | null, parsedGameTime : GameDateTime | null, input : RequiredBurnInput, passthroughInputArgs: BurnInputArgs}) {
+    {finalPlan, parsedGameTime, input, burnInputSummaryArgs} : 
+    {finalPlan: BurnPlanResult | null, parsedGameTime : GameDateTime | null, input : RequiredBurnInput, burnInputSummaryArgs: BurnInputSummaryArgs}) {
 
     const finalPlanOk = IsPlanValid(finalPlan)
     const isDriftMode = finalPlanOk && finalPlan.t_drift !== 0 && finalPlan.d_drift !== 0;
@@ -76,7 +75,7 @@ function BurnOutput(
         {
             return;
         }
-        const lines = getBurnInputCopy(passthroughInputArgs, accelComputed ? finalPlan.a_mps2 : null)
+        const lines = getBurnInputCopy(burnInputSummaryArgs)
         lines.push('');
         lines.push('-- BURN SOLUTION --');
         lines.push(
@@ -369,4 +368,71 @@ function BurnOutput(
     </div>
     )
 }
+
+export type BurnInputSummaryArgs = {
+    distance : string, distanceUnit : string,
+    vrel : string, vrelUnit : string, v0Direction : string,
+    vcrs : string, vcrsUnit : string,
+    vArrival : string, vArrivalUnit : string,
+    noWakeEnabled : string, standoffKm : string
+    targetAccel_mps2 : number, targetDuration_s : number | null,  targetBudget_s : number | null,
+    planType : string, tripleConstraintSolving : boolean,
+    t_rotate_s : number,
+    parsedGameTime : GameDateTime | null, 
+}
+
+function getBurnInputCopy(args : BurnInputSummaryArgs) 
+{
+    const {
+        distance, distanceUnit, 
+        vrel, vrelUnit, v0Direction,
+        vcrs, vcrsUnit,
+        vArrival, vArrivalUnit,
+        noWakeEnabled, standoffKm,
+        targetAccel_mps2, targetDuration_s,  targetBudget_s,
+        planType, tripleConstraintSolving,
+        t_rotate_s,
+        parsedGameTime
+    } = args;
+    const lines = [];
+    const distLabel = distanceUnit === 'au' ? 'AU' : distanceUnit === 'gm' ? 'GM' : distanceUnit === 'km' ? 'km' : 'm';
+    lines.push('-- CURRENT STATE --');
+    lines.push(`Range: ${parseNum(distance)} ${distLabel}`);
+    lines.push(`VREL: ${parseNum(vrel)} ${vrelUnit} (${v0Direction.toUpperCase()})`);
+    if (isFinite(parseNum(vcrs))) { 
+        lines.push(`VCRS: ${parseNum(vcrs)} ${vcrsUnit}`);
+    }
+    lines.push('');
+    lines.push('-- ARRIVAL PARAMETERS --');
+    if (vArrival.trim() !== '' && vArrival !== '0') {
+        lines.push(`TGT Vel: ${parseNum(vArrival)} ${vArrivalUnit}`);
+    }
+    lines.push(noWakeEnabled === 'enabled' ? 'Stand-off: NO-WAKE ZONE (300 km)' : `Stand-off: ${parseNum(standoffKm)} km`);
+    lines.push('');
+    lines.push('-- TRIP CONSTRAINTS --');
+    if (isFinite(targetAccel_mps2)) {
+        lines.push(`Acceleration: ${(targetAccel_mps2 / G).toFixed(2)} G`);
+    }
+    if (targetDuration_s !== null) {
+        lines.push(`Desired Travel Time: ${formatTargetDuration(targetDuration_s)}`);
+    }
+    if (targetBudget_s != null && isFinite(targetBudget_s)) {
+        lines.push(`Reactant Budget: ${(targetBudget_s / 3600).toFixed(2)}h`);
+    }
+    if (tripleConstraintSolving)
+    {
+        lines.push(`Optimization Target: ${planType}`);
+    }
+    lines.push('');
+    lines.push('-- SHIP PARAMETERS --');
+    lines.push(`Flip Time: ${t_rotate_s} s`);
+    const nowString = formatGameTime(addGameTime(parsedGameTime, 0))
+    if (nowString !== null) {
+        lines.push('');
+        lines.push('-- GAME CLOCK --');
+        lines.push(`Current Time: ${nowString}`);
+    }
+    return lines;
+}
+
 export default BurnOutput;

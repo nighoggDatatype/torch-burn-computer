@@ -370,6 +370,17 @@ function BurnCalculatorInner() {
     gameStartTime, setGameStartTime, gameTimeError, gameTimeValid,
     isDriftMode, anyConstraintAttempted
   }
+  const burnInputSummaryArgs = {
+    distance, distanceUnit, 
+    vrel, vrelUnit, v0Direction,
+    vcrs, vcrsUnit,
+    vArrival, vArrivalUnit,
+    noWakeEnabled, standoffKm,
+    targetAccel_mps2, targetDuration_s,  targetBudget_s,
+    planType, tripleConstraintSolving,
+    t_rotate_s,
+    parsedGameTime
+  }
   const approachInputArgs = {
       faDistance, setFaDistance, faDistanceUnit, setFaDistanceUnit,
       faVrel, setFaVrel, faVrelUnit, setFaVrelUnit,
@@ -424,7 +435,7 @@ function BurnCalculatorInner() {
               finalPlan={finalPlan} 
               parsedGameTime={parsedGameTime} 
               input={{vcrs_mps, accelComputed, burn_distance_m, noWakeEnabled, standoff_m}}
-              passthroughInputArgs={burnInputArgs}
+              burnInputSummaryArgs={burnInputSummaryArgs}
             />)}
 
             {/* FINAL APPROACH results */}

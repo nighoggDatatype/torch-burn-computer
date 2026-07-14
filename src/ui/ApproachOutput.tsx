@@ -28,10 +28,8 @@ function ApproachOutput(
     const {faTargetBudget_s, faTargetAccel_mps2, faAccelComputed, faPlanType, noWakeEnabled, standoff_m} = input;
 
     const faGameTimeValid = faParsedGameTime !== null;
-    const faBrakeTarget =
-    faGameTimeValid && faPlanOk ? addGameTime(faParsedGameTime, faPlan.t_coast) : null;
-    const faArriveTarget =
-    faGameTimeValid && faPlanOk ? addGameTime(faParsedGameTime, faPlan.t_total) : null;
+    const faBrakeTarget = faGameTimeValid && faPlanOk ? addGameTime(faParsedGameTime, faPlan.t_coast) : null;
+    const faArriveTarget = faGameTimeValid && faPlanOk ? addGameTime(faParsedGameTime, faPlan.t_total) : null;
     
     const [copied, setCopied] = useState(false);
     const [flickerKey, setFlickerKey] = useState(0);
@@ -56,18 +54,28 @@ function ApproachOutput(
         }
         const lines = getApproachInputCopy(approachInputSummaryArgs)
         lines.push('');
-        lines.push('-- APPROACH SOLUTION --'); //TODO: Add computed accel display
+        lines.push('-- APPROACH SOLUTION --');
+        if (faAccelComputed) {
+            lines.push(`Computed Accel: ${(faPlan.a_mps2 / G).toFixed(2)} G`);
+        }
         if (faPlan.t_coast > 1) {
-        lines.push(
-            `Begin Brake: ${faGameTimeValid ? formatGameTime(faBrakeTarget) : 'T+' + formatTargetDuration(Math.floor(faPlan.t_coast))}`
-        );
+            lines.push(
+                `End Drift / Begin Brake: ${faGameTimeValid ? formatGameTime(faBrakeTarget) : 'T+' + formatTargetDuration(Math.floor(faPlan.t_coast))}`
+            );
         }
         lines.push(
-        `Arrival: ${faGameTimeValid ? formatGameTime(faArriveTarget) : 'T+' + formatTargetDuration(Math.floor(faPlan.t_total))}`
+            `Arrival: ${faGameTimeValid ? formatGameTime(faArriveTarget) : 'T+' + formatTargetDuration(Math.floor(faPlan.t_total))}`
         );
         lines.push(`Brake Duration: ${formatTargetDuration(Math.floor(faPlan.t_brake)) ?? '0S'}`);
+        lines.push('');
+        lines.push('-- APPROACH SOLUTION --');
+        if (faPlan.d_coast > 0) {
+            lines.push(`Coast Distance: ${formatDistance(faPlan.d_coast)}`);
+        }
         lines.push(`Brake Distance: ${formatDistance(faPlan.d_brake)}`);
-        if (faPlan.d_coast > 0) lines.push(`Coast Distance: ${formatDistance(faPlan.d_coast)}`);
+        lines.push(
+            `Reactant Budget Used: ${((faPlan.t_brake) / 3600).toFixed(2)}h`
+        );
         navigator.clipboard.writeText(lines.join('\n')).then(() => {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);

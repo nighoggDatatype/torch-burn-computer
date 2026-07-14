@@ -26,17 +26,14 @@ function BurnOutput(
     
     const gameTimeValid = parsedGameTime !== null;
 
-    const t_accel = finalPlanOk ? finalPlan.t_accel : NaN;
-    const t_rot = finalPlanOk ? finalPlan.t_rotate : NaN;
-    const t_drift = finalPlanOk ? finalPlan.t_drift : NaN;
-    const t_total = finalPlanOk ? finalPlan.t_total : NaN;
-    const t_flip_end = t_accel + t_rot;
-    const t_brake_start = isDriftMode ? t_flip_end + t_drift : t_flip_end;
+    const t_brake_start = finalPlanOk ? finalPlan.t_accel + finalPlan.t_rotate + finalPlan.t_drift : NaN;
+    const t_brake_floor_corrected = finalPlanOk //Account for accumilated floor rounding error
+        ? Math.floor(finalPlan.t_total) - Math.floor(finalPlan.t_accel) - Math.floor(finalPlan.t_rotate) - Math.floor(finalPlan.t_drift)
+        : NaN
 
-    const rotateTarget = gameTimeValid && finalPlanOk ? addGameTime(parsedGameTime, t_accel) : null;
-    const driftEndTarget = gameTimeValid && isDriftMode ? addGameTime(parsedGameTime, t_brake_start) : null;
+    const rotateTarget = gameTimeValid && finalPlanOk ? addGameTime(parsedGameTime, finalPlan.t_accel) : null;
     const brakeTarget = gameTimeValid && finalPlanOk ? addGameTime(parsedGameTime, t_brake_start) : null;
-    const arriveTarget = gameTimeValid && finalPlanOk ? addGameTime(parsedGameTime, t_total) : null;
+    const arriveTarget = gameTimeValid && finalPlanOk ? addGameTime(parsedGameTime, finalPlan.t_total) : null;
 
     // VCRS advisory threshold - warn when cross-track drift extends burn distance by >5%
     const vcrs_drift_m = finalPlanOk ? finalPlan.t_total * vcrs_mps : NaN;
@@ -70,7 +67,7 @@ function BurnOutput(
     prevPlanRef.current = key;
     }, [finalPlanOk, finalPlan]);
     
-    function handleBurnCopy() { //TODO: Add computed accel display
+    function handleBurnCopy() {
         if (!finalPlan || finalPlan.error !== null || finalPlan.overshoot)
         {
             return;
@@ -78,38 +75,48 @@ function BurnOutput(
         const lines = getBurnInputCopy(burnInputSummaryArgs)
         lines.push('');
         lines.push('-- BURN SOLUTION --');
+        if (accelComputed) {
+            lines.push(`Computed Accel: ${(finalPlan.a_mps2 / G).toFixed(2)} G`);
+        }
         lines.push(
-            `${isDriftMode ? 'End Accel / Begin Flip' : 'Begin Rotate'}: ${gameTimeValid ? formatGameTime(rotateTarget) : 'T+' + formatTargetDuration(Math.floor(t_accel))}`
+            `${isDriftMode 
+                ? 'End Accel / Begin Flip' 
+                : 'Begin Rotate'}: ${
+                gameTimeValid 
+                    ? formatGameTime(rotateTarget) 
+                    : 'T+' + formatTargetDuration(Math.floor(finalPlan.t_accel))}`
         );
-        if (isDriftMode) {
+        lines.push(
+            `${isDriftMode ? "End Drift / " : ""}Begin Brake: ${
+                gameTimeValid 
+                ? formatGameTime(brakeTarget) 
+                : 'T+' + formatTargetDuration(Math.floor(t_brake_start))}`
+        );
+        lines.push(
+            `Arrival: ${gameTimeValid 
+                ? formatGameTime(arriveTarget) 
+                : 'T+' + formatTargetDuration(Math.floor(finalPlan.t_total))}`
+        );
+        lines.push(`Accel Duration: ${formatTargetDuration(Math.floor(finalPlan.t_accel)) ?? '0S'}`);
+        if (isDriftMode){
             lines.push(
-            `End Drift / Begin Brake: ${gameTimeValid ? formatGameTime(driftEndTarget) : 'T+' + formatTargetDuration(Math.floor(t_brake_start))}`
-            );
-        } else {
-            lines.push(
-            `Begin Brake: ${gameTimeValid ? formatGameTime(brakeTarget) : 'T+' + formatTargetDuration(Math.floor(t_brake_start))}`
+                `Drift Duration: ${formatTargetDuration(Math.floor(finalPlan.t_drift)) ?? '0S'}`
             );
         }
         lines.push(
-            `Arrival: ${gameTimeValid ? formatGameTime(arriveTarget) : 'T+' + formatTargetDuration(Math.floor(t_total))}`
-        );
-        lines.push(`Accel Duration: ${formatTargetDuration(Math.round(t_accel)) ?? '0S'}`);
-        if (isDriftMode)
-            lines.push(
-            `Drift Duration: ${formatTargetDuration(Math.floor(finalPlan.t_drift || 0)) ?? '0S'}`
-            );
-        lines.push(
-            `Brake Duration: ${formatTargetDuration(Math.floor(t_total) - Math.floor(t_brake_start)) ?? '0S'}`
+            `Brake Duration: ${formatTargetDuration(t_brake_floor_corrected) ?? '0S'}`
         );
         lines.push('');
         lines.push('-- BURN REFERENCE --');
         lines.push(`Accel Distance: ${formatDistance(finalPlan.d_accel)}`);
-        if (isDriftMode) lines.push(`Drift Distance: ${formatDistance(finalPlan.d_drift)}`);
+        if (isDriftMode) {
+            lines.push(`Drift Distance: ${formatDistance(finalPlan.d_drift)}`);
+        }
         lines.push(`Brake Distance: ${formatDistance(finalPlan.d_brake)}`);
         lines.push(`Total Distance: ${formatDistance(burn_distance_m)}`);
         lines.push(`Peak Velocity: ${formatVelocity(finalPlan.v_max)}`);
         lines.push(
-            `Min Reactant Budget: ${(((finalPlan.t_accel) + (finalPlan.t_brake)) / 3600).toFixed(2)}h`
+            `Reactant Budget Used: ${(((finalPlan.t_accel) + (finalPlan.t_brake)) / 3600).toFixed(2)}h`
         );
         navigator.clipboard.writeText(lines.join('\n')).then(() => {
             setCopied(true);
@@ -239,26 +246,13 @@ function BurnOutput(
             <Readout
             label={isDriftMode ? 'End Accel / Begin Flip' : 'Begin Rotate'}
             value={
-                gameTimeValid ? formatGameTime(rotateTarget) : `T+${formatTargetDuration(Math.floor(t_accel))}`
+                gameTimeValid ? formatGameTime(rotateTarget) : `T+${formatTargetDuration(Math.floor(finalPlan.t_accel))}`
             }
             highlight
             flickerKey={flickerKey}
             />
-            {isDriftMode && (
             <Readout
-                label="End Drift / Begin Brake"
-                value={
-                gameTimeValid
-                    ? formatGameTime(driftEndTarget)
-                    : `T+${formatTargetDuration(Math.floor(t_brake_start))}`
-                }
-                highlight
-                flickerKey={flickerKey}
-            />
-            )}
-            {!isDriftMode && (
-            <Readout
-                label="Begin Brake"
+                label={(isDriftMode ? "End Drift / " : "") + "Begin Brake"}
                 value={
                 gameTimeValid
                     ? formatGameTime(brakeTarget)
@@ -267,18 +261,17 @@ function BurnOutput(
                 highlight
                 flickerKey={flickerKey}
             />
-            )}
             <Readout
             label="Arrival"
             value={
-                gameTimeValid ? formatGameTime(arriveTarget) : `T+${formatTargetDuration(Math.floor(t_total))}`
+                gameTimeValid ? formatGameTime(arriveTarget) : `T+${formatTargetDuration(Math.floor(finalPlan.t_total))}`
             }
             highlight
             flickerKey={flickerKey}
             />
             <Readout
             label="Accel Duration"
-            value={formatTargetDuration(Math.floor(t_accel))}
+            value={formatTargetDuration(Math.floor(finalPlan.t_accel))}
             highlight
             flickerKey={flickerKey}
             />
@@ -292,7 +285,7 @@ function BurnOutput(
             )}
             <Readout
             label="Brake Duration"
-            value={formatTargetDuration(Math.floor(t_total) - Math.floor(t_brake_start))}
+            value={formatTargetDuration(t_brake_floor_corrected)}
             highlight
             flickerKey={flickerKey}
             />

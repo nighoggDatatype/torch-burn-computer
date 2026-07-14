@@ -47,7 +47,7 @@ function ApproachOutput(
         prevPlanRef.current = key;
     }, [faPlanOk, faPlan]);
         
-    function handleFaCopy() { //TODO: Double check all copy text is valid
+    function handleFaCopy() { 
         if (!faPlan || faPlan.error !== null || faPlan.overshoot)
         {
         return;

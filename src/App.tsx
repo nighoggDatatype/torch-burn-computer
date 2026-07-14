@@ -393,6 +393,15 @@ function BurnCalculatorInner() {
       standoffKm, setStandoffKm, standoff_m, standoffError,
       faGameStartTime, setFaGameStartTime, faGameTimeError, faGameTimeValid
   }
+  const approachInputSummaryArgs = {
+      faDistance, faDistanceUnit,
+      faVrel, faVrelUnit,
+      faVArrival, faVArrivalUnit,
+      faTargetAccel_mps2, faTargetBudget_s,
+      faPlanType, faHasDoublePlan,
+      noWakeEnabled, standoffKm,
+      faParsedGameTime
+  }
 
   return (
     <>
@@ -445,7 +454,7 @@ function BurnCalculatorInner() {
               faPlan={faPlan} 
               faParsedGameTime={faParsedGameTime} 
               input={{faTargetBudget_s, faTargetAccel_mps2, faAccelComputed, faPlanType: faHasDoublePlan ? faPlanType : null, noWakeEnabled, standoff_m}}
-              passthroughInputArgs={approachInputArgs}
+              approachInputSummaryArgs={approachInputSummaryArgs}
             />)}
           </div>
 

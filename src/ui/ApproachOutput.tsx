@@ -3,8 +3,8 @@ import Readout from "../components/Readout.js";
 import { FinalApproachResult } from "../solvers/approachSolvers.js";
 import { G } from "../utils/constants.js";
 import { addGameTime, formatDistance, formatTargetDuration, formatGameTime } from "../utils/formatters.js";
-import { GameDateTime } from "../utils/parsers.js";
-import { ApproachInputArgs, getApproachInputCopy } from "./ApproachInput.js";
+import { GameDateTime, parseNum } from "../utils/parsers.js";
+import { ApproachInputArgs } from "./ApproachInput.js";
 import { useEffect, useRef, useState } from "react";
 import { IsPlanValid } from "../solvers/physics.js";
 
@@ -18,9 +18,9 @@ type RequiredApproachInput = {
 }
 
 function ApproachOutput(
-    {faPlan, faParsedGameTime, input, passthroughInputArgs} : 
+    {faPlan, faParsedGameTime, input, approachInputSummaryArgs} : 
     {
-        faPlan: FinalApproachResult | null, faParsedGameTime : GameDateTime | null, input : RequiredApproachInput, passthroughInputArgs: ApproachInputArgs
+        faPlan: FinalApproachResult | null, faParsedGameTime : GameDateTime | null, input : RequiredApproachInput, approachInputSummaryArgs: ApproachInputSummaryArgs
     }) {
 
     const faPlanOk = IsPlanValid(faPlan) 
@@ -54,9 +54,9 @@ function ApproachOutput(
         {
         return;
         }
-        const lines = getApproachInputCopy(passthroughInputArgs, faAccelComputed ? faPlan.a_mps2 : null)
+        const lines = getApproachInputCopy(approachInputSummaryArgs)
         lines.push('');
-        lines.push('-- APPROACH SOLUTION --');
+        lines.push('-- APPROACH SOLUTION --'); //TODO: Add computed accel display
         if (faPlan.t_coast > 1) {
         lines.push(
             `Begin Brake: ${faGameTimeValid ? formatGameTime(faBrakeTarget) : 'T+' + formatTargetDuration(Math.floor(faPlan.t_coast))}`
@@ -235,5 +235,56 @@ function ApproachOutput(
         )}
         </div>
     )
+}
+export type ApproachInputSummaryArgs = {
+    faDistance : string, faDistanceUnit : string,
+    faVrel : string, faVrelUnit : string,
+    faVArrival : string, faVArrivalUnit : string,
+    faTargetAccel_mps2 : number, faTargetBudget_s : number | null,
+    faPlanType : string, faHasDoublePlan : boolean,
+    noWakeEnabled : string, standoffKm : string,
+    faParsedGameTime : GameDateTime | null,
+}
+function getApproachInputCopy(args : ApproachInputSummaryArgs)
+{
+    const {
+        faDistance, faDistanceUnit,
+        faVrel, faVrelUnit,
+        faVArrival, faVArrivalUnit,
+        faTargetAccel_mps2, faTargetBudget_s,
+        faPlanType, faHasDoublePlan,
+        noWakeEnabled, standoffKm,
+        faParsedGameTime,
+    } = args;
+    const lines = [];
+    const faDistLabel = faDistanceUnit === 'au' ? 'AU' : faDistanceUnit === 'gm' ? 'GM' : faDistanceUnit === 'km' ? 'km' : 'm';
+    lines.push('-- CURRENT STATE --');
+    lines.push(`Range: ${parseNum(faDistance)} ${faDistLabel}`);
+    lines.push(`VREL: ${parseNum(faVrel)} ${faVrelUnit} (CLOSING)`);
+    lines.push('');
+    lines.push('-- ARRIVAL PARAMETERS --');
+    if (faVArrival.trim() !== '' && faVArrival !== '0') {
+        lines.push(`TGT Vel: ${parseNum(faVArrival)} ${faVArrivalUnit}`);
+    }
+    lines.push(noWakeEnabled === 'enabled' ? 'Stand-off: NO-WAKE ZONE (300 km)' : `Stand-off: ${parseNum(standoffKm)} km`);
+    lines.push('');
+    lines.push('-- VESSEL PARAMETERS --');
+    if (isFinite(faTargetAccel_mps2)) {
+        lines.push(`Acceleration: ${(faTargetAccel_mps2 / G).toFixed(2)} G`);
+    }
+    if (faTargetBudget_s != null && isFinite(faTargetBudget_s)) {
+        lines.push(`Reactant Budget: ${(faTargetBudget_s / 3600).toFixed(2)}h`);
+    }
+    if (faHasDoublePlan)
+    {
+        lines.push(`Optimization Target: ${faPlanType}`);
+    }
+    const nowString = formatGameTime(addGameTime(faParsedGameTime, 0))
+    if (nowString !== null) {
+        lines.push('');
+        lines.push('-- GAME CLOCK --');
+        lines.push(`Current Time: ${nowString}`);
+    }
+    return lines;
 }
 export default ApproachOutput;

@@ -105,9 +105,9 @@ function ApproachInput({args} : {args : ApproachInputArgs})
         standoffError={standoffError}
         />
 
-        {/* -- Trip Parameters -- */}
+        {/* -- Trip Constraints -- */}
         <div className="bc-panel-header" style={{ marginTop: 20 }}>
-        ◇ Trip Parameters
+        ◇ Trip Constraints
         </div>
         <InputRow
         label="Acceleration"

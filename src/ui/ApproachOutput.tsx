@@ -276,7 +276,7 @@ function getApproachInputCopy(args : ApproachInputSummaryArgs)
     }
     lines.push(noWakeEnabled === 'enabled' ? 'Stand-off: NO-WAKE ZONE (300 km)' : `Stand-off: ${parseNum(standoffKm)} km`);
     lines.push('');
-    lines.push('-- VESSEL PARAMETERS --');
+    lines.push('-- TRIP CONSTRAINTS --');
     if (isFinite(faTargetAccel_mps2)) {
         lines.push(`Acceleration: ${(faTargetAccel_mps2 / G).toFixed(2)} G`);
     }

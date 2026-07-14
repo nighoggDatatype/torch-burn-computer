@@ -4,7 +4,6 @@ import { FinalApproachResult } from "../solvers/approachSolvers.js";
 import { G } from "../utils/constants.js";
 import { addGameTime, formatDistance, formatTargetDuration, formatGameTime } from "../utils/formatters.js";
 import { GameDateTime, parseNum } from "../utils/parsers.js";
-import { ApproachInputArgs } from "./ApproachInput.js";
 import { useEffect, useRef, useState } from "react";
 import { IsPlanValid } from "../solvers/physics.js";
 

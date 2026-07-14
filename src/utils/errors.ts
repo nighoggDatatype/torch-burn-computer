@@ -17,6 +17,10 @@ export const targetAccelTooSmallError = {
     error: "ACCELERATION BELOW MINIMUM THRUST (0.01 G)",
     detail: "Enter a value of 0.01 G or higher."
 }
+export const targetAccelTooLargeError = {
+    error: "ACCELERATION ABOVE MAXIMUM THRUST (100 G)",
+    detail: "Enter a value less than 100 G."
+}
 export const nonPositiveAccelError = {
     error: 'ACCELERATION MUST BE POSITIVE',
     detail: 'Enter a thrust value greater than zero.',
@@ -112,9 +116,13 @@ export function insufficientAccelError
     }
 }
 
-export const computedAccelTooFast = {
+export const computedAccelTooSlow = {
     error : 'REQUIRED ACCELERATION BELOW MINIMUM THRUST (0.01 G)',
     detail : 'Check input units or allow for decreased range'
+}
+export const computedAccelTooFast = {
+    error : 'REQUIRED ACCELERATION ABOVE MAXIMUM THRUST (100 G)',
+    detail : 'Check input units or allow for increased range'
 }
 
 //Final approach specific errors
@@ -127,9 +135,13 @@ export const finalApproach_nonBrakingVelocityDeltaError = {
     error: 'CUTOFF VELOCITY MUST BE LESS THAN CURRENT VREL',
     detail: 'You must be braking toward a lower speed.',
 }
-export const finalApproach_computedDecelTooFast = {
+export const finalApproach_computedDecelTooSlow = {
     error : 'REQUIRED DECELERATION BELOW MINIMUM THRUST (0.01 G)',
     detail : 'Check input units or allow for decreased range'
+}
+export const finalApproach_computedDecelTooFast = {
+    error : 'REQUIRED DECELERATION ABOVE MAXIMUM THRUST (100 G)',
+    detail : 'Check input units or allow for increased range'
 }
 
 export function finalApproach_InsufficientBudgetError

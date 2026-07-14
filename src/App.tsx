@@ -14,7 +14,7 @@ import ErrorBoundary from './components/ErrorBoundary.js';
 import useUrlOrLocalState from './utils/persistence.js';
 import Timeline from './ui/Timeline.js';
 import BurnOutput from './ui/BurnOutput.js';
-import { badInputError, computedAccelTooFast as computedAccelTooSlow, finalApproach_computedDecelTooFast as finalApproach_computedDecelTooSlow, finalApproach_InsufficientAccelError, finalApproach_InsufficientBudgetError, getStandOffError, getV0Error, insufficientAccelError, insufficientBudgetError, insufficientDurationError, internalSolverError, targetAccelTooSmallError } from './utils/errors.js';
+import { badInputError, computedAccelTooFast, computedAccelTooSlow, finalApproach_computedDecelTooFast, finalApproach_computedDecelTooSlow, finalApproach_InsufficientAccelError, finalApproach_InsufficientBudgetError, getStandOffError, getV0Error, insufficientAccelError, insufficientBudgetError, insufficientDurationError, internalSolverError, targetAccelTooLargeError, targetAccelTooSmallError } from './utils/errors.js';
 import { accelOnlySolver, budgetOnlySolver, durationOnlySolver, optimalAccelSolver, optimalBudgetSolver, optimalDurationSolver } from './solvers/burnSolvers.js';
 import BurnInput from './ui/BurnInput.js';
 import { computeFinalApproach_constantBurn, computeFinalApproach_givenAccel, computeFinalApproach_givenBudget } from './solvers/approachSolvers.js';
@@ -138,7 +138,8 @@ function BurnCalculatorInner() {
   const targetAccelAttempted = accel.trim() !== '';
   const targetAccel_mps2 = parseGValue(accel);
   const targetAccelTooSmall = isFinite(targetAccel_mps2) && targetAccel_mps2 < 0.01 * G;
-  const targetAccelValid = isFinite(targetAccel_mps2) && !targetAccelTooSmall;
+  const targetAccelTooLarge = isFinite(targetAccel_mps2) && targetAccel_mps2 > 100 * G;
+  const targetAccelValid = isFinite(targetAccel_mps2) && !targetAccelTooSmall && !targetAccelTooLarge;
   const targetAccelError = targetAccelAttempted && !targetAccelValid;
   const targetAccelFilled = targetAccelAttempted && targetAccelValid;
 
@@ -184,6 +185,7 @@ function BurnCalculatorInner() {
   const inputError = 
       burnMissingFields.length > 0 ? badInputError :
       targetAccelTooSmall ? targetAccelTooSmallError :
+      targetAccelTooLarge ? targetAccelTooLargeError :
       hasWakeError ? getStandOffError({standoffError, noWakeEnabled, standoffKm}) :
       hasV0Error ? getV0Error({vcrs_mps}) : 
       null
@@ -244,9 +246,9 @@ function BurnCalculatorInner() {
   const finalPlanErrors = 
     finalPlanRaw === null ? internalSolverError :
     !finalPlanCanCheck ? null :
-    finalPlanRaw.a_mps2 < 0.01 * G ? computedAccelTooSlow
-    //TODO: Add computed accel too fast
-    : null;
+    finalPlanRaw.a_mps2 < 0.01 * G ? computedAccelTooSlow :
+    finalPlanRaw.a_mps2 > 100 * G ? computedAccelTooFast :
+    null;
   const finalPlan = noInputProvided 
     ? null 
     : (finalPlanErrors ?? finalPlanRaw);
@@ -270,7 +272,8 @@ function BurnCalculatorInner() {
   const faTargetAccelAttempted = faAccel.trim() !== '';
   const faTargetAccel_mps2 = parseGValue(faAccel);
   const faTargetAccelTooSmall = isFinite(faTargetAccel_mps2) && faTargetAccel_mps2 < 0.01 * G
-  const faTargetAccelValid = isFinite(faTargetAccel_mps2) && !faTargetAccelTooSmall
+  const faTargetAccelTooLarge = isFinite(faTargetAccel_mps2) && faTargetAccel_mps2 > 100 * G
+  const faTargetAccelValid = isFinite(faTargetAccel_mps2) && !faTargetAccelTooSmall && !faTargetAccelTooLarge
   const faTargetAccelError = faTargetAccelAttempted && !faTargetAccelValid
 
   // FA budget conversion - parsed same as Desired Travel Time (bare number = seconds)
@@ -302,6 +305,7 @@ function BurnCalculatorInner() {
   const faInputError = 
       faMissingFields.length > 0 ? badInputError :
       faTargetAccelTooSmall ? targetAccelTooSmallError :
+      faTargetAccelTooLarge ? targetAccelTooLargeError :
       fa_hasWakeError ? getStandOffError({standoffError : fa_standoffError, noWakeEnabled, standoffKm}) :
       null
 
@@ -343,8 +347,9 @@ function BurnCalculatorInner() {
   const faPlanRaw = faInputError ?? faPlanIgnoreInputErrors
   const faPlanCanCheck = IsPlanValid(faPlanRaw)
   const faPlanErrors = !faPlanCanCheck ? null :
-    faPlanRaw.a_mps2 < 0.01 * G ? finalApproach_computedDecelTooSlow
-    : null;
+    faPlanRaw.a_mps2 < 0.01 * G ? finalApproach_computedDecelTooSlow :
+    faPlanRaw.a_mps2 > 100 * G ? finalApproach_computedDecelTooFast :
+    null;
   const faPlan = faNoInputProvided
     ? null
     : (faPlanErrors ?? faPlanRaw);

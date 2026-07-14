@@ -70,7 +70,7 @@ function BurnOutput(
     prevPlanRef.current = key;
     }, [finalPlanOk, finalPlan]);
     
-    function handleBurnCopy() {
+    function handleBurnCopy() { //TODO: Add computed accel display
         if (!finalPlan || finalPlan.error !== null || finalPlan.overshoot)
         {
             return;

@@ -3,6 +3,8 @@ import { G, DAY } from './constants.js';
 type GameDate =  {y:number,mo:number,d:number}
 export type GameDateTime = {date:GameDate|null, seconds:number}
 
+//TODO: Do general sweep of parsing logic, very opaque here
+
 /**
  * Strict numeric parser. Strips thousands-separator commas; rejects non-numeric
  * trailing characters that parseFloat would swallow (e.g. "12abc" → NaN).
@@ -64,7 +66,7 @@ export function daysInMonth(mo: number, y: number) {
  * @param {string} str
  * @returns {number|null} Total seconds, or null on bad input.
  */
-export function parseTargetDuration(str: string) {
+export function parseTargetDuration(str: string) { //TODO: Fix 33.78.9m passing the parser
   if (!str || !str.trim()) return null;
   const s = str.trim().toLowerCase();
 

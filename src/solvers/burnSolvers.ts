@@ -1,5 +1,5 @@
 import { insufficientDurationError, insufficientBudgetError, nonPositiveAccelError } from "../utils/errors.js";
-import { buildDriftPlan, BurnPlanResult, computeConstantBurnPlan, solveAcceleration } from "./physics.js";
+import { buildDriftPlan, BurnPlanResult, computeConstantBurnPlan, solveConstantBurnFromDuration } from "./physics.js";
 
 export function accelOnlySolver( 
     {burn_distance_m, v0_mps, targetAccel_mps2, v_arrival_mps, t_rotate_s} :
@@ -14,25 +14,13 @@ export function budgetOnlySolver
 ) : BurnPlanResult {
     const solveT_s =  targetBudget_s + t_rotate_s;
 
-    const accelSolveResult = solveAcceleration({distance_m: burn_distance_m, v0_mps, v_arrival_mps, t_rotate_s, t_total_s: solveT_s});
-    if (accelSolveResult.error !== null)
-    {
-      return accelSolveResult;
-    }
-
-    return computeConstantBurnPlan({ distance_m: burn_distance_m, v0_mps, a_mps2: accelSolveResult.a_mps2, v_arrival_mps, t_rotate_s })
+    return solveConstantBurnFromDuration({distance_m: burn_distance_m, v0_mps, v_arrival_mps, t_rotate_s, t_total_s: solveT_s});
 }
 export function durationOnlySolver(
     {burn_distance_m, v0_mps, targetDuration_s, v_arrival_mps, t_rotate_s} :
     {burn_distance_m : number, v0_mps : number, targetDuration_s : number, v_arrival_mps : number, t_rotate_s : number}
 ) : BurnPlanResult {
-    const accelSolveResult = solveAcceleration({distance_m: burn_distance_m, v0_mps, v_arrival_mps, t_rotate_s, t_total_s: targetDuration_s});
-    if (accelSolveResult.error !== null)
-    {
-      return accelSolveResult;
-    }
-
-    return  computeConstantBurnPlan({ distance_m: burn_distance_m, v0_mps, a_mps2: accelSolveResult.a_mps2, v_arrival_mps, t_rotate_s })
+    return  solveConstantBurnFromDuration({distance_m: burn_distance_m, v0_mps, v_arrival_mps, t_rotate_s, t_total_s: targetDuration_s});
 }
 export function optimalBudgetSolver(
     {

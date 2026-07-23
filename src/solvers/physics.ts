@@ -2,14 +2,13 @@
  * Computes a flip-and-burn trajectory.
  */
 
-import { badInputError, ErrorResult, flipTimeGreaterThanDurationError, negativeArrivalVelocityError, negativeFlipTimeError, nonPositiveAccelError, nonPositiveBurnDistanceError, nonPositiveDurationError } from "../utils/errors.js"
+import { G } from "../utils/constants.js";
+import { badInputError, computedAccelTooFast, ErrorResult, flipTimeGreaterThanDurationError, negativeArrivalVelocityError, negativeFlipTimeError, nonPositiveAccelError, nonPositiveBurnDistanceError, nonPositiveDurationError } from "../utils/errors.js"
 
 
 export type OvershootBurnPlanResult = { error: null, overshoot: true, brake_only_dist: number, shortfall: number, t_brake_full: number }
 export type SuccessBurnPlanResult = { error: null, overshoot: false, flip_now: boolean, a_mps2: number, v_max: number, t_accel: number, t_rotate: number, t_drift: number, t_brake: number, t_total: number, d_accel: number, d_rotate: number, d_drift: number, d_brake: number }
 export type BurnPlanResult = ErrorResult | OvershootBurnPlanResult | SuccessBurnPlanResult
-
-type AccelResult = { error: null, a_mps2: number }
 
 export function computeConstantBurnPlan({ distance_m, v0_mps, a_mps2, v_arrival_mps, t_rotate_s } : 
   { distance_m: number, v0_mps: number, a_mps2: number, v_arrival_mps: number, t_rotate_s: number}) : BurnPlanResult {
@@ -94,17 +93,12 @@ export function computeConstantBurnPlan({ distance_m, v0_mps, a_mps2, v_arrival_
 
 /**
  * Solves for the acceleration required to complete a burn in exactly t_total_s seconds.
- *
- * Derivation: substituting v_max = (a·T + S)/2 into the distance constraint yields
- * a quadratic in a: A·a² + B·a + C = 0
- * where T = t_total_s − t_rotate_s, S = v0_mps + v_arrival_mps.
  * 
- * 
- * TODO: FIGURE OUT WHAT THE FUCK THE SOUNDNESS OF THIS ALGO IS, AND IF I NEED TO DO NUMERICAL ANALAYSIS INSTEAD
+ * Uses the bisection method as a known good method to do so. //TODO: Validate my new method
  */
-export function solveAcceleration({ distance_m, v0_mps, v_arrival_mps, t_rotate_s, t_total_s } : 
+export function solveConstantBurnFromDuration({ distance_m, v0_mps, v_arrival_mps, t_rotate_s, t_total_s } : 
   { distance_m: number, v0_mps: number, v_arrival_mps: number, t_rotate_s: number, t_total_s: number}) :
-  ErrorResult | AccelResult {
+  ErrorResult | SuccessBurnPlanResult {
   if (![distance_m, v0_mps, v_arrival_mps, t_rotate_s, t_total_s].every(isFinite)) {
     return badInputError;
   }
@@ -117,38 +111,47 @@ export function solveAcceleration({ distance_m, v0_mps, v_arrival_mps, t_rotate_
   if (t_total_s <= 0) {
     return nonPositiveDurationError;
   }
-
-  const T = t_total_s - t_rotate_s;
-  if (T <= 0) {
+  if (t_rotate_s < 0) {
+    return negativeFlipTimeError;
+  }
+  if (t_total_s <= t_rotate_s) {
     return flipTimeGreaterThanDurationError;
   }
-
-  const S = v0_mps + v_arrival_mps;
-  const D = distance_m;
-
-  const A_coeff = T * (T + 2 * t_rotate_s);
-  const B_coeff = 2 * (S * (T + t_rotate_s) - 2 * D);
-  const C_coeff = S * S - 2 * v0_mps * v0_mps - 2 * v_arrival_mps * v_arrival_mps;
-
-  const disc = B_coeff * B_coeff - 4 * A_coeff * C_coeff;
-  if (disc < 0)
-    return {
-      error: 'NO SOLUTION EXISTS',
-      detail: 'The target duration is physically impossible for this distance and velocity.',
-    };
-
-  const r1 = (-B_coeff + Math.sqrt(disc)) / (2 * A_coeff);
-  const r2 = (-B_coeff - Math.sqrt(disc)) / (2 * A_coeff);
-
-  const candidates = [r1, r2].filter((r) => r > 1e-6); // must be meaningfully positive
-  if (candidates.length === 0)
-    return {
-      error: 'NO POSITIVE SOLUTION',
-      detail: 'The target duration is too long — no valid acceleration found.',
-    };
-
-  const a = Math.min(...candidates); // smallest positive root = minimum required acceleration
-  return { a_mps2: a, error : null};
+  // Accel scan range, set to be beyond the (0.01 - 100) range to allow natural detection of bad accel values by later steps
+  let min_a_mps2 = 0.001 * G;
+  let max_a_mps2 = 101 * G;
+  let bestBurnPlan = null;
+  for (let i = 0; i < 30; i++)
+  {
+    const a_mps2 = (max_a_mps2 + min_a_mps2) / 2
+    const candidatePlan = computeConstantBurnPlan({ distance_m, v0_mps, a_mps2, v_arrival_mps, t_rotate_s })
+    if (candidatePlan.error !== null) { //Bubble up error, only occur on bad input
+      return candidatePlan;
+    }
+    if (candidatePlan.overshoot) { //Not enough accel, more needed
+      min_a_mps2 = a_mps2;
+      continue;
+    }
+    const candidate_duration = candidatePlan.t_total;
+    if (candidate_duration > t_total_s + 1) //Too slow, faster acceleration (allow 1 second leeway for display purposes)
+    {
+      min_a_mps2 = a_mps2;
+      continue
+    }
+    //Candidate plan is now valid, bisection guarantees it has lower a_mps2 so we use it as new best value
+    bestBurnPlan = candidatePlan; 
+    if (t_total_s - Math.floor(candidate_duration) < 1) //Display duration will be the same
+    {
+      break; //Early exit for performance
+    }
+    max_a_mps2 = a_mps2;
+    //Implicit continue
+  }
+  if (bestBurnPlan == null) //We never found a fast enough accel, so the required accel is for sure too much
+  {
+    return computedAccelTooFast;
+  }
+  return bestBurnPlan;
 }
 
   // ════════════════════════════════════════════════════════════════════
